@@ -1,4 +1,5 @@
 import multer from "multer";
+import fs from "fs";
 import {
   getVideos,
   getVideoById,
@@ -22,8 +23,8 @@ import { notifyWorkspaceMembers } from "../services/notification.js";
 import { getWorkspaceByBucket } from "../services/workspace.js";
 
 const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 * 1024 }, // 5GB
+  storage: multer.diskStorage({}), // Uses system temp directory
+  limits: { fileSize: 20 * 1024 * 1024 * 1024 }, // 20GB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["video/mp4", "video/quicktime", "video/webm"];
     if (allowedTypes.includes(file.mimetype)) {
@@ -137,13 +138,15 @@ export async function uploadVideo(req, res) {
           .json({ error: "You do not have permission to upload videos" });
       }
 
-      const { originalname, buffer, size, mimetype } = req.file;
+      const { originalname, path: filePath, size, mimetype } = req.file;
       const { bucket: targetBucket, prefix } = resolveBucket(req.bucket);
       const objectKey = `${prefix}${Date.now()}-${originalname}`;
       const replaceVideoId = req.body.replaceVideoId || null;
 
+      const fileStream = fs.createReadStream(filePath);
+
       // Upload original to S3
-      await uploadToS3(targetBucket, objectKey, buffer, mimetype);
+      await uploadToS3(targetBucket, objectKey, fileStream, mimetype);
 
       // Create video record in database (replaces old video if replaceVideoId provided)
       const video = await createVideo({
@@ -175,11 +178,20 @@ export async function uploadVideo(req, res) {
       }
 
       // Process HLS in background (don't await)
-      processVideoToHLS(buffer, video.id, req.bucket, originalname).catch(
-        (err) => {
+      processVideoToHLS(filePath, video.id, req.bucket, originalname)
+        .catch((err) => {
           console.error("Background HLS processing failed:", err.message);
-        },
-      );
+        })
+        .finally(() => {
+          // Cleanup the uploaded temp file after HLS processing is done
+          try {
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+          } catch (e) {
+            console.error("Cleanup error:", e);
+          }
+        });
 
       res.status(201).json({
         video,

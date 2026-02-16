@@ -38,19 +38,17 @@ const QUALITIES = [
 ];
 
 export async function processVideoToHLS(
-  videoBuffer,
+  inputPath,
   videoId,
   bucketName,
   originalFilename,
 ) {
   const { bucket, prefix } = resolveBucket(bucketName);
   const tempDir = path.join(os.tmpdir(), `hls-${videoId}`);
-  const inputPath = path.join(tempDir, "input.mp4");
   const hlsBase = `${prefix}hls/${videoId}`;
 
   try {
     fs.mkdirSync(tempDir, { recursive: true });
-    fs.writeFileSync(inputPath, videoBuffer);
 
     // Get video info to determine max resolution
     const videoInfo = await getVideoInfo(inputPath);
