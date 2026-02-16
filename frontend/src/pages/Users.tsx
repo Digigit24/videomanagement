@@ -218,6 +218,8 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
                 <option value="member">Member</option>
                 <option value="client">Client</option>
                 <option value="editor">Editor</option>
+                <option value="project_manager">Project Manager</option>
+                <option value="social_media_manager">Social Media Manager</option>
                 <option value="admin">Admin</option>
               </select>
             </div>

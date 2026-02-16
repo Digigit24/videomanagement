@@ -1,31 +1,61 @@
-import api from '@/lib/api';
-import { Video, VideoStatus, Comment, User, VideoViewer, Workspace, Invitation, UserRole } from '@/types';
+import api from "@/lib/api";
+import {
+  Video,
+  VideoStatus,
+  Comment,
+  User,
+  VideoViewer,
+  Workspace,
+  Invitation,
+  UserRole,
+  DeletedVideo,
+} from "@/types";
 
 export const authService = {
   login: async (email: string, password: string) => {
-    const { data } = await api.post('/login', { email, password });
+    const { data } = await api.post("/login", { email, password });
     return data;
-  }
+  },
 };
 
 export const userService = {
-  register: async (name: string, email: string, password: string, role?: string) => {
-    const { data } = await api.post('/register', { name, email, password, role });
+  register: async (
+    name: string,
+    email: string,
+    password: string,
+    role?: string,
+  ) => {
+    const { data } = await api.post("/register", {
+      name,
+      email,
+      password,
+      role,
+    });
     return data.user as User;
   },
 
   login: async (email: string, password: string) => {
-    const { data } = await api.post('/login', { email, password });
+    const { data } = await api.post("/login", { email, password });
     return data;
   },
 
   getUsers: async () => {
-    const { data } = await api.get('/users');
+    const { data } = await api.get("/users");
     return data.users as User[];
   },
 
-  createUser: async (name: string, email: string, password: string, role: string = 'member') => {
-    const { data } = await api.post('/register', { name, email, password, role });
+  createUser: async (
+    name: string,
+    email: string,
+    password: string,
+    role: string = "member",
+  ) => {
+    const { data } = await api.post("/register", {
+      name,
+      email,
+      password,
+      role,
+    });
     return data.user as User;
   },
 
@@ -34,15 +64,15 @@ export const userService = {
   },
 
   getCurrentUser: async () => {
-    const { data } = await api.get('/user/me');
+    const { data } = await api.get("/user/me");
     return data.user as User;
   },
 
   uploadAvatar: async (file: File) => {
     const formData = new FormData();
-    formData.append('avatar', file);
-    const { data } = await api.post('/user/avatar', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    formData.append("avatar", file);
+    const { data } = await api.post("/user/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     });
     return data.user as User;
   },
@@ -51,30 +81,46 @@ export const userService = {
     const { data } = await api.patch(`/user/${userId}/role`, { role });
     return data.user as User;
   },
+
+  getOrgMembers: async () => {
+    const { data } = await api.get("/org-members");
+    return data.members as User[];
+  },
 };
 
 export const workspaceService = {
   getWorkspaces: async () => {
-    const { data } = await api.get('/workspaces');
+    const { data } = await api.get("/workspaces");
     return data.workspaces as Workspace[];
   },
 
-  createWorkspace: async (bucket: string, clientName: string) => {
-    const { data } = await api.post('/workspaces', { bucket, clientName });
+  createWorkspace: async (clientName: string, memberIds?: string[]) => {
+    const { data } = await api.post("/workspaces", { clientName, memberIds });
     return data.workspace as Workspace;
   },
 
-  updateWorkspace: async (id: string, clientName: string, clientLogo?: string) => {
-    const { data } = await api.patch(`/workspace/${id}`, { clientName, clientLogo });
+  updateWorkspace: async (
+    id: string,
+    clientName: string,
+    clientLogo?: string,
+  ) => {
+    const { data } = await api.patch(`/workspace/${id}`, {
+      clientName,
+      clientLogo,
+    });
     return data.workspace as Workspace;
   },
 
   uploadLogo: async (workspaceId: string, file: File) => {
     const formData = new FormData();
-    formData.append('logo', file);
-    const { data } = await api.post(`/workspace/${workspaceId}/logo`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    formData.append("logo", file);
+    const { data } = await api.post(
+      `/workspace/${workspaceId}/logo`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
     return data.workspace as Workspace;
   },
 
@@ -83,8 +129,16 @@ export const workspaceService = {
     return data.members;
   },
 
+  addMember: async (workspaceId: string, userId: string) => {
+    await api.post(`/workspace/${workspaceId}/members`, { userId });
+  },
+
+  removeMember: async (workspaceId: string, userId: string) => {
+    await api.delete(`/workspace/${workspaceId}/members/${userId}`);
+  },
+
   createInvitation: async (workspaceId: string) => {
-    const { data } = await api.post('/invitations', { workspaceId });
+    const { data } = await api.post("/invitations", { workspaceId });
     return data.invitation as Invitation;
   },
 
@@ -93,22 +147,33 @@ export const workspaceService = {
     return data.invitation;
   },
 
-  acceptInvitation: async (code: string, name: string, email: string, password: string, role: string) => {
-    const { data } = await api.post(`/invite/${code}/accept`, { name, email, password, role });
+  acceptInvitation: async (
+    code: string,
+    name: string,
+    email: string,
+    password: string,
+    role: string,
+  ) => {
+    const { data } = await api.post(`/invite/${code}/accept`, {
+      name,
+      email,
+      password,
+      role,
+    });
     return data;
   },
 };
 
 export const bucketService = {
   getBuckets: async () => {
-    const { data } = await api.get('/buckets');
+    const { data } = await api.get("/buckets");
     return data.buckets as string[];
-  }
+  },
 };
 
 export const videoService = {
   getVideos: async (bucket: string) => {
-    const { data } = await api.get('/videos', { params: { bucket } });
+    const { data } = await api.get("/videos", { params: { bucket } });
     return data.videos as Video[];
   },
 
@@ -122,25 +187,58 @@ export const videoService = {
     return data.video as Video;
   },
 
-  uploadVideo: async (file: File, bucket: string, onProgress?: (progressEvent: any) => void) => {
+  uploadVideo: async (
+    file: File,
+    bucket: string,
+    onProgress?: (progressEvent: any) => void,
+    parentVideoId?: string,
+  ) => {
     const formData = new FormData();
-    formData.append('video', file);
-    const { data } = await api.post('/upload', formData, {
+    formData.append("video", file);
+    if (parentVideoId) {
+      formData.append("parentVideoId", parentVideoId);
+    }
+    const { data } = await api.post("/upload", formData, {
       params: { bucket },
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { "Content-Type": "multipart/form-data" },
       onUploadProgress: onProgress,
     });
     return data.video as Video;
   },
 
   getStreamUrl: (id: string, bucket: string) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     return `/api/stream/${id}?bucket=${bucket}&token=${token}`;
   },
 
   getHLSUrl: (id: string, bucket: string) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     return `/api/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
+  },
+
+  getDownloadUrl: (id: string, bucket: string) => {
+    const token = localStorage.getItem("token");
+    return `/api/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
+  },
+
+  getVersionHistory: async (videoId: string, bucket: string) => {
+    const { data } = await api.get(`/video/${videoId}/versions`, {
+      params: { bucket },
+    });
+    return data as { versions: Video[]; currentVersionId: string };
+  },
+
+  deleteVideo: async (videoId: string, bucket: string) => {
+    await api.delete(`/video/${videoId}`, { params: { bucket } });
+  },
+
+  getDeletedVideos: async (bucket: string) => {
+    const { data } = await api.get("/deleted-videos", { params: { bucket } });
+    return data.deleted as DeletedVideo[];
+  },
+
+  restoreVideo: async (deletedVideoId: string) => {
+    await api.post(`/deleted-video/${deletedVideoId}/restore`);
   },
 
   recordView: async (videoId: string) => {
@@ -159,7 +257,12 @@ export const commentService = {
     return data.comments as Comment[];
   },
 
-  addComment: async (videoId: string, content: string, videoTimestamp?: number, replyTo?: string) => {
+  addComment: async (
+    videoId: string,
+    content: string,
+    videoTimestamp?: number,
+    replyTo?: string,
+  ) => {
     const { data } = await api.post(`/video/${videoId}/comments`, {
       content,
       videoTimestamp: videoTimestamp ?? null,
@@ -173,7 +276,9 @@ export const commentService = {
   },
 
   updateMarkerStatus: async (commentId: string, markerStatus: string) => {
-    const { data } = await api.patch(`/comment/${commentId}/marker`, { markerStatus });
+    const { data } = await api.patch(`/comment/${commentId}/marker`, {
+      markerStatus,
+    });
     return data.comment as Comment;
   },
 };

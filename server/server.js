@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import app from "./app.js";
 import { initDatabase } from "./db/index.js";
 import { seedAdmin } from "./services/user.js";
+import { startBackupCleanup } from "./controllers/video.js";
 
 dotenv.config({ path: "../.env" });
 
@@ -12,6 +13,9 @@ async function start() {
     // Initialize database
     await initDatabase();
     await seedAdmin();
+
+    // Start backup cleanup scheduler
+    startBackupCleanup();
 
     // Start server
     app.listen(PORT, () => {

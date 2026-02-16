@@ -1,7 +1,7 @@
-import pg from 'pg';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pg from "pg";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const { Pool } = pg;
 
@@ -14,14 +14,16 @@ function getPool() {
   if (!pool) {
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
-      throw new Error('DATABASE_URL environment variable is not set');
+      throw new Error("DATABASE_URL environment variable is not set");
     }
 
     pool = new Pool({
       connectionString: dbUrl,
-      ssl: dbUrl.includes('sslmode=require') ? {
-        rejectUnauthorized: false
-      } : false
+      ssl: dbUrl.includes("sslmode=require")
+        ? {
+            rejectUnauthorized: false,
+          }
+        : false,
     });
   }
   return pool;
@@ -30,16 +32,26 @@ function getPool() {
 // Initialize database
 export async function initDatabase() {
   try {
-    const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+    const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
     await getPool().query(schema);
 
     // Run migrations
-    const migrations = fs.readFileSync(path.join(__dirname, 'migrations.sql'), 'utf8');
+    const migrations = fs.readFileSync(
+      path.join(__dirname, "migrations.sql"),
+      "utf8",
+    );
     await getPool().query(migrations);
 
-    console.log('✓ Database initialized successfully');
+    // Run v2 migrations (versioning, backup, new roles)
+    const migrationsV2 = fs.readFileSync(
+      path.join(__dirname, "migrations_v2.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV2);
+
+    console.log("✓ Database initialized successfully");
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error("Database initialization error:", error);
     throw error;
   }
 }

@@ -4,13 +4,15 @@ import { workspaceService, videoService } from '@/services/api.service';
 import { useBucket } from '@/hooks/useBucket';
 import { Workspace, Video } from '@/types';
 import VideoTable from '@/components/VideoTable';
-import { FolderOpen, FileVideo, Users, CalendarDays, X } from 'lucide-react';
+import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
+import { FolderOpen, FileVideo, Users, CalendarDays, X, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
   const role = localStorage.getItem('userRole');
-  const isAdminOrEditor = role === 'admin' || role === 'editor';
+  const isOrgRole = ['admin', 'editor', 'project_manager', 'social_media_manager'].includes(role || '');
 
-  if (isAdminOrEditor) {
+  if (isOrgRole) {
     return <AdminDashboard />;
   }
 
@@ -20,7 +22,10 @@ export default function Dashboard() {
 function AdminDashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const navigate = useNavigate();
+  const userRole = localStorage.getItem('userRole');
+  const canCreate = userRole === 'admin' || userRole === 'project_manager';
 
   useEffect(() => {
     loadWorkspaces();
@@ -52,6 +57,12 @@ function AdminDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-gray-900">Client Workspaces</h1>
+        {canCreate && (
+          <Button onClick={() => setCreateModalOpen(true)} size="sm">
+            <Plus className="h-4 w-4 mr-1" />
+            New Client
+          </Button>
+        )}
       </div>
 
       {workspaces.length === 0 ? (
@@ -59,6 +70,12 @@ function AdminDashboard() {
           <FolderOpen className="h-12 w-12 mx-auto mb-3 text-gray-200" />
           <p className="text-sm text-gray-400">No workspaces yet</p>
           <p className="text-xs text-gray-300 mt-1">Create a workspace to get started</p>
+          {canCreate && (
+            <Button onClick={() => setCreateModalOpen(true)} size="sm" className="mt-4">
+              <Plus className="h-4 w-4 mr-1" />
+              Create Workspace
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -103,6 +120,12 @@ function AdminDashboard() {
           ))}
         </div>
       )}
+
+      <CreateWorkspaceModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={loadWorkspaces}
+      />
     </div>
   );
 }

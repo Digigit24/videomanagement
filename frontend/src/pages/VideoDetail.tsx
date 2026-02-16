@@ -8,9 +8,11 @@ import VideoPlayer from '@/components/VideoPlayer';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
 import TimestampPanel from '@/components/TimestampPanel';
+import VersionHistory from '@/components/VersionHistory';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Upload, Trash2 } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -29,6 +31,7 @@ export default function VideoDetail() {
   const { currentBucket } = useBucket();
   const navigate = useNavigate();
   const playerRef = useRef<ReactPlayer>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [viewers, setViewers] = useState<VideoViewer[]>([]);
@@ -37,10 +40,23 @@ export default function VideoDetail() {
   const [currentTime, setCurrentTime] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
   const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void } | null>(null);
+  const [uploadingVersion, setUploadingVersion] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Confirmation dialog state
+  const [confirmStatus, setConfirmStatus] = useState<{ open: boolean; newStatus: VideoStatus | null }>({
+    open: false,
+    newStatus: null,
+  });
+
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const userRole = localStorage.getItem('userRole');
   const canChangeStatus = userRole === 'client' || userRole === 'admin';
   const canChangeMarkerStatus = userRole === 'editor' || userRole === 'admin';
+  const canUpload = ['admin', 'editor', 'project_manager', 'social_media_manager'].includes(userRole || '');
+  const canDelete = ['admin', 'editor', 'project_manager', 'social_media_manager'].includes(userRole || '');
 
   useEffect(() => {
     if (id && currentBucket) {
@@ -85,11 +101,21 @@ export default function VideoDetail() {
     }
   };
 
-  const handleStatusChange = async (status: VideoStatus) => {
-    if (!video) return;
+  // Status change with confirmation
+  const handleStatusChangeRequest = (status: VideoStatus) => {
+    if (status === video?.status) return;
+    setConfirmStatus({ open: true, newStatus: status });
+  };
+
+  const handleStatusConfirm = async () => {
+    if (!video || !confirmStatus.newStatus) return;
+    const status = confirmStatus.newStatus;
     const previousStatus = video.status;
+
+    setConfirmStatus({ open: false, newStatus: null });
     setVideo({ ...video, status, updated_at: new Date().toISOString() });
     setUpdating(true);
+
     try {
       await videoService.updateStatus(video.id, status);
     } catch (error) {
@@ -126,6 +152,62 @@ export default function VideoDetail() {
     );
   };
 
+  // Upload new version
+  const handleUploadNewVersion = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !video || !currentBucket) return;
+
+    setUploadingVersion(true);
+    setUploadProgress(0);
+
+    try {
+      const newVideo = await videoService.uploadVideo(
+        file,
+        currentBucket,
+        (progress) => {
+          if (progress.total) {
+            setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
+          }
+        },
+        video.id
+      );
+
+      // Navigate to the new version
+      navigate(`/video/${newVideo.id}`);
+    } catch (error) {
+      console.error('Failed to upload new version:', error);
+    } finally {
+      setUploadingVersion(false);
+      setUploadProgress(0);
+      if (uploadRef.current) uploadRef.current.value = '';
+    }
+  };
+
+  // Delete video
+  const handleDeleteVideo = async () => {
+    if (!video || !currentBucket) return;
+    setConfirmDelete(false);
+
+    try {
+      await videoService.deleteVideo(video.id, currentBucket);
+      navigate(-1);
+    } catch (error) {
+      console.error('Failed to delete video:', error);
+    }
+  };
+
+  // Version select -> navigate
+  const handleVersionSelect = (videoId: string) => {
+    navigate(`/video/${videoId}`);
+  };
+
+  // Download
+  const handleDownload = () => {
+    if (!video || !currentBucket) return;
+    const url = videoService.getDownloadUrl(video.id, currentBucket);
+    window.open(url, '_blank');
+  };
+
   if (loading || !video || !currentBucket) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -154,9 +236,66 @@ export default function VideoDetail() {
           <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">
             {video.filename}
           </h1>
+          {video.version_number > 1 && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+              v{video.version_number}
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Upload new version */}
+          {canUpload && (
+            <>
+              <input
+                ref={uploadRef}
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                onChange={handleUploadNewVersion}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => uploadRef.current?.click()}
+                disabled={uploadingVersion}
+                className="text-xs"
+              >
+                {uploadingVersion ? (
+                  <span className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
+                    {uploadProgress}%
+                  </span>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                    New Version
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+
+          {/* Download (available for approved videos) */}
+          {video.status === 'Approved' && (
+            <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Download
+            </Button>
+          )}
+
+          {/* Delete */}
+          {canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmDelete(true)}
+              className="text-xs text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+
           {/* Viewers */}
           <div className="relative">
             <button
@@ -175,9 +314,13 @@ export default function VideoDetail() {
                   </div>
                   {viewers.map((viewer) => (
                     <div key={viewer.user_id} className="px-3 py-2 flex items-center gap-2.5 hover:bg-gray-50">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                        {viewer.name?.charAt(0).toUpperCase() || '?'}
-                      </div>
+                      {viewer.avatar_url ? (
+                        <img src={viewer.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                          {viewer.name?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{viewer.name}</p>
                         <p className="text-xs text-gray-400">
@@ -191,11 +334,11 @@ export default function VideoDetail() {
             )}
           </div>
 
-          {/* Status - only for client and admin */}
+          {/* Status - only for client and admin, with confirmation */}
           {canChangeStatus ? (
             <Select
               value={video.status}
-              onValueChange={handleStatusChange}
+              onValueChange={handleStatusChangeRequest}
               disabled={updating}
             >
               <SelectTrigger className={`w-[160px] h-8 text-xs font-medium border ${statusColors[video.status]}`}>
@@ -249,7 +392,23 @@ export default function VideoDetail() {
           )}
           <span className="w-px h-3 bg-gray-200" />
           <span>{video.bucket}</span>
+          {video.version_number > 1 && (
+            <>
+              <span className="w-px h-3 bg-gray-200" />
+              <span className="font-medium text-blue-500">Version {video.version_number}</span>
+            </>
+          )}
         </div>
+      </div>
+
+      {/* Version History */}
+      <div className="mb-4">
+        <VersionHistory
+          videoId={video.id}
+          bucket={currentBucket}
+          currentVersionId={video.id}
+          onVersionSelect={handleVersionSelect}
+        />
       </div>
 
       {/* Timestamp Markers Panel - Below video */}
@@ -274,6 +433,31 @@ export default function VideoDetail() {
           onCommentDeleted={handleCommentDeleted}
         />
       </div>
+
+      {/* Status Change Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmStatus.open}
+        title="Change Video Status"
+        message={`Are you sure you want to change the status from "${video.status}" to "${confirmStatus.newStatus}"?${
+          confirmStatus.newStatus === 'Approved'
+            ? ' This will archive all previous versions.'
+            : ''
+        }`}
+        confirmText={`Change to ${confirmStatus.newStatus}`}
+        onConfirm={handleStatusConfirm}
+        onCancel={() => setConfirmStatus({ open: false, newStatus: null })}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        title="Delete Video"
+        message="This video will be moved to recently deleted and can be restored within 3 days. After that, it will be permanently deleted."
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={handleDeleteVideo}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }

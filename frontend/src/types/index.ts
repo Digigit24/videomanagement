@@ -13,11 +13,26 @@ export interface Video {
   uploaded_at: string | null;
   created_at: string;
   updated_at: string;
+  version_group_id: string | null;
+  version_number: number;
+  is_active_version: boolean;
+  parent_video_id: string | null;
 }
 
-export type VideoStatus = 'Pending' | 'Under Review' | 'Approved' | 'Changes Needed' | 'Rejected';
+export type VideoStatus =
+  | "Pending"
+  | "Under Review"
+  | "Approved"
+  | "Changes Needed"
+  | "Rejected";
 
-export type UserRole = 'admin' | 'editor' | 'client' | 'member';
+export type UserRole =
+  | "admin"
+  | "editor"
+  | "client"
+  | "member"
+  | "project_manager"
+  | "social_media_manager";
 
 export interface User {
   id?: string;
@@ -41,7 +56,7 @@ export interface Comment {
   reply_content: string | null;
   reply_user_id: string | null;
   reply_user_name: string | null;
-  marker_status: 'pending' | 'working' | 'done' | null;
+  marker_status: "pending" | "working" | "done" | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,4 +113,20 @@ export interface DashboardStats {
   approved: number;
   changesNeeded: number;
   rejected: number;
+}
+
+export interface DeletedVideo {
+  id: string;
+  original_video_id: string;
+  version_group_id: string | null;
+  version_number: number;
+  bucket: string;
+  filename: string;
+  object_key: string;
+  size: number;
+  status: string | null;
+  deleted_at: string;
+  expires_at: string;
+  uploaded_by_name: string | null;
+  created_at: string;
 }
