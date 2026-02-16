@@ -16,7 +16,10 @@ app.use(
 app.use(express.json());
 
 // Routes
+// We mount on both /api and / to handle different proxy configurations
+// (some proxies strip the /api prefix, others don't)
 app.use("/api", routes);
+app.use("/", routes);
 
 // Health check
 app.get("/health", (req, res) => {
