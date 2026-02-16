@@ -8,8 +8,9 @@ import KanbanBoard from '@/components/KanbanBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
+import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isToday, isThisWeek, isThisMonth, parseISO } from 'date-fns';
 
@@ -22,6 +23,7 @@ export default function WorkspaceVideos() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [showChat, setShowChat] = useState(false);
+  const [showManageMembers, setShowManageMembers] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [view, setView] = useState<'list' | 'kanban'>(() => {
     return (localStorage.getItem('viewMode') as 'list' | 'kanban') || 'list';
@@ -152,6 +154,19 @@ export default function WorkspaceVideos() {
 
           <ViewSwitcher view={view} onViewChange={handleViewChange} />
 
+          {/* Manage Members */}
+          {workspace && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowManageMembers(true)}
+              className="gap-1.5"
+            >
+              <Users className="h-4 w-4" />
+              Members
+            </Button>
+          )}
+
           {/* Chat Toggle */}
           {workspace && (
             <Button
@@ -222,6 +237,16 @@ export default function WorkspaceVideos() {
         onUploadComplete={loadVideos}
         bucket={bucket}
       />
+
+      {showManageMembers && workspace && (
+        <ManageMembersModal
+          workspaceId={workspace.id}
+          onClose={() => {
+            setShowManageMembers(false);
+            loadWorkspaceInfo(); // Refresh member count in header if needed
+          }}
+        />
+      )}
     </div>
   );
 }
