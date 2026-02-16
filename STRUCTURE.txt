@@ -1,0 +1,79 @@
+zata/
+├── .env.example                    # Environment variables template
+├── .gitignore                      # Git ignore rules
+├── README.md                       # Main documentation
+├── SETUP.md                        # Quick setup guide
+├── DEPLOYMENT.md                   # Production deployment
+├── ARCHITECTURE.md                 # System architecture
+├── PROJECT_SUMMARY.md              # Project overview
+│
+├── server/                         # BACKEND
+│   ├── package.json
+│   ├── server.js                   # Entry point
+│   ├── app.js                      # Express app
+│   │
+│   ├── routes/
+│   │   └── index.js                # API routes
+│   │
+│   ├── controllers/
+│   │   ├── auth.js                 # Login
+│   │   ├── bucket.js               # Bucket list
+│   │   └── video.js                # Video CRUD
+│   │
+│   ├── middleware/
+│   │   └── auth.js                 # JWT auth & validation
+│   │
+│   ├── services/
+│   │   ├── storage.js              # Zata S3 client
+│   │   └── video.js                # Video logic
+│   │
+│   ├── db/
+│   │   ├── schema.sql              # Database schema
+│   │   └── index.js                # DB connection
+│   │
+│   └── utils/
+│       └── logger.js               # Logging
+│
+└── frontend/                       # FRONTEND
+    ├── package.json
+    ├── vite.config.ts
+    ├── tsconfig.json
+    ├── tailwind.config.js
+    ├── postcss.config.js
+    ├── index.html
+    │
+    └── src/
+        ├── main.tsx                # Entry point
+        ├── App.tsx                 # Root component
+        ├── index.css               # Global styles
+        │
+        ├── components/
+        │   ├── Header.tsx
+        │   ├── BucketSwitcher.tsx
+        │   ├── DashboardCards.tsx
+        │   ├── VideoTable.tsx
+        │   ├── VideoPlayer.tsx
+        │   └── ui/                 # ShadCN UI
+        │       ├── button.tsx
+        │       ├── card.tsx
+        │       ├── input.tsx
+        │       └── select.tsx
+        │
+        ├── pages/
+        │   ├── Login.tsx
+        │   ├── Dashboard.tsx
+        │   └── VideoDetail.tsx
+        │
+        ├── hooks/
+        │   ├── useAuth.ts
+        │   └── useBucket.ts
+        │
+        ├── services/
+        │   └── api.service.ts      # API calls
+        │
+        ├── types/
+        │   └── index.ts            # TypeScript types
+        │
+        └── lib/
+            ├── api.ts              # Axios instance
+            └── utils.ts            # Helper functions
