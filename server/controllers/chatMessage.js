@@ -13,15 +13,34 @@ import {
 import { getWorkspaceById } from "../services/workspace.js";
 import { apiError } from "../utils/logger.js";
 import multer from "multer";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
+// Use disk storage with 5GB limit to avoid memory issues for large files
 const messageUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for video support
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const tmpDir = path.join(os.tmpdir(), "chat-uploads");
+      fs.mkdirSync(tmpDir, { recursive: true });
+      cb(null, tmpDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.originalname}`;
+      cb(null, uniqueName);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 * 1024 }, // 5GB
 }).single("attachment");
 
 export async function sendMessage(req, res) {
   messageUpload(req, res, async (err) => {
     if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({ error: "File too large. Maximum size is 5GB." });
+      }
       return res.status(400).json({ error: err.message });
     }
 
@@ -48,12 +67,24 @@ export async function sendMessage(req, res) {
       // Handle file attachment
       if (req.file) {
         const objectKey = `chat-files/${workspaceId}/${Date.now()}-${req.file.originalname}`;
-        await uploadToS3(
-          MAIN_BUCKET,
-          objectKey,
-          req.file.buffer,
-          req.file.mimetype,
-        );
+
+        // Stream from disk to S3
+        const fileStream = fs.createReadStream(req.file.path);
+        try {
+          await uploadToS3(
+            MAIN_BUCKET,
+            objectKey,
+            fileStream,
+            req.file.mimetype,
+          );
+        } finally {
+          // Clean up temp file
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (e) {
+            console.error("Failed to clean up temp file:", e);
+          }
+        }
 
         const attachment = await createMessageAttachment(
           message.id,
@@ -119,6 +150,12 @@ export async function sendMessage(req, res) {
 
       res.status(201).json({ message });
     } catch (error) {
+      // Clean up temp file on error
+      if (req.file?.path) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (e) {}
+      }
       apiError(req, error);
       res.status(500).json({ error: "Failed to send message" });
     }

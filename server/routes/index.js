@@ -95,7 +95,8 @@ router.patch("/notifications/seen-all", authenticate, markAllNotificationsSeen);
 router.get("/logo/:bucket/*", async (req, res) => {
   const { bucket } = req.params;
   const filename = req.params[0];
-  const { getObjectStream, MAIN_BUCKET } = await import("../services/storage.js");
+  const { getObjectStream, MAIN_BUCKET } =
+    await import("../services/storage.js");
 
   try {
     const objectKey = `logos/${bucket}/${filename}`;
@@ -242,18 +243,76 @@ router.get(
       // Set content type based on file extension
       const ext = objectKey.toLowerCase().split(".").pop();
       const contentTypes = {
+        // Images
         jpg: "image/jpeg",
         jpeg: "image/jpeg",
         png: "image/png",
         gif: "image/gif",
         webp: "image/webp",
+        svg: "image/svg+xml",
+        bmp: "image/bmp",
+        ico: "image/x-icon",
+        tiff: "image/tiff",
+        tif: "image/tiff",
+        // Videos
         mp4: "video/mp4",
         mov: "video/quicktime",
         webm: "video/webm",
+        avi: "video/x-msvideo",
+        mkv: "video/x-matroska",
+        flv: "video/x-flv",
+        wmv: "video/x-ms-wmv",
+        m4v: "video/mp4",
+        "3gp": "video/3gpp",
+        // Audio
+        mp3: "audio/mpeg",
+        wav: "audio/wav",
+        ogg: "audio/ogg",
+        aac: "audio/aac",
+        flac: "audio/flac",
+        m4a: "audio/mp4",
+        // Documents
         pdf: "application/pdf",
+        doc: "application/msword",
+        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        xls: "application/vnd.ms-excel",
+        xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ppt: "application/vnd.ms-powerpoint",
+        pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        txt: "text/plain",
+        csv: "text/csv",
+        rtf: "application/rtf",
+        // Archives
+        zip: "application/zip",
+        rar: "application/x-rar-compressed",
+        "7z": "application/x-7z-compressed",
+        tar: "application/x-tar",
+        gz: "application/gzip",
+        // Other
+        json: "application/json",
+        xml: "application/xml",
       };
       if (contentTypes[ext]) {
         res.setHeader("Content-Type", contentTypes[ext]);
+      } else {
+        res.setHeader("Content-Type", "application/octet-stream");
+      }
+
+      // Set download header for non-viewable types
+      const inlineTypes = [
+        "image/",
+        "video/",
+        "audio/",
+        "text/",
+        "application/pdf",
+      ];
+      const ct = contentTypes[ext] || "";
+      if (!inlineTypes.some((t) => ct.startsWith(t))) {
+        const filename = objectKey.split("/").pop();
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${filename}"`,
+        );
       }
 
       stream.pipe(res);
