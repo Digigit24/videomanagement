@@ -85,7 +85,7 @@ export async function updateStatus(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // Send notification
+    // Send notification to ALL workspace members (including clients and admins)
     try {
       const workspace = await getWorkspaceByBucket(video.bucket);
       if (workspace) {
@@ -94,8 +94,8 @@ export async function updateStatus(req, res) {
           workspace.id,
           req.user.id,
           "status_changed",
-          `Video ${status}`,
-          `${userName} changed "${video.filename}" to ${status}`,
+          `Video ${status} — ${workspace.client_name}`,
+          `${userName} changed "${video.filename}" to ${status} in ${workspace.client_name}`,
           "video",
           video.id,
         );
@@ -140,19 +140,19 @@ export async function uploadVideo(req, res) {
       const { originalname, buffer, size, mimetype } = req.file;
       const { bucket: targetBucket, prefix } = resolveBucket(req.bucket);
       const objectKey = `${prefix}${Date.now()}-${originalname}`;
-      const parentVideoId = req.body.parentVideoId || null;
+      const replaceVideoId = req.body.replaceVideoId || null;
 
       // Upload original to S3
       await uploadToS3(targetBucket, objectKey, buffer, mimetype);
 
-      // Create video record in database
+      // Create video record in database (replaces old video if replaceVideoId provided)
       const video = await createVideo({
         bucket: req.bucket,
         filename: originalname,
         objectKey,
         size,
         uploadedBy: req.user.id,
-        parentVideoId,
+        replaceVideoId,
       });
 
       // Send notification
@@ -164,7 +164,7 @@ export async function uploadVideo(req, res) {
             workspace.id,
             req.user.id,
             "video_uploaded",
-            "New Video",
+            `New Video — ${workspace.client_name}`,
             `${userName} uploaded "${originalname}" to ${workspace.client_name}`,
             "video",
             video.id,

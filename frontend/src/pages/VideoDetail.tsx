@@ -8,11 +8,10 @@ import VideoPlayer from '@/components/VideoPlayer';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
 import TimestampPanel from '@/components/TimestampPanel';
-import VersionHistory from '@/components/VersionHistory';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Upload, Trash2 } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Upload, Trash2, Clock, Sparkles } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -25,6 +24,14 @@ const statusColors: Record<VideoStatus, string> = {
   'Changes Needed': 'bg-orange-100 text-orange-800 border-orange-200',
   'Rejected': 'bg-red-100 text-red-800 border-red-200',
 };
+
+function isRecentUpload(dateStr: string | null): boolean {
+  if (!dateStr) return false;
+  const uploadTime = new Date(dateStr).getTime();
+  const now = Date.now();
+  const twentyFourHours = 24 * 60 * 60 * 1000;
+  return (now - uploadTime) < twentyFourHours;
+}
 
 export default function VideoDetail() {
   const { id, bucket } = useParams<{ id: string; bucket?: string }>();
@@ -58,11 +65,7 @@ export default function VideoDetail() {
   const isVideoEditor = userRole === 'video_editor';
   const isClient = userRole === 'client';
 
-  // Requirements:
-  // - video status ... will only be changes by client not by editor (admin can probably do both)
   const canChangeStatus = isClient || isAdmin;
-  
-  // - time stamps status can only e changed by editor and admin not by client
   const canChangeMarkerStatus = isVideoEditor || isAdmin;
 
   const canUpload = [
@@ -118,7 +121,6 @@ export default function VideoDetail() {
     }
   };
 
-  // Status change with confirmation
   const handleStatusChangeRequest = (status: VideoStatus) => {
     if (status === video?.status) return;
     setConfirmStatus({ open: true, newStatus: status });
@@ -169,8 +171,8 @@ export default function VideoDetail() {
     );
   };
 
-  // Upload new version
-  const handleUploadNewVersion = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Replace video (instead of versioning)
+  const handleReplaceVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !video || !currentBucket) return;
 
@@ -186,13 +188,13 @@ export default function VideoDetail() {
             setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
           }
         },
-        video.id
+        video.id // replaceVideoId
       );
 
-      // Navigate to the new version
-      navigate(`/video/${newVideo.id}`);
+      // Navigate to the new video
+      navigate(`/workspace/${currentBucket}/video/${newVideo.id}`);
     } catch (error) {
-      console.error('Failed to upload new version:', error);
+      console.error('Failed to replace video:', error);
     } finally {
       setUploadingVersion(false);
       setUploadProgress(0);
@@ -208,15 +210,6 @@ export default function VideoDetail() {
       navigate(`/workspace/${currentBucket}`);
     } catch (error) {
       console.error("Failed to delete video:", error);
-    }
-  };
-
-  // Version select -> navigate
-  const handleVersionSelect = (videoId: string) => {
-    if (currentBucket) {
-      navigate(`/workspace/${currentBucket}/video/${videoId}`);
-    } else {
-      navigate(`/video/${videoId}`);
     }
   };
 
@@ -241,6 +234,7 @@ export default function VideoDetail() {
   const streamUrl = videoService.getStreamUrl(video.id, currentBucket);
   const hlsUrl = videoService.getHLSUrl(video.id, currentBucket);
   const timestampComments = comments.filter(c => c.video_timestamp !== null);
+  const isNew = isRecentUpload(video.uploaded_at || video.created_at);
 
   return (
     <div className="space-y-0">
@@ -255,22 +249,17 @@ export default function VideoDetail() {
           <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">
             {video.filename}
           </h1>
-          {video.version_number > 1 && (
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-              v{video.version_number}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Upload new version */}
+          {/* Replace Video */}
           {canUpload && (
             <>
               <input
                 ref={uploadRef}
                 type="file"
                 accept="video/mp4,video/quicktime,video/webm"
-                onChange={handleUploadNewVersion}
+                onChange={handleReplaceVideo}
                 className="hidden"
               />
               <Button
@@ -288,7 +277,7 @@ export default function VideoDetail() {
                 ) : (
                   <>
                     <Upload className="h-3.5 w-3.5 mr-1" />
-                    New Version
+                    Replace Video
                   </>
                 )}
               </Button>
@@ -353,7 +342,7 @@ export default function VideoDetail() {
             )}
           </div>
 
-          {/* Status - only for client and admin, with confirmation */}
+          {/* Status */}
           {canChangeStatus ? (
             <Select
               value={video.status}
@@ -384,8 +373,22 @@ export default function VideoDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Main Content Area - Left (8/12) */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Video Player Section */}
-          <div className="bg-gray-950 rounded-xl overflow-hidden shadow-2xl">
+          {/* Video Player Section with Time Capsule */}
+          <div className="relative bg-gray-950 rounded-xl overflow-hidden shadow-2xl">
+            {/* Upload Time Capsule Badge - Top Right */}
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+              {isNew && (
+                <span className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-bold rounded-full shadow-lg animate-pulse">
+                  <Sparkles className="h-3 w-3" />
+                  NEW
+                </span>
+              )}
+              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded-full shadow-lg">
+                <Clock className="h-3 w-3 text-blue-400" />
+                {formatDistanceToNow(new Date(video.uploaded_at || video.created_at), { addSuffix: true })}
+              </span>
+            </div>
+
             {video.hls_ready ? (
               <HLSPlayer
                 hlsUrl={hlsUrl}
@@ -402,7 +405,7 @@ export default function VideoDetail() {
             )}
           </div>
 
-          {/* Video Metadata & Actions Panel */}
+          {/* Video Metadata Panel */}
           <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div className="min-w-0">
@@ -410,9 +413,6 @@ export default function VideoDetail() {
                   {video.filename}
                 </h1>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                  <span className="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-semibold">
-                    v{video.version_number}
-                  </span>
                   <span>{formatBytes(video.size)}</span>
                   <span className="w-1 h-1 rounded-full bg-gray-300" />
                   <span>{formatDate(video.created_at)}</span>
@@ -474,48 +474,31 @@ export default function VideoDetail() {
                 )}
               </div>
 
-              {/* Upload Version Trigger */}
+              {/* Replace Video Trigger */}
               {canUpload && (
-                <>
-                  <input
-                    ref={uploadRef}
-                    type="file"
-                    accept="video/mp4,video/quicktime,video/webm"
-                    onChange={handleUploadNewVersion}
-                    className="hidden"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => uploadRef.current?.click()}
-                    disabled={uploadingVersion}
-                    className="text-xs h-8"
-                  >
-                    {uploadingVersion ? (
-                      <span className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
-                        {uploadProgress}%
-                      </span>
-                    ) : (
-                      <>
-                        <Upload className="h-3.5 w-3.5 mr-1" />
-                        New Version
-                      </>
-                    )}
-                  </Button>
-                </>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => uploadRef.current?.click()}
+                  disabled={uploadingVersion}
+                  className="text-xs h-8"
+                >
+                  {uploadingVersion ? (
+                    <span className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
+                      {uploadProgress}%
+                    </span>
+                  ) : (
+                    <>
+                      <Upload className="h-3.5 w-3.5 mr-1" />
+                      Replace Video
+                    </>
+                  )}
+                </Button>
               )}
             </div>
 
-            <div className="h-px bg-gray-100 my-4" />
-            
             <div className="flex items-center justify-between">
-              <VersionHistory
-                videoId={video.id}
-                bucket={currentBucket}
-                currentVersionId={video.id}
-                onVersionSelect={handleVersionSelect}
-              />
               <div className="text-[10px] text-gray-300 font-mono uppercase tracking-wider">
                 ID: {video.id}
               </div>
@@ -565,11 +548,7 @@ export default function VideoDetail() {
       <ConfirmDialog
         isOpen={confirmStatus.open}
         title="Change Video Status"
-        message={`Are you sure you want to change the status from "${video.status}" to "${confirmStatus.newStatus}"?${
-          confirmStatus.newStatus === 'Approved'
-            ? ' This will archive all previous versions.'
-            : ''
-        }`}
+        message={`Are you sure you want to change the status from "${video.status}" to "${confirmStatus.newStatus}"?`}
         confirmText={`Change to ${confirmStatus.newStatus}`}
         onConfirm={handleStatusConfirm}
         onCancel={() => setConfirmStatus({ open: false, newStatus: null })}

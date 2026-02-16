@@ -8,41 +8,46 @@ export async function createVideo({
   objectKey,
   size,
   uploadedBy,
-  versionGroupId = null,
-  parentVideoId = null,
+  replaceVideoId = null,
 }) {
   try {
-    let versionNumber = 1;
-    let groupId = versionGroupId;
-
-    if (parentVideoId) {
-      // This is a new version of an existing video
-      const parentResult = await pool().query(
-        "SELECT version_group_id, version_number FROM videos WHERE id = $1",
-        [parentVideoId],
+    // If replacing an existing video, delete the old one first
+    if (replaceVideoId) {
+      const oldVideo = await pool().query(
+        "SELECT * FROM videos WHERE id = $1",
+        [replaceVideoId],
       );
-      if (parentResult.rows[0]) {
-        groupId = parentResult.rows[0].version_group_id;
-        versionNumber = parentResult.rows[0].version_number + 1;
-
-        // Get max version in this group
-        const maxResult = await pool().query(
-          "SELECT MAX(version_number) as max_ver FROM videos WHERE version_group_id = $1",
-          [groupId],
-        );
-        versionNumber = (maxResult.rows[0]?.max_ver || 0) + 1;
-
-        // Deactivate all other versions in the group
+      if (oldVideo.rows[0]) {
+        // Move old video to deleted_videos backup
+        const v = oldVideo.rows[0];
         await pool().query(
-          "UPDATE videos SET is_active_version = FALSE WHERE version_group_id = $1",
-          [groupId],
+          `INSERT INTO deleted_videos (original_video_id, version_group_id, version_number, bucket, filename, object_key, size, status, hls_ready, hls_path, uploaded_by, uploaded_at, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            v.id,
+            v.version_group_id,
+            v.version_number,
+            v.bucket,
+            v.filename,
+            v.object_key,
+            v.size,
+            v.status,
+            v.hls_ready,
+            v.hls_path,
+            v.uploaded_by,
+            v.uploaded_at,
+            v.created_at,
+          ],
         );
+
+        // Delete old video record
+        await pool().query("DELETE FROM videos WHERE id = $1", [replaceVideoId]);
       }
     }
 
     const result = await pool().query(
       `INSERT INTO videos (bucket, filename, object_key, size, uploaded_by, uploaded_at, created_at, version_group_id, version_number, is_active_version, parent_video_id)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE($6, gen_random_uuid()), $7, TRUE, $8)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, gen_random_uuid(), 1, TRUE, NULL)
        RETURNING *`,
       [
         bucket,
@@ -50,9 +55,6 @@ export async function createVideo({
         objectKey,
         size,
         uploadedBy,
-        groupId,
-        versionNumber,
-        parentVideoId,
       ],
     );
 
@@ -63,8 +65,7 @@ export async function createVideo({
       filename,
       bucket,
       size,
-      versionNumber: video.version_number,
-      isNewVersion: !!parentVideoId,
+      replacedVideo: !!replaceVideoId,
     });
 
     return video;
@@ -157,7 +158,7 @@ export async function getVideoById(id, bucket) {
   }
 }
 
-// Get all versions of a video (version history)
+// Get all versions of a video (version history) - kept for backward compat
 export async function getVideoVersions(versionGroupId, bucket) {
   try {
     const result = await pool().query(
@@ -195,7 +196,6 @@ export async function updateVideoStatus(id, status, userId) {
       [id],
     );
     const oldStatus = current.rows[0]?.status;
-    const versionGroupId = current.rows[0]?.version_group_id;
 
     const result = await pool().query(
       "UPDATE videos SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
@@ -204,11 +204,6 @@ export async function updateVideoStatus(id, status, userId) {
 
     if (result.rows.length === 0) {
       return null;
-    }
-
-    // If approved, move old versions to backup
-    if (status === "Approved" && versionGroupId) {
-      await archiveOldVersions(versionGroupId, id);
     }
 
     // Log activity
@@ -223,50 +218,6 @@ export async function updateVideoStatus(id, status, userId) {
   } catch (error) {
     console.error("Error updating video status:", error);
     throw error;
-  }
-}
-
-// Archive old versions when a video is approved
-async function archiveOldVersions(versionGroupId, approvedVideoId) {
-  try {
-    // Get all non-active versions in the group (excluding the approved one)
-    const oldVersions = await pool().query(
-      `SELECT * FROM videos
-       WHERE version_group_id = $1 AND id != $2 AND is_active_version = FALSE`,
-      [versionGroupId, approvedVideoId],
-    );
-
-    for (const video of oldVersions.rows) {
-      // Insert into deleted_videos backup
-      await pool().query(
-        `INSERT INTO deleted_videos (original_video_id, version_group_id, version_number, bucket, filename, object_key, size, status, hls_ready, hls_path, uploaded_by, uploaded_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-        [
-          video.id,
-          video.version_group_id,
-          video.version_number,
-          video.bucket,
-          video.filename,
-          video.object_key,
-          video.size,
-          video.status,
-          video.hls_ready,
-          video.hls_path,
-          video.uploaded_by,
-          video.uploaded_at,
-          video.created_at,
-        ],
-      );
-
-      // Delete from videos table
-      await pool().query("DELETE FROM videos WHERE id = $1", [video.id]);
-    }
-
-    console.log(
-      `Archived ${oldVersions.rows.length} old version(s) for group ${versionGroupId}`,
-    );
-  } catch (error) {
-    console.error("Error archiving old versions:", error);
   }
 }
 
@@ -305,7 +256,7 @@ export async function restoreDeletedVideo(deletedVideoId) {
     // Re-insert into videos table
     await pool().query(
       `INSERT INTO videos (id, bucket, filename, object_key, size, status, hls_ready, hls_path, uploaded_by, uploaded_at, created_at, version_group_id, version_number, is_active_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, TRUE)`,
       [
         dv.original_video_id,
         dv.bucket,

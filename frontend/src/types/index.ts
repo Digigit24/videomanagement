@@ -67,6 +67,33 @@ export interface Comment {
   };
 }
 
+export interface ChatMessage {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_avatar: string | null;
+  content: string;
+  reply_to: string | null;
+  reply_content: string | null;
+  reply_user_id: string | null;
+  reply_user_name: string | null;
+  mentions: string[];
+  created_at: string;
+  updated_at: string;
+  attachments: ChatAttachment[];
+}
+
+export interface ChatAttachment {
+  id: string;
+  filename: string;
+  object_key: string;
+  size: number;
+  content_type: string;
+  url: string;
+}
+
 export interface VideoViewer {
   user_id: string;
   name: string;
@@ -151,4 +178,13 @@ export interface Notification {
   entity_id: string | null;
   seen: boolean;
   created_at: string;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar_url: string | null;
+  joined_at: string;
 }

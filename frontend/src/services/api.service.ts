@@ -10,6 +10,8 @@ import {
   UserRole,
   DeletedVideo,
   Notification,
+  ChatMessage,
+  WorkspaceMember,
 } from "@/types";
 
 export const authService = {
@@ -149,7 +151,7 @@ export const workspaceService = {
 
   getMembers: async (workspaceId: string) => {
     const { data } = await api.get(`/workspace/${workspaceId}/members`);
-    return data.members;
+    return data.members as WorkspaceMember[];
   },
 
   addMember: async (workspaceId: string, userId: string) => {
@@ -214,12 +216,12 @@ export const videoService = {
     file: File,
     bucket: string,
     onProgress?: (progressEvent: any) => void,
-    parentVideoId?: string,
+    replaceVideoId?: string,
   ) => {
     const formData = new FormData();
     formData.append("video", file);
-    if (parentVideoId) {
-      formData.append("parentVideoId", parentVideoId);
+    if (replaceVideoId) {
+      formData.append("replaceVideoId", replaceVideoId);
     }
     const { data } = await api.post("/upload", formData, {
       params: { bucket },
@@ -317,6 +319,49 @@ export const commentService = {
       markerStatus,
     });
     return data.comment as Comment;
+  },
+};
+
+export const chatService = {
+  getMessages: async (workspaceId: string, limit?: number, before?: string) => {
+    const params: any = {};
+    if (limit) params.limit = limit;
+    if (before) params.before = before;
+    const { data } = await api.get(`/workspace/${workspaceId}/messages`, { params });
+    return data.messages as ChatMessage[];
+  },
+
+  sendMessage: async (
+    workspaceId: string,
+    content: string,
+    replyTo?: string,
+    mentions?: string[],
+    file?: File,
+  ) => {
+    const formData = new FormData();
+    formData.append("content", content);
+    if (replyTo) {
+      formData.append("replyTo", replyTo);
+    }
+    if (mentions && mentions.length > 0) {
+      formData.append("mentions", JSON.stringify(mentions));
+    }
+    if (file) {
+      formData.append("attachment", file);
+    }
+
+    const { data } = await api.post(
+      `/workspace/${workspaceId}/messages`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
+    return data.message as ChatMessage;
+  },
+
+  deleteMessage: async (messageId: string) => {
+    await api.delete(`/chat-message/${messageId}`);
   },
 };
 

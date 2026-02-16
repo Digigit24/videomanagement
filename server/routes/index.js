@@ -56,6 +56,11 @@ import {
   markAllNotificationsSeen,
 } from "../controllers/notification.js";
 import {
+  sendMessage,
+  getMessages,
+  removeMessage,
+} from "../controllers/chatMessage.js";
+import {
   authenticate,
   authenticateStream,
   validateBucket,
@@ -85,6 +90,37 @@ router.get("/notifications", authenticate, getNotifications);
 router.get("/notifications/count", authenticate, getNotificationCount);
 router.patch("/notification/:id/seen", authenticate, markNotificationSeen);
 router.patch("/notifications/seen-all", authenticate, markAllNotificationsSeen);
+
+// Logo streaming (client images on workspace cards)
+router.get("/logo/:bucket/*", async (req, res) => {
+  const { bucket } = req.params;
+  const filename = req.params[0];
+  const { getObjectStream, MAIN_BUCKET } = await import("../services/storage.js");
+
+  try {
+    const objectKey = `logos/${bucket}/${filename}`;
+    const stream = await getObjectStream(MAIN_BUCKET || bucket, objectKey);
+
+    // Set content type based on file extension
+    const ext = filename.toLowerCase().split(".").pop();
+    const contentTypes = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+      svg: "image/svg+xml",
+    };
+    if (contentTypes[ext]) {
+      res.setHeader("Content-Type", contentTypes[ext]);
+    }
+    res.setHeader("Cache-Control", "public, max-age=86400");
+
+    stream.pipe(res);
+  } catch (error) {
+    res.status(404).json({ error: "Logo not found" });
+  }
+});
 
 // Buckets
 router.get("/buckets", authenticate, getBuckets);
@@ -185,6 +221,47 @@ router.post("/video/:videoId/comments", authenticate, addComment);
 router.get("/video/:videoId/comments", authenticate, getComments);
 router.delete("/comment/:commentId", authenticate, removeComment);
 router.patch("/comment/:commentId/marker", authenticate, updateMarkerStatus);
+
+// Workspace Chat Messages
+router.post("/workspace/:workspaceId/messages", authenticate, sendMessage);
+router.get("/workspace/:workspaceId/messages", authenticate, getMessages);
+router.delete("/chat-message/:messageId", authenticate, removeMessage);
+
+// Chat attachment streaming
+router.get(
+  "/stream-chat-attachment/*",
+  authenticateStream,
+  async (req, res) => {
+    const objectKey = req.params[0];
+    const { getObjectStream } = await import("../services/storage.js");
+    const { MAIN_BUCKET } = await import("../services/storage.js");
+
+    try {
+      const stream = await getObjectStream(MAIN_BUCKET, objectKey);
+
+      // Set content type based on file extension
+      const ext = objectKey.toLowerCase().split(".").pop();
+      const contentTypes = {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        gif: "image/gif",
+        webp: "image/webp",
+        mp4: "video/mp4",
+        mov: "video/quicktime",
+        webm: "video/webm",
+        pdf: "application/pdf",
+      };
+      if (contentTypes[ext]) {
+        res.setHeader("Content-Type", contentTypes[ext]);
+      }
+
+      stream.pipe(res);
+    } catch (error) {
+      res.status(404).json({ error: "Attachment not found" });
+    }
+  },
+);
 
 // Activities
 router.get("/activities", authenticate, listActivities);

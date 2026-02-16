@@ -69,6 +69,31 @@ export async function addComment(req, res) {
         hasAttachment: !!req.file,
       });
 
+      // Notify workspace members about new comment
+      try {
+        const bucket = await getBucketByVideoId(videoId);
+        if (bucket) {
+          const { getWorkspaceByBucket } = await import("../services/workspace.js");
+          const { notifyWorkspaceMembers } = await import("../services/notification.js");
+          const workspace = await getWorkspaceByBucket(bucket);
+          if (workspace) {
+            const userName = req.user.name || req.user.email;
+            const truncated = (content || "Sent an attachment").substring(0, 60);
+            await notifyWorkspaceMembers(
+              workspace.id,
+              req.user.id,
+              "comment_added",
+              `New Comment — ${workspace.client_name}`,
+              `${userName}: ${truncated}`,
+              "video",
+              videoId,
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Comment notification error:", e);
+      }
+
       res.status(201).json({ comment });
     } catch (error) {
       apiError(req, error);
@@ -130,6 +155,30 @@ export async function updateMarkerStatus(req, res) {
 
     if (!comment) {
       return res.status(404).json({ error: "Comment not found" });
+    }
+
+    // Notify workspace members about marker status change
+    try {
+      const bucket = await getBucketByVideoId(comment.video_id);
+      if (bucket) {
+        const { getWorkspaceByBucket } = await import("../services/workspace.js");
+        const { notifyWorkspaceMembers } = await import("../services/notification.js");
+        const workspace = await getWorkspaceByBucket(bucket);
+        if (workspace) {
+          const userName = req.user.name || req.user.email;
+          await notifyWorkspaceMembers(
+            workspace.id,
+            req.user.id,
+            "marker_status_changed",
+            `Timeline Update — ${workspace.client_name}`,
+            `${userName} marked a timeline item as "${markerStatus}" in ${workspace.client_name}`,
+            "workspace",
+            workspace.id,
+          );
+        }
+      }
+    } catch (e) {
+      console.error("Marker notification error:", e);
     }
 
     res.json({ comment });

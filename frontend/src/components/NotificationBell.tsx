@@ -24,6 +24,9 @@ const TYPE_ICONS: Record<string, string> = {
   workspace_created: '📁',
   member_added: '👤',
   comment_added: '💬',
+  chat_message: '💬',
+  mention: '📢',
+  marker_status_changed: '🏷️',
 };
 
 export default function NotificationBell() {
