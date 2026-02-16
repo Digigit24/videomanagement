@@ -11,6 +11,7 @@ interface VideoTableProps {
 }
 
 const statusColors: Record<VideoStatus, string> = {
+  'Draft': 'bg-slate-100 text-slate-700',
   'Pending': 'bg-amber-100 text-amber-800',
   'Under Review': 'bg-blue-100 text-blue-800',
   'Approved': 'bg-emerald-100 text-emerald-800',
@@ -47,6 +48,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="Draft">Draft</SelectItem>
             <SelectItem value="Pending">Pending</SelectItem>
             <SelectItem value="Under Review">Under Review</SelectItem>
             <SelectItem value="Approved">Approved</SelectItem>

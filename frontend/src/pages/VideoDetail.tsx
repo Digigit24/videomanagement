@@ -15,9 +15,10 @@ import { ArrowLeft, Eye, Download, Upload, Trash2, Clock, Sparkles } from 'lucid
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
-const statusOptions: VideoStatus[] = ['Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected'];
+const statusOptions: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected'];
 
 const statusColors: Record<VideoStatus, string> = {
+  'Draft': 'bg-slate-100 text-slate-700 border-slate-200',
   'Pending': 'bg-amber-100 text-amber-800 border-amber-200',
   'Under Review': 'bg-blue-100 text-blue-800 border-blue-200',
   'Approved': 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -277,7 +278,7 @@ export default function VideoDetail() {
                 ) : (
                   <>
                     <Upload className="h-3.5 w-3.5 mr-1" />
-                    Replace Video
+                    Upload New Version
                   </>
                 )}
               </Button>

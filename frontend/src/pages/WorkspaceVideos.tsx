@@ -30,6 +30,7 @@ export default function WorkspaceVideos() {
   });
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
+    draft: 0,
     pending: 0,
     underReview: 0,
     approved: 0,
@@ -107,6 +108,7 @@ export default function WorkspaceVideos() {
   const calculateStats = (videos: Video[]) => {
     setStats({
       total: videos.length,
+      draft: videos.filter((v) => v.status === 'Draft').length,
       pending: videos.filter((v) => v.status === 'Pending').length,
       underReview: videos.filter((v) => v.status === 'Under Review').length,
       approved: videos.filter((v) => v.status === 'Approved').length,
@@ -198,9 +200,9 @@ export default function WorkspaceVideos() {
 
       <DashboardCards stats={stats} />
 
-      <div className={`grid ${showChat ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'} gap-6`}>
+      <div className={`grid ${showChat ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'} gap-4`}>
         {/* Videos */}
-        <div className={showChat ? 'lg:col-span-7' : ''}>
+        <div className={showChat ? 'lg:col-span-6' : ''}>
           {filteredVideos.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
               <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3">
@@ -225,7 +227,7 @@ export default function WorkspaceVideos() {
 
         {/* Chat Panel */}
         {showChat && workspace && (
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-6">
             <WorkspaceChat workspaceId={workspace.id} />
           </div>
         )}

@@ -20,6 +20,7 @@ export interface Video {
 }
 
 export type VideoStatus =
+  | "Draft"
   | "Pending"
   | "Under Review"
   | "Approved"
@@ -142,6 +143,7 @@ export interface Activity {
 
 export interface DashboardStats {
   total: number;
+  draft: number;
   pending: number;
   underReview: number;
   approved: number;

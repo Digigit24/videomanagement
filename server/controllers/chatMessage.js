@@ -6,14 +6,17 @@ import {
 } from "../services/chatMessage.js";
 import { uploadToS3 } from "../services/upload.js";
 import { MAIN_BUCKET } from "../services/storage.js";
-import { notifyWorkspaceMembers, createNotification } from "../services/notification.js";
+import {
+  notifyWorkspaceMembers,
+  createNotification,
+} from "../services/notification.js";
 import { getWorkspaceById } from "../services/workspace.js";
 import { apiError } from "../utils/logger.js";
 import multer from "multer";
 
 const messageUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for video support
 }).single("attachment");
 
 export async function sendMessage(req, res) {
@@ -79,7 +82,10 @@ export async function sendMessage(req, res) {
         const workspace = await getWorkspaceById(workspaceId);
         if (workspace) {
           const userName = req.user.name || req.user.email;
-          const truncatedContent = (content || "Sent an attachment").substring(0, 60);
+          const truncatedContent = (content || "Sent an attachment").substring(
+            0,
+            60,
+          );
           await notifyWorkspaceMembers(
             workspaceId,
             req.user.id,
