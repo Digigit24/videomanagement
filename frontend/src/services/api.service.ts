@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Video, VideoStatus, Comment, User, VideoViewer } from '@/types';
+import { Video, VideoStatus, Comment, User, VideoViewer, Workspace, Invitation, UserRole } from '@/types';
 
 export const authService = {
   login: async (email: string, password: string) => {
@@ -9,8 +9,8 @@ export const authService = {
 };
 
 export const userService = {
-  register: async (name: string, email: string, password: string) => {
-    const { data } = await api.post('/register', { name, email, password });
+  register: async (name: string, email: string, password: string, role?: string) => {
+    const { data } = await api.post('/register', { name, email, password, role });
     return data.user as User;
   },
 
@@ -24,7 +24,7 @@ export const userService = {
     return data.users as User[];
   },
 
-  createUser: async (name: string, email: string, password: string, role: string = 'user') => {
+  createUser: async (name: string, email: string, password: string, role: string = 'member') => {
     const { data } = await api.post('/register', { name, email, password, role });
     return data.user as User;
   },
@@ -36,6 +36,66 @@ export const userService = {
   getCurrentUser: async () => {
     const { data } = await api.get('/user/me');
     return data.user as User;
+  },
+
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const { data } = await api.post('/user/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.user as User;
+  },
+
+  changeRole: async (userId: string, role: UserRole) => {
+    const { data } = await api.patch(`/user/${userId}/role`, { role });
+    return data.user as User;
+  },
+};
+
+export const workspaceService = {
+  getWorkspaces: async () => {
+    const { data } = await api.get('/workspaces');
+    return data.workspaces as Workspace[];
+  },
+
+  createWorkspace: async (bucket: string, clientName: string) => {
+    const { data } = await api.post('/workspaces', { bucket, clientName });
+    return data.workspace as Workspace;
+  },
+
+  updateWorkspace: async (id: string, clientName: string, clientLogo?: string) => {
+    const { data } = await api.patch(`/workspace/${id}`, { clientName, clientLogo });
+    return data.workspace as Workspace;
+  },
+
+  uploadLogo: async (workspaceId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    const { data } = await api.post(`/workspace/${workspaceId}/logo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.workspace as Workspace;
+  },
+
+  getMembers: async (workspaceId: string) => {
+    const { data } = await api.get(`/workspace/${workspaceId}/members`);
+    return data.members;
+  },
+
+  createInvitation: async (workspaceId: string) => {
+    const { data } = await api.post('/invitations', { workspaceId });
+    return data.invitation as Invitation;
+  },
+
+  getInvitationInfo: async (code: string) => {
+    const { data } = await api.get(`/invite/${code}`);
+    return data.invitation;
+  },
+
+  acceptInvitation: async (code: string, name: string, email: string, password: string, role: string) => {
+    const { data } = await api.post(`/invite/${code}/accept`, { name, email, password, role });
+    return data;
   },
 };
 
@@ -62,28 +122,25 @@ export const videoService = {
     return data.video as Video;
   },
 
-  uploadVideo: async (
-    file: File,
-    bucket: string,
-    onProgress?: (progressEvent: any) => void
-  ) => {
+  uploadVideo: async (file: File, bucket: string, onProgress?: (progressEvent: any) => void) => {
     const formData = new FormData();
     formData.append('video', file);
-
     const { data } = await api.post('/upload', formData, {
       params: { bucket },
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: onProgress,
     });
-
     return data.video as Video;
   },
 
   getStreamUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem('token');
     return `/api/stream/${id}?bucket=${bucket}&token=${token}`;
+  },
+
+  getHLSUrl: (id: string, bucket: string) => {
+    const token = localStorage.getItem('token');
+    return `/api/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
   },
 
   recordView: async (videoId: string) => {

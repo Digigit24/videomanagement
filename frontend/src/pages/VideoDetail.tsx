@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService, commentService } from '@/services/api.service';
 import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
 import { formatBytes, formatDate } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
+import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
 import TimestampPanel from '@/components/TimestampPanel';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,11 @@ export default function VideoDetail() {
   const [updating, setUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
+  const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void } | null>(null);
+
+  const userRole = localStorage.getItem('userRole');
+  const canChangeStatus = userRole === 'client' || userRole === 'admin';
+  const canChangeMarkerStatus = userRole === 'editor' || userRole === 'admin';
 
   useEffect(() => {
     if (id && currentBucket) {
@@ -94,15 +100,17 @@ export default function VideoDetail() {
     }
   };
 
-  const handleProgress = (state: { played: number; playedSeconds: number }) => {
+  const handleProgress = useCallback((state: { played: number; playedSeconds: number }) => {
     setCurrentTime(state.playedSeconds);
-  };
+  }, []);
 
-  const handleSeekTo = (time: number) => {
-    if (playerRef.current) {
+  const handleSeekTo = useCallback((time: number) => {
+    if (video?.hls_ready && hlsPlayerControls) {
+      hlsPlayerControls.seekTo(time);
+    } else if (playerRef.current) {
       playerRef.current.seekTo(time, 'seconds');
     }
-  };
+  }, [video?.hls_ready, hlsPlayerControls]);
 
   const handleCommentAdded = (comment: Comment) => {
     setComments(prev => [...prev, comment]);
@@ -130,6 +138,7 @@ export default function VideoDetail() {
   }
 
   const streamUrl = videoService.getStreamUrl(video.id, currentBucket);
+  const hlsUrl = videoService.getHLSUrl(video.id, currentBucket);
   const timestampComments = comments.filter(c => c.video_timestamp !== null);
 
   return (
@@ -137,7 +146,7 @@ export default function VideoDetail() {
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
@@ -182,68 +191,80 @@ export default function VideoDetail() {
             )}
           </div>
 
-          {/* Status */}
-          <Select
-            value={video.status}
-            onValueChange={handleStatusChange}
-            disabled={updating}
-          >
-            <SelectTrigger className={`w-[160px] h-8 text-xs font-medium border ${statusColors[video.status]}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((status) => (
-                <SelectItem key={status} value={status}>
-                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
-                    {status}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Status - only for client and admin */}
+          {canChangeStatus ? (
+            <Select
+              value={video.status}
+              onValueChange={handleStatusChange}
+              disabled={updating}
+            >
+              <SelectTrigger className={`w-[160px] h-8 text-xs font-medium border ${statusColors[video.status]}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
+                      {status}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${statusColors[video.status]}`}>
+              {video.status}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Main content: Video + Timestamp Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
-        {/* Video Player - Takes 2/3 */}
-        <div className="lg:col-span-2">
+      {/* Video Player - Full width */}
+      <div className="w-full">
+        {video.hls_ready ? (
+          <HLSPlayer
+            hlsUrl={hlsUrl}
+            fallbackUrl={streamUrl}
+            onProgress={handleProgress}
+            onPlayerRef={(ref) => setHlsPlayerControls(ref)}
+          />
+        ) : (
           <VideoPlayer
             url={streamUrl}
-            filename={video.filename}
             onProgress={handleProgress}
             playerRef={playerRef}
           />
+        )}
 
-          {/* Video info bar */}
-          <div className="flex items-center gap-4 px-1 py-3 text-xs text-gray-400">
-            <span>{formatBytes(video.size)}</span>
-            <span className="w-px h-3 bg-gray-200" />
-            <span>{formatDate(video.created_at)}</span>
-            {video.uploaded_by_name && (
-              <>
-                <span className="w-px h-3 bg-gray-200" />
-                <span>by {video.uploaded_by_name}</span>
-              </>
-            )}
-            <span className="w-px h-3 bg-gray-200" />
-            <span>{video.bucket}</span>
-          </div>
-        </div>
-
-        {/* Right Panel - Timestamp Markers */}
-        <div className="lg:col-span-1 lg:border-l border-gray-200">
-          <TimestampPanel
-            comments={timestampComments}
-            onSeekTo={handleSeekTo}
-            onMarkerStatusUpdate={handleMarkerStatusUpdate}
-            currentTime={currentTime}
-          />
+        {/* Video info bar */}
+        <div className="flex items-center gap-4 px-1 py-3 text-xs text-gray-400">
+          <span>{formatBytes(video.size)}</span>
+          <span className="w-px h-3 bg-gray-200" />
+          <span>{formatDate(video.created_at)}</span>
+          {video.uploaded_by_name && (
+            <>
+              <span className="w-px h-3 bg-gray-200" />
+              <span>by {video.uploaded_by_name}</span>
+            </>
+          )}
+          <span className="w-px h-3 bg-gray-200" />
+          <span>{video.bucket}</span>
         </div>
       </div>
 
-      {/* Comments Thread */}
-      <div className="border-t border-gray-200 pt-4 mt-2">
+      {/* Timestamp Markers Panel - Below video */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <TimestampPanel
+          comments={timestampComments}
+          onSeekTo={handleSeekTo}
+          onMarkerStatusUpdate={handleMarkerStatusUpdate}
+          currentTime={currentTime}
+          canEditStatus={canChangeMarkerStatus}
+        />
+      </div>
+
+      {/* Comments / Messaging Thread */}
+      <div className="border-t border-gray-200 pt-4 mt-4">
         <CommentsSection
           videoId={video.id}
           comments={comments}

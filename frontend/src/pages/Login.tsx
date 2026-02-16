@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface LoginProps {
-  onLogin: (email: string, token: string, name?: string, id?: string) => void;
+  onLogin: (email: string, token: string, name?: string, id?: string, role?: string, avatar_url?: string) => void;
 }
 
 export default function Login({ onLogin }: LoginProps) {
@@ -23,7 +23,7 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       const data = await authService.login(email, password);
-      onLogin(data.user.email, data.token, data.user.name, data.user.id);
+      onLogin(data.user.email, data.token, data.user.name, data.user.id, data.user.role, data.user.avatar_url);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed');

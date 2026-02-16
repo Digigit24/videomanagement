@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface RegisterProps {
-  onRegister: (email: string, token: string, name: string, id: string) => void;
+  onRegister: (email: string, token: string, name: string, id: string, role?: string, avatar_url?: string) => void;
 }
 
 export default function Register({ onRegister }: RegisterProps) {
@@ -39,7 +39,7 @@ export default function Register({ onRegister }: RegisterProps) {
 
       // Auto-login after registration
       const loginData = await userService.login(email, password);
-      onRegister(loginData.user.email, loginData.token, loginData.user.name, loginData.user.id);
+      onRegister(loginData.user.email, loginData.token, loginData.user.name, loginData.user.id, loginData.user.role, loginData.user.avatar_url);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');

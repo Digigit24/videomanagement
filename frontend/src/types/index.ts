@@ -5,6 +5,8 @@ export interface Video {
   object_key: string;
   size: number;
   status: VideoStatus;
+  hls_ready: boolean;
+  hls_path: string | null;
   uploaded_by: string | null;
   uploaded_by_name: string | null;
   uploaded_by_email: string | null;
@@ -15,11 +17,14 @@ export interface Video {
 
 export type VideoStatus = 'Pending' | 'Under Review' | 'Approved' | 'Changes Needed' | 'Rejected';
 
+export type UserRole = 'admin' | 'editor' | 'client' | 'member';
+
 export interface User {
   id?: string;
   email: string;
   name?: string;
-  role?: string;
+  role?: UserRole;
+  avatar_url?: string | null;
   token?: string;
   created_at?: string;
 }
@@ -45,7 +50,33 @@ export interface VideoViewer {
   user_id: string;
   name: string;
   email: string;
+  avatar_url: string | null;
   viewed_at: string;
+}
+
+export interface Workspace {
+  id: string;
+  bucket: string;
+  client_name: string;
+  client_logo: string | null;
+  created_by: string;
+  created_by_name: string;
+  video_count: number;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Invitation {
+  id: string;
+  code: string;
+  workspace_id: string;
+  created_by_name: string;
+  max_uses: number;
+  use_count: number;
+  expires_at: string | null;
+  active: boolean;
+  created_at: string;
 }
 
 export interface Activity {

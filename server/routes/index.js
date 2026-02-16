@@ -1,11 +1,12 @@
 import express from 'express';
 import { login } from '../controllers/auth.js';
 import { getBuckets } from '../controllers/bucket.js';
-import { listVideos, getVideo, updateStatus, streamVideo, uploadVideo } from '../controllers/video.js';
-import { register, getUsers, getUser, getCurrentUser, deleteUser } from '../controllers/user.js';
+import { listVideos, getVideo, updateStatus, streamVideo, uploadVideo, streamHLS } from '../controllers/video.js';
+import { register, getUsers, getUser, getCurrentUser, deleteUser, uploadAvatar, changeUserRole, getAvatarStream } from '../controllers/user.js';
 import { addComment, getComments, removeComment, updateMarkerStatus } from '../controllers/comment.js';
 import { listActivities, listUserActivities } from '../controllers/activity.js';
 import { recordView, getVideoViewers } from '../services/views.js';
+import { listWorkspaces, createNewWorkspace, updateWorkspaceDetails, uploadWorkspaceLogo, getMembers, createInvite, getInviteInfo, acceptInvite, listInvitations, revokeInvitation } from '../controllers/workspace.js';
 import { authenticate, authenticateStream, validateBucket } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -19,9 +20,26 @@ router.get('/users', authenticate, getUsers);
 router.get('/user/me', authenticate, getCurrentUser);
 router.get('/user/:id', authenticate, getUser);
 router.delete('/user/:id', authenticate, deleteUser);
+router.post('/user/avatar', authenticate, uploadAvatar);
+router.patch('/user/:id/role', authenticate, changeUserRole);
+router.get('/avatar/*', getAvatarStream);
 
 // Buckets
 router.get('/buckets', authenticate, getBuckets);
+
+// Workspaces
+router.get('/workspaces', authenticate, listWorkspaces);
+router.post('/workspaces', authenticate, createNewWorkspace);
+router.patch('/workspace/:id', authenticate, updateWorkspaceDetails);
+router.post('/workspace/:id/logo', authenticate, uploadWorkspaceLogo);
+router.get('/workspace/:id/members', authenticate, getMembers);
+
+// Invitations
+router.post('/invitations', authenticate, createInvite);
+router.get('/invite/:code', getInviteInfo);
+router.post('/invite/:code/accept', acceptInvite);
+router.get('/workspace/:workspaceId/invitations', authenticate, listInvitations);
+router.delete('/invitation/:id', authenticate, revokeInvitation);
 
 // Videos
 router.get('/videos', authenticate, validateBucket, listVideos);
@@ -29,6 +47,9 @@ router.get('/video/:id', authenticate, validateBucket, getVideo);
 router.patch('/video/:id/status', authenticate, updateStatus);
 router.post('/upload', authenticate, validateBucket, uploadVideo);
 router.get('/stream/:id', authenticateStream, validateBucket, streamVideo);
+
+// HLS streaming
+router.get('/hls/:id/*', authenticateStream, validateBucket, streamHLS);
 
 // Video views
 router.post('/video/:videoId/view', authenticate, async (req, res) => {

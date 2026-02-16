@@ -8,10 +8,12 @@ interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUploadComplete: () => void;
+  bucket?: string;
 }
 
-export default function UploadModal({ isOpen, onClose, onUploadComplete }: UploadModalProps) {
-  const { currentBucket } = useBucket();
+export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket }: UploadModalProps) {
+  const { currentBucket: hookBucket } = useBucket();
+  const currentBucket = bucket || hookBucket;
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);

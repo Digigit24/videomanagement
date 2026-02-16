@@ -56,6 +56,12 @@ export async function updateMarkerStatus(req, res) {
   try {
     const { commentId } = req.params;
     const { markerStatus } = req.body;
+    const userRole = req.user.role;
+
+    // Only editor and admin can change marker status
+    if (userRole !== 'editor' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Only editors and admins can update marker status' });
+    }
 
     const validStatuses = ['pending', 'working', 'done'];
     if (!validStatuses.includes(markerStatus)) {
