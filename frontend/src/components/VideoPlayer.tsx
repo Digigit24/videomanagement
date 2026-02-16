@@ -8,14 +8,13 @@ interface VideoPlayerProps {
   playerRef?: React.RefObject<ReactPlayer>;
 }
 
-export default function VideoPlayer({ url, filename, onProgress, playerRef }: VideoPlayerProps) {
+export default function VideoPlayer({ url, onProgress, playerRef }: VideoPlayerProps) {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
   const internalPlayerRef = useRef<ReactPlayer>(null);
   const activePlayerRef = playerRef || internalPlayerRef;
 
-  // Space bar to play/pause
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.code === 'Space' && e.target === document.body) {
@@ -29,22 +28,25 @@ export default function VideoPlayer({ url, filename, onProgress, playerRef }: Vi
   }, []);
 
   return (
-    <div className="w-full aspect-video bg-black rounded-lg overflow-hidden relative">
+    <div className="w-full aspect-video bg-gray-950 rounded-lg overflow-hidden relative">
       {loading && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
-          <p className="text-white">Loading video...</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
+            <p className="text-gray-400 text-sm">Loading video...</p>
+          </div>
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
           <div className="text-center">
-            <p className="text-red-400 mb-2">Failed to load video</p>
+            <p className="text-red-400 text-sm mb-3">Failed to load video</p>
             <button
               onClick={() => {
                 setError(false);
                 setLoading(true);
               }}
-              className="text-white underline"
+              className="text-sm text-gray-300 hover:text-white px-4 py-1.5 border border-gray-600 rounded-md transition-colors"
             >
               Retry
             </button>
@@ -66,7 +68,7 @@ export default function VideoPlayer({ url, filename, onProgress, playerRef }: Vi
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onProgress={onProgress}
-        progressInterval={1000}
+        progressInterval={500}
         config={{
           file: {
             attributes: {
@@ -76,9 +78,6 @@ export default function VideoPlayer({ url, filename, onProgress, playerRef }: Vi
           }
         }}
       />
-      <div className="absolute bottom-16 left-4 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded z-20">
-        Press <kbd className="bg-white text-black px-1 rounded">Space</kbd> to play/pause
-      </div>
     </div>
   );
 }

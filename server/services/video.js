@@ -93,7 +93,7 @@ export async function getVideoById(id, bucket) {
 
 export async function updateVideoStatus(id, status, userId) {
   try {
-    const validStatuses = ['Draft', 'In Review', 'Approved', 'Published', 'Archived'];
+    const validStatuses = ['Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected'];
 
     if (!validStatuses.includes(status)) {
       throw new Error('Invalid status');

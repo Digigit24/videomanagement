@@ -12,7 +12,7 @@ export function useAuth() {
     const id = localStorage.getItem('userId');
 
     if (token && email) {
-      setUser({ id, email, name: name || undefined, token });
+      setUser({ id: id || undefined, email, name: name || undefined, token });
     }
 
     setLoading(false);

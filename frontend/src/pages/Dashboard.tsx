@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService } from '@/services/api.service';
-import { Video, DashboardStats } from '@/types';
+import { Video, VideoStatus, DashboardStats } from '@/types';
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';
 import KanbanBoard from '@/components/KanbanBoard';
@@ -20,10 +20,11 @@ export default function Dashboard() {
   });
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
-    draft: 0,
-    inReview: 0,
-    published: 0,
-    archived: 0,
+    pending: 0,
+    underReview: 0,
+    approved: 0,
+    changesNeeded: 0,
+    rejected: 0,
   });
 
   const handleViewChange = (newView: 'list' | 'kanban') => {
@@ -53,7 +54,6 @@ export default function Dashboard() {
   };
 
   const handleOptimisticUpdate = (videoId: string, newStatus: VideoStatus) => {
-    // Optimistically update local state
     setVideos(prevVideos =>
       prevVideos.map(video =>
         video.id === videoId
@@ -62,7 +62,6 @@ export default function Dashboard() {
       )
     );
 
-    // Recalculate stats with new data
     const updatedVideos = videos.map(video =>
       video.id === videoId ? { ...video, status: newStatus } : video
     );
@@ -72,17 +71,21 @@ export default function Dashboard() {
   const calculateStats = (videos: Video[]) => {
     setStats({
       total: videos.length,
-      draft: videos.filter((v) => v.status === 'Draft').length,
-      inReview: videos.filter((v) => v.status === 'In Review').length,
-      published: videos.filter((v) => v.status === 'Published').length,
-      archived: videos.filter((v) => v.status === 'Archived').length,
+      pending: videos.filter((v) => v.status === 'Pending').length,
+      underReview: videos.filter((v) => v.status === 'Under Review').length,
+      approved: videos.filter((v) => v.status === 'Approved').length,
+      changesNeeded: videos.filter((v) => v.status === 'Changes Needed').length,
+      rejected: videos.filter((v) => v.status === 'Rejected').length,
     });
   };
 
   if (!currentBucket) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading bucket...</p>
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+          <p className="text-gray-500 text-sm">Loading workspace...</p>
+        </div>
       </div>
     );
   }
@@ -90,7 +93,10 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading videos...</p>
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+          <p className="text-gray-500 text-sm">Loading videos...</p>
+        </div>
       </div>
     );
   }
@@ -100,11 +106,11 @@ export default function Dashboard() {
       <DashboardCards stats={stats} />
 
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Videos</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Videos</h2>
         <div className="flex items-center gap-3">
-          <Button onClick={() => setUploadModalOpen(true)}>
+          <Button onClick={() => setUploadModalOpen(true)} size="sm">
             <Upload className="h-4 w-4 mr-2" />
-            Upload Video
+            Upload
           </Button>
           <ViewSwitcher view={view} onViewChange={handleViewChange} />
         </div>

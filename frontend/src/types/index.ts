@@ -13,7 +13,7 @@ export interface Video {
   updated_at: string;
 }
 
-export type VideoStatus = 'Draft' | 'In Review' | 'Approved' | 'Published' | 'Archived';
+export type VideoStatus = 'Pending' | 'Under Review' | 'Approved' | 'Changes Needed' | 'Rejected';
 
 export interface User {
   id?: string;
@@ -32,8 +32,20 @@ export interface Comment {
   user_email: string;
   content: string;
   video_timestamp: number | null;
+  reply_to: string | null;
+  reply_content: string | null;
+  reply_user_id: string | null;
+  reply_user_name: string | null;
+  marker_status: 'pending' | 'working' | 'done' | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface VideoViewer {
+  user_id: string;
+  name: string;
+  email: string;
+  viewed_at: string;
 }
 
 export interface Activity {
@@ -50,8 +62,9 @@ export interface Activity {
 
 export interface DashboardStats {
   total: number;
-  draft: number;
-  inReview: number;
-  published: number;
-  archived: number;
+  pending: number;
+  underReview: number;
+  approved: number;
+  changesNeeded: number;
+  rejected: number;
 }

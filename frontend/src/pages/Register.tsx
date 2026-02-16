@@ -35,7 +35,7 @@ export default function Register({ onRegister }: RegisterProps) {
     setLoading(true);
 
     try {
-      const user = await userService.register(name, email, password);
+      await userService.register(name, email, password);
 
       // Auto-login after registration
       const loginData = await userService.login(email, password);
@@ -53,7 +53,7 @@ export default function Register({ onRegister }: RegisterProps) {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Create Account</CardTitle>
-          <CardDescription>Sign up to start managing videos</CardDescription>
+          <CardDescription>Join your team's workspace</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

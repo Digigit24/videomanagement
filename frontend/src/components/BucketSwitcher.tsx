@@ -1,19 +1,28 @@
 import { useBucket } from '@/hooks/useBucket';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Database } from 'lucide-react';
+import { Folder } from 'lucide-react';
 
 export default function BucketSwitcher() {
   const { buckets, currentBucket, switchBucket, loading } = useBucket();
 
   if (loading || !currentBucket) {
-    return <div className="text-sm text-gray-500">Loading buckets...</div>;
+    return <div className="text-xs text-gray-400">Loading...</div>;
+  }
+
+  if (buckets.length <= 1) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+        <Folder className="h-3.5 w-3.5" />
+        <span>{currentBucket}</span>
+      </div>
+    );
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Database className="h-4 w-4 text-gray-500" />
+    <div className="flex items-center gap-1.5">
+      <Folder className="h-3.5 w-3.5 text-gray-400" />
       <Select value={currentBucket} onValueChange={switchBucket}>
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[160px] h-8 text-xs border-gray-200">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

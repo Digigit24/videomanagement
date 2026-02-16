@@ -36,8 +36,8 @@ export default function Login({ onLogin }: LoginProps) {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Video Manager</CardTitle>
-          <CardDescription>Sign in to manage your videos</CardDescription>
+          <CardTitle>ReviewFlow</CardTitle>
+          <CardDescription>Sign in to your workspace</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

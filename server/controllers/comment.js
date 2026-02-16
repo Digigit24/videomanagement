@@ -1,19 +1,18 @@
-import { createComment, getVideoComments, deleteComment } from '../services/comment.js';
+import { createComment, getVideoComments, deleteComment, updateCommentMarkerStatus } from '../services/comment.js';
 import { logActivity } from '../services/activity.js';
 import { apiError } from '../utils/logger.js';
 
 export async function addComment(req, res) {
   try {
     const { videoId } = req.params;
-    const { content, videoTimestamp } = req.body;
+    const { content, videoTimestamp, replyTo } = req.body;
 
     if (!content) {
       return res.status(400).json({ error: 'Content is required' });
     }
 
-    const comment = await createComment(videoId, req.user.id, content, videoTimestamp);
+    const comment = await createComment(videoId, req.user.id, content, videoTimestamp, replyTo || null);
 
-    // Log activity
     await logActivity(req.user.id, 'comment_added', 'video', videoId, {
       commentId: comment.id,
       timestamp: videoTimestamp
@@ -50,5 +49,28 @@ export async function removeComment(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: 'Failed to delete comment' });
+  }
+}
+
+export async function updateMarkerStatus(req, res) {
+  try {
+    const { commentId } = req.params;
+    const { markerStatus } = req.body;
+
+    const validStatuses = ['pending', 'working', 'done'];
+    if (!validStatuses.includes(markerStatus)) {
+      return res.status(400).json({ error: 'Invalid marker status. Must be: pending, working, or done' });
+    }
+
+    const comment = await updateCommentMarkerStatus(commentId, markerStatus);
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    res.json({ comment });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: 'Failed to update marker status' });
   }
 }

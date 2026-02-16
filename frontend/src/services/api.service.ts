@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Video, VideoStatus, Comment } from '@/types';
+import { Video, VideoStatus, Comment, User, VideoViewer } from '@/types';
 
 export const authService = {
   login: async (email: string, password: string) => {
@@ -84,7 +84,16 @@ export const videoService = {
   getStreamUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem('token');
     return `/api/stream/${id}?bucket=${bucket}&token=${token}`;
-  }
+  },
+
+  recordView: async (videoId: string) => {
+    await api.post(`/video/${videoId}/view`);
+  },
+
+  getViewers: async (videoId: string) => {
+    const { data } = await api.get(`/video/${videoId}/viewers`);
+    return data.viewers as VideoViewer[];
+  },
 };
 
 export const commentService = {
@@ -93,15 +102,21 @@ export const commentService = {
     return data.comments as Comment[];
   },
 
-  addComment: async (videoId: string, content: string, videoTimestamp?: number) => {
+  addComment: async (videoId: string, content: string, videoTimestamp?: number, replyTo?: string) => {
     const { data } = await api.post(`/video/${videoId}/comments`, {
       content,
-      videoTimestamp: videoTimestamp || null,
+      videoTimestamp: videoTimestamp ?? null,
+      replyTo: replyTo || null,
     });
     return data.comment as Comment;
   },
 
   deleteComment: async (commentId: string) => {
     await api.delete(`/comment/${commentId}`);
+  },
+
+  updateMarkerStatus: async (commentId: string, markerStatus: string) => {
+    const { data } = await api.patch(`/comment/${commentId}/marker`, { markerStatus });
+    return data.comment as Comment;
   },
 };

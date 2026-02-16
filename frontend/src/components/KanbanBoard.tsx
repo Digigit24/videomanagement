@@ -13,9 +13,8 @@ import {
 import { useDraggable } from '@dnd-kit/core';
 import { Video, VideoStatus } from '@/types';
 import { videoService } from '@/services/api.service';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { formatBytes, formatDate } from '@/lib/utils';
-import { FileVideo, User, Calendar, CheckCircle2 } from 'lucide-react';
+import { FileVideo, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Toast } from './ui/toast';
 
@@ -24,14 +23,22 @@ interface KanbanBoardProps {
   onVideoUpdate: (videoId: string, newStatus: VideoStatus) => void;
 }
 
-const statusColumns: VideoStatus[] = ['Draft', 'In Review', 'Approved', 'Published', 'Archived'];
+const statusColumns: VideoStatus[] = ['Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected'];
 
 const statusColors: Record<VideoStatus, string> = {
-  'Draft': 'bg-gray-100 border-gray-300',
-  'In Review': 'bg-yellow-50 border-yellow-300',
-  'Approved': 'bg-blue-50 border-blue-300',
-  'Published': 'bg-green-50 border-green-300',
-  'Archived': 'bg-red-50 border-red-300',
+  'Pending': 'bg-amber-50 border-amber-200',
+  'Under Review': 'bg-blue-50 border-blue-200',
+  'Approved': 'bg-emerald-50 border-emerald-200',
+  'Changes Needed': 'bg-orange-50 border-orange-200',
+  'Rejected': 'bg-red-50 border-red-200',
+};
+
+const statusDotColors: Record<VideoStatus, string> = {
+  'Pending': 'bg-amber-400',
+  'Under Review': 'bg-blue-400',
+  'Approved': 'bg-emerald-400',
+  'Changes Needed': 'bg-orange-400',
+  'Rejected': 'bg-red-400',
 };
 
 export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps) {
@@ -69,16 +76,13 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
     if (video && video.status !== newStatus) {
       const previousStatus = video.status;
 
-      // Optimistic update - immediately update UI
       onVideoUpdate(videoId, newStatus);
 
-      // Background API call
       try {
         await videoService.updateStatus(video.id, newStatus);
         setToast({ message: `Status updated to ${newStatus}`, type: 'success' });
       } catch (error) {
         console.error('Failed to update status:', error);
-        // Revert on error
         onVideoUpdate(videoId, previousStatus);
         setToast({ message: 'Failed to update status', type: 'error' });
       }
@@ -92,7 +96,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-3 overflow-x-auto pb-4">
         {statusColumns.map(status => {
           const statusVideos = getVideosByStatus(status);
 
@@ -109,10 +113,10 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
 
       <DragOverlay>
         {activeVideo && (
-          <div className="bg-white border-2 border-blue-500 rounded-lg p-3 shadow-lg w-80">
-            <div className="flex items-start gap-2 mb-2">
-              <FileVideo className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-              <h3 className="text-sm font-medium line-clamp-2 flex-1">{activeVideo.filename}</h3>
+          <div className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-lg w-64 opacity-90">
+            <div className="flex items-start gap-2">
+              <FileVideo className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+              <h3 className="text-sm font-medium line-clamp-2">{activeVideo.filename}</h3>
             </div>
           </div>
         )}
@@ -141,33 +145,34 @@ function StatusColumn({ status, videos, onVideoClick }: StatusColumnProps) {
   });
 
   return (
-    <div className="flex-shrink-0 w-80">
-      <Card className={`${statusColors[status]} border-2 ${isOver ? 'ring-2 ring-blue-500' : ''}`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center justify-between">
-            <span>{status}</span>
-            <span className="text-xs bg-white px-2 py-1 rounded-full">
+    <div className="flex-shrink-0 w-64">
+      <div className={`rounded-lg border ${statusColors[status]} ${isOver ? 'ring-2 ring-blue-400' : ''}`}>
+        <div className="px-3 py-2.5 border-b border-gray-200/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${statusDotColors[status]}`} />
+              <span className="text-xs font-semibold text-gray-700">{status}</span>
+            </div>
+            <span className="text-xs text-gray-400 bg-white/60 px-1.5 py-0.5 rounded">
               {videos.length}
             </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div ref={setNodeRef} className="space-y-2 min-h-[500px]">
-            {videos.map(video => (
-              <DraggableVideoCard
-                key={video.id}
-                video={video}
-                onClick={() => onVideoClick(video.id)}
-              />
-            ))}
-            {videos.length === 0 && (
-              <div className="text-center text-gray-400 text-sm py-8">
-                Drop videos here
-              </div>
-            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div ref={setNodeRef} className="p-2 space-y-2 min-h-[400px]">
+          {videos.map(video => (
+            <DraggableVideoCard
+              key={video.id}
+              video={video}
+              onClick={() => onVideoClick(video.id)}
+            />
+          ))}
+          {videos.length === 0 && (
+            <div className="text-center text-gray-300 text-xs py-8">
+              Drop videos here
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -194,8 +199,8 @@ function DraggableVideoCard({ video, onClick }: DraggableVideoCardProps) {
       style={style}
       {...listeners}
       {...attributes}
-      className={`bg-white border border-gray-200 rounded-lg p-3 cursor-move hover:shadow-md transition-shadow ${
-        isDragging ? 'opacity-50' : ''
+      className={`bg-white border border-gray-200 rounded-lg p-3 cursor-move hover:shadow-sm transition-shadow ${
+        isDragging ? 'opacity-40' : ''
       }`}
     >
       <div
@@ -206,27 +211,21 @@ function DraggableVideoCard({ video, onClick }: DraggableVideoCardProps) {
         className="cursor-pointer"
       >
         <div className="flex items-start gap-2 mb-2">
-          <FileVideo className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-          <h3 className="text-sm font-medium line-clamp-2 flex-1">{video.filename}</h3>
+          <FileVideo className="h-3.5 w-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+          <h3 className="text-xs font-medium text-gray-900 line-clamp-2 flex-1">{video.filename}</h3>
         </div>
 
-        <div className="space-y-1 text-xs text-gray-500">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            <span>{formatDate(video.created_at)}</span>
-          </div>
-
-          {video.uploaded_by_name && (
-            <div className="flex items-center gap-1">
-              <User className="h-3 w-3" />
-              <span>{video.uploaded_by_name}</span>
-            </div>
-          )}
-
-          <div className="text-xs text-gray-400">
-            {formatBytes(video.size)}
-          </div>
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>{formatDate(video.created_at)}</span>
+          <span>{formatBytes(video.size)}</span>
         </div>
+
+        {video.uploaded_by_name && (
+          <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-400">
+            <User className="h-3 w-3" />
+            <span>{video.uploaded_by_name}</span>
+          </div>
+        )}
       </div>
     </div>
   );
