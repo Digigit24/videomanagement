@@ -13,6 +13,7 @@ import {
   FileVideo,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { getApiUrl } from "@/lib/utils";
 
 interface CommentsSectionProps {
   videoId: string;
@@ -211,7 +212,7 @@ export default function CommentsSection({
                   {comment.attachment && (
                     <div className="mt-2">
                       <a
-                        href={comment.attachment.url}
+                        href={getApiUrl(comment.attachment.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all border ${

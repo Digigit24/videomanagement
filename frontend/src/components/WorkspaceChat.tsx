@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ChatMessage, WorkspaceMember } from "@/types";
 import { chatService, workspaceService } from "@/services/api.service";
 import { Button } from "./ui/button";
@@ -164,7 +164,8 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
 
   const getAttachmentUrl = (url: string) => {
     const token = localStorage.getItem("token");
-    return `${url}?token=${token}`;
+    const baseUrl = url.startsWith('http') ? url : `https://video.celiyo.com${url}`;
+    return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}token=${token}`;
   };
 
   return (

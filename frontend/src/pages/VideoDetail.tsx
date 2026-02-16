@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService, commentService } from '@/services/api.service';
 import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
-import { formatBytes, formatDate } from '@/lib/utils';
+import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
@@ -323,7 +323,7 @@ export default function VideoDetail() {
                   {viewers.map((viewer) => (
                     <div key={viewer.user_id} className="px-3 py-2 flex items-center gap-2.5 hover:bg-gray-50">
                       {viewer.avatar_url ? (
-                        <img src={viewer.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                        <img src={getApiUrl(viewer.avatar_url)} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
                           {viewer.name?.charAt(0).toUpperCase() || '?'}

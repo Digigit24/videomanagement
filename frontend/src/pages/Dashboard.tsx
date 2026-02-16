@@ -11,6 +11,7 @@ import {
 import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
 import DeleteWorkspaceModal from '@/components/DeleteWorkspaceModal';
 import { Toast } from '@/components/ui/toast';
+import { getApiUrl } from '@/lib/utils';
 
 export default function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -202,7 +203,7 @@ export default function Dashboard() {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2.5">
                       {workspace.client_logo ? (
-                        <img src={workspace.client_logo} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-100" />
+                        <img src={getApiUrl(workspace.client_logo)} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-100" />
                       ) : (
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
                           {workspace.client_name.charAt(0).toUpperCase()}

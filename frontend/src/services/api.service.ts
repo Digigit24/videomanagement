@@ -233,17 +233,17 @@ export const videoService = {
 
   getStreamUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
-    return `/api/stream/${id}?bucket=${bucket}&token=${token}`;
+    return `https://video.celiyo.com/api/stream/${id}?bucket=${bucket}&token=${token}`;
   },
 
   getHLSUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
-    return `/api/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
+    return `https://video.celiyo.com/api/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
   },
 
   getDownloadUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
-    return `/api/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
+    return `https://video.celiyo.com/api/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
   },
 
   getVersionHistory: async (videoId: string, bucket: string) => {
@@ -327,7 +327,9 @@ export const chatService = {
     const params: any = {};
     if (limit) params.limit = limit;
     if (before) params.before = before;
-    const { data } = await api.get(`/workspace/${workspaceId}/messages`, { params });
+    const { data } = await api.get(`/workspace/${workspaceId}/messages`, {
+      params,
+    });
     return data.messages as ChatMessage[];
   },
 

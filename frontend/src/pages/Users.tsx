@@ -4,7 +4,7 @@ import { User, UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Users as UsersIcon, Plus, Trash2, Mail, Calendar, Building2 } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getApiUrl } from '@/lib/utils';
 import { Toast } from '@/components/ui/toast';
 import DeleteUserModal from '@/components/DeleteUserModal';
 
@@ -127,7 +127,7 @@ export default function UsersPage() {
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 {user.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                  <img src={getApiUrl(user.avatar_url)} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-100" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
                     {getInitials(user.name || user.email)}
