@@ -70,6 +70,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV5);
 
+    // Run v6 migrations (fixing members and roles)
+    const migrationsV6 = fs.readFileSync(
+      path.join(__dirname, "migrations_v6.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV6);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);
