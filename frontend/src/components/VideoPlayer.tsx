@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactPlayer from 'react-player';
+import { Download } from 'lucide-react';
 
 interface VideoPlayerProps {
   url: string;
   filename?: string;
+  downloadUrl?: string;
   onProgress?: (state: { played: number; playedSeconds: number }) => void;
   playerRef?: React.RefObject<ReactPlayer>;
 }
 
-export default function VideoPlayer({ url, onProgress, playerRef }: VideoPlayerProps) {
+export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef }: VideoPlayerProps) {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -27,8 +29,14 @@ export default function VideoPlayer({ url, onProgress, playerRef }: VideoPlayerP
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
+  const handleDownload = () => {
+    if (downloadUrl) {
+      window.open(downloadUrl, '_blank');
+    }
+  };
+
   return (
-    <div className="w-full aspect-video bg-gray-950 rounded-lg overflow-hidden relative">
+    <div className="w-full aspect-video bg-gray-950 rounded-lg overflow-hidden relative group">
       {loading && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
           <div className="flex items-center gap-3">
@@ -53,6 +61,20 @@ export default function VideoPlayer({ url, onProgress, playerRef }: VideoPlayerP
           </div>
         </div>
       )}
+
+      {/* Download button overlay */}
+      {downloadUrl && (
+        <div className="absolute top-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <button
+            onClick={handleDownload}
+            className="bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg backdrop-blur-sm transition-all hover:scale-105 shadow-lg"
+            title="Download highest quality"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <ReactPlayer
         ref={activePlayerRef}
         url={url}

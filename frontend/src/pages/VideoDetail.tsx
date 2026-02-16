@@ -234,6 +234,7 @@ export default function VideoDetail() {
 
   const streamUrl = videoService.getStreamUrl(video.id, currentBucket);
   const hlsUrl = videoService.getHLSUrl(video.id, currentBucket);
+  const downloadUrl = videoService.getDownloadUrl(video.id, currentBucket);
   const timestampComments = comments.filter(c => c.video_timestamp !== null);
   const isNew = isRecentUpload(video.uploaded_at || video.created_at);
 
@@ -285,13 +286,11 @@ export default function VideoDetail() {
             </>
           )}
 
-          {/* Download (available for approved videos) */}
-          {video.status === 'Approved' && (
-            <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-              <Download className="h-3.5 w-3.5 mr-1" />
-              Download
-            </Button>
-          )}
+          {/* Download */}
+          <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+            <Download className="h-3.5 w-3.5 mr-1" />
+            Download
+          </Button>
 
           {/* Delete */}
           {canDelete && (
@@ -394,12 +393,14 @@ export default function VideoDetail() {
               <HLSPlayer
                 hlsUrl={hlsUrl}
                 fallbackUrl={streamUrl}
+                downloadUrl={downloadUrl}
                 onProgress={handleProgress}
                 onPlayerRef={(ref) => setHlsPlayerControls(ref)}
               />
             ) : (
               <VideoPlayer
                 url={streamUrl}
+                downloadUrl={downloadUrl}
                 onProgress={handleProgress}
                 playerRef={playerRef}
               />
@@ -427,12 +428,10 @@ export default function VideoDetail() {
               </div>
 
               <div className="flex items-center gap-2">
-                {video.status === 'Approved' && (
-                  <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-                    <Download className="h-3.5 w-3.5 mr-1" />
-                    Download
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  Download
+                </Button>
                 {canDelete && (
                   <Button
                     variant="ghost"
