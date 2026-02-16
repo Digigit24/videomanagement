@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { workspaceService, userService } from '@/services/api.service';
 import { User, WorkspaceMember } from '@/types';
-import { X, Users, Check, Plus, Trash2, Search } from 'lucide-react';
+import { X, Users, Plus, Trash2, Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
@@ -70,7 +70,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
     }
   };
 
-  const isMember = (userId: string) => currentMembers.some(m => m.user_id === userId);
+  const isMember = (userId: string) => currentMembers.some(m => m.id === userId);
 
   const filteredOrgMembers = allOrgMembers.filter(user => 
     (user.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -110,7 +110,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
             </h3>
             <div className="space-y-2">
               {currentMembers.map((member) => (
-                <div key={member.user_id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-100 rounded-xl group">
+                <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-100 rounded-xl group">
                   <div className="flex items-center gap-3">
                     {member.avatar_url ? (
                       <img src={member.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
@@ -129,7 +129,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
                       {ROLE_LABELS[member.role] || member.role}
                     </span>
                     <button 
-                      onClick={() => handleRemoveMember(member.user_id)}
+                      onClick={() => handleRemoveMember(member.id)}
                       className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                       title="Remove Member"
                     >
