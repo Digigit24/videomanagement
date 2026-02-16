@@ -10,10 +10,16 @@ import {
   cleanupExpiredBackups,
   deleteVideo,
 } from "../services/video.js";
-import { getVideoStream, getVideoMetadata } from "../services/storage.js";
+import {
+  getVideoStream,
+  getVideoMetadata,
+  resolveBucket,
+} from "../services/storage.js";
 import { uploadToS3 } from "../services/upload.js";
 import { processVideoToHLS } from "../services/ffmpeg.js";
 import { apiError } from "../utils/logger.js";
+import { notifyWorkspaceMembers } from "../services/notification.js";
+import { getWorkspaceByBucket } from "../services/workspace.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -79,6 +85,25 @@ export async function updateStatus(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
+    // Send notification
+    try {
+      const workspace = await getWorkspaceByBucket(video.bucket);
+      if (workspace) {
+        const userName = req.user.name || req.user.email;
+        await notifyWorkspaceMembers(
+          workspace.id,
+          req.user.id,
+          "status_changed",
+          `Video ${status}`,
+          `${userName} changed "${video.filename}" to ${status}`,
+          "video",
+          video.id,
+        );
+      }
+    } catch (e) {
+      console.error("Notification error:", e);
+    }
+
     res.json({ video });
   } catch (error) {
     apiError(req, error);
@@ -101,9 +126,10 @@ export async function uploadVideo(req, res) {
       // Admin, editor, project_manager, social_media_manager can upload videos
       const allowedRoles = [
         "admin",
-        "editor",
+        "video_editor",
         "project_manager",
         "social_media_manager",
+        "client",
       ];
       if (!allowedRoles.includes(req.user.role)) {
         return res
@@ -112,16 +138,16 @@ export async function uploadVideo(req, res) {
       }
 
       const { originalname, buffer, size, mimetype } = req.file;
-      const bucket = req.bucket;
-      const objectKey = `${Date.now()}-${originalname}`;
+      const { bucket: targetBucket, prefix } = resolveBucket(req.bucket);
+      const objectKey = `${prefix}${Date.now()}-${originalname}`;
       const parentVideoId = req.body.parentVideoId || null;
 
       // Upload original to S3
-      await uploadToS3(bucket, objectKey, buffer, mimetype);
+      await uploadToS3(targetBucket, objectKey, buffer, mimetype);
 
       // Create video record in database
       const video = await createVideo({
-        bucket,
+        bucket: req.bucket,
         filename: originalname,
         objectKey,
         size,
@@ -129,20 +155,41 @@ export async function uploadVideo(req, res) {
         parentVideoId,
       });
 
-      res
-        .status(201)
-        .json({
-          video,
-          message: "Video uploaded successfully. HLS processing started.",
-        });
+      // Send notification
+      try {
+        const workspace = await getWorkspaceByBucket(req.bucket);
+        if (workspace) {
+          const userName = req.user.name || req.user.email;
+          await notifyWorkspaceMembers(
+            workspace.id,
+            req.user.id,
+            "video_uploaded",
+            "New Video",
+            `${userName} uploaded "${originalname}" to ${workspace.client_name}`,
+            "video",
+            video.id,
+          );
+        }
+      } catch (e) {
+        console.error("Notification error:", e);
+      }
 
       // Process HLS in background (don't await)
-      processVideoToHLS(buffer, video.id, bucket, originalname).catch((err) => {
-        console.error("Background HLS processing failed:", err.message);
+      processVideoToHLS(buffer, video.id, req.bucket, originalname).catch(
+        (err) => {
+          console.error("Background HLS processing failed:", err.message);
+        },
+      );
+
+      res.status(201).json({
+        video,
+        message: "Video uploaded successfully. HLS processing started.",
       });
     } catch (error) {
       apiError(req, error);
-      res.status(500).json({ error: "Failed to upload video" });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to upload video" });
+      }
     }
   });
 }
@@ -226,10 +273,10 @@ export async function removeVideo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // Admin, editor, project_manager, social_media_manager can delete
+    // Admin, video_editor, project_manager, social_media_manager can delete
     const allowedRoles = [
       "admin",
-      "editor",
+      "video_editor",
       "project_manager",
       "social_media_manager",
     ];
@@ -237,6 +284,28 @@ export async function removeVideo(req, res) {
       return res
         .status(403)
         .json({ error: "You do not have permission to delete videos" });
+    }
+
+    // Admin password verification for sensitive actions
+    if (req.user.role === "admin") {
+      const { password } = req.body;
+      if (!password) {
+        return res
+          .status(400)
+          .json({ error: "Password is required to confirm deletion" });
+      }
+
+      const { getUserByEmail, verifyPassword } =
+        await import("../services/user.js");
+      const user = await getUserByEmail(req.user.email);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const isValid = await verifyPassword(password, user.password);
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid password" });
+      }
     }
 
     await deleteVideo(id, req.user.id);

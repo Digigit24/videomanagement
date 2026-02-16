@@ -3,7 +3,7 @@ import { getPool } from "../db/index.js";
 
 export const VALID_ROLES = [
   "admin",
-  "editor",
+  "video_editor",
   "client",
   "member",
   "project_manager",
@@ -11,12 +11,18 @@ export const VALID_ROLES = [
 ];
 export const ORG_ROLES = [
   "admin",
-  "editor",
+  "video_editor",
   "project_manager",
   "social_media_manager",
 ];
 
-export async function createUser(email, password, name, role = "member") {
+export async function createUser(
+  email,
+  password,
+  name,
+  role = "member",
+  isOrgMember = false,
+) {
   try {
     if (!VALID_ROLES.includes(role)) {
       throw new Error(
@@ -24,11 +30,16 @@ export async function createUser(email, password, name, role = "member") {
       );
     }
 
+    // Auto-set org member for org roles
+    const orgMember = ORG_ROLES.includes(role) ? true : isOrgMember;
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await getPool().query(
-      "INSERT INTO users (email, password, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, avatar_url, created_at",
-      [email, hashedPassword, name, role],
+      `INSERT INTO users (email, password, name, role, is_org_member) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, email, name, role, avatar_url, is_org_member, created_at`,
+      [email, hashedPassword, name, role, orgMember],
     );
 
     return result.rows[0];
@@ -43,10 +54,9 @@ export async function createUser(email, password, name, role = "member") {
 export async function getUserByEmail(email) {
   try {
     const result = await getPool().query(
-      "SELECT * FROM users WHERE email = $1",
+      "SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL",
       [email],
     );
-
     return result.rows[0] || null;
   } catch (error) {
     throw error;
@@ -56,10 +66,21 @@ export async function getUserByEmail(email) {
 export async function getUserById(id) {
   try {
     const result = await getPool().query(
-      "SELECT id, email, name, role, avatar_url, created_at FROM users WHERE id = $1",
+      "SELECT id, email, name, role, avatar_url, is_org_member, created_at FROM users WHERE id = $1 AND deleted_at IS NULL",
       [id],
     );
+    return result.rows[0] || null;
+  } catch (error) {
+    throw error;
+  }
+}
 
+export async function getUserWithPassword(id) {
+  try {
+    const result = await getPool().query(
+      "SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL",
+      [id],
+    );
     return result.rows[0] || null;
   } catch (error) {
     throw error;
@@ -69,21 +90,20 @@ export async function getUserById(id) {
 export async function getAllUsers() {
   try {
     const result = await getPool().query(
-      "SELECT id, email, name, role, avatar_url, created_at FROM users ORDER BY created_at DESC",
+      "SELECT id, email, name, role, avatar_url, is_org_member, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC",
     );
-
     return result.rows;
   } catch (error) {
     throw error;
   }
 }
 
-// Get only organization members (admin, editor, project_manager, social_media_manager)
+// Get organization members (is_org_member = true)
 export async function getOrgMembers() {
   try {
     const result = await getPool().query(
-      `SELECT id, email, name, role, avatar_url, created_at FROM users
-       WHERE role IN ('admin', 'editor', 'project_manager', 'social_media_manager')
+      `SELECT id, email, name, role, avatar_url, is_org_member, created_at FROM users
+       WHERE is_org_member = TRUE AND deleted_at IS NULL
        ORDER BY role, name`,
     );
     return result.rows;
@@ -98,7 +118,7 @@ export async function verifyPassword(plainPassword, hashedPassword) {
 
 export async function updateUserAvatar(userId, avatarUrl) {
   const result = await getPool().query(
-    "UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, name, role, avatar_url, created_at",
+    "UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, name, role, avatar_url, is_org_member, created_at",
     [avatarUrl, userId],
   );
   return result.rows[0] || null;
@@ -110,8 +130,16 @@ export async function updateUserRole(userId, role) {
   }
 
   const result = await getPool().query(
-    "UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, name, role, avatar_url, created_at",
+    "UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, name, role, avatar_url, is_org_member, created_at",
     [role, userId],
+  );
+  return result.rows[0] || null;
+}
+
+export async function updateOrgMemberFlag(userId, isOrgMember) {
+  const result = await getPool().query(
+    "UPDATE users SET is_org_member = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, email, name, role, avatar_url, is_org_member, created_at",
+    [isOrgMember, userId],
   );
   return result.rows[0] || null;
 }
@@ -128,9 +156,13 @@ export async function seedAdmin() {
   try {
     const existing = await getUserByEmail(email);
     if (!existing) {
-      await createUser(email, password, "System Admin", "admin");
+      await createUser(email, password, "System Admin", "admin", true);
       console.log(`✓ Admin user created: ${email}`);
     } else {
+      // Ensure admin is marked as org member
+      if (!existing.is_org_member) {
+        await updateOrgMemberFlag(existing.id, true);
+      }
       console.log(`✓ Admin user already exists: ${email}`);
     }
   } catch (error) {

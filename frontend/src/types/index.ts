@@ -28,7 +28,7 @@ export type VideoStatus =
 
 export type UserRole =
   | "admin"
-  | "editor"
+  | "video_editor"
   | "client"
   | "member"
   | "project_manager"
@@ -40,8 +40,10 @@ export interface User {
   name?: string;
   role?: UserRole;
   avatar_url?: string | null;
+  is_org_member?: boolean;
   token?: string;
   created_at?: string;
+  deleted_at?: string;
 }
 
 export interface Comment {
@@ -59,6 +61,10 @@ export interface Comment {
   marker_status: "pending" | "working" | "done" | null;
   created_at: string;
   updated_at: string;
+  attachment?: {
+    filename: string;
+    url: string;
+  };
 }
 
 export interface VideoViewer {
@@ -80,6 +86,7 @@ export interface Workspace {
   member_count: number;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
 }
 
 export interface Invitation {
@@ -128,5 +135,20 @@ export interface DeletedVideo {
   deleted_at: string;
   expires_at: string;
   uploaded_by_name: string | null;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  workspace_bucket: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  seen: boolean;
   created_at: string;
 }

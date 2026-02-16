@@ -6,6 +6,18 @@ export async function createWorkspace(
   clientLogo,
   createdBy,
 ) {
+  // Check if bucket name already exists (including deleted ones)
+  const existing = await getPool().query(
+    "SELECT id FROM workspaces WHERE bucket = $1",
+    [bucket],
+  );
+
+  if (existing.rows.length > 0) {
+    throw new Error(
+      `A workspace with bucket name "${bucket}" already exists. Please use a different client name.`,
+    );
+  }
+
   const result = await getPool().query(
     `INSERT INTO workspaces (bucket, client_name, client_logo, created_by)
      VALUES ($1, $2, $3, $4) RETURNING *`,
@@ -21,6 +33,7 @@ export async function getWorkspaces() {
             (SELECT COUNT(*) FROM workspace_members wm WHERE wm.workspace_id = w.id) as member_count
      FROM workspaces w
      LEFT JOIN users u ON w.created_by = u.id
+     WHERE w.deleted_at IS NULL
      ORDER BY w.created_at DESC`,
   );
   return result.rows;
@@ -28,7 +41,7 @@ export async function getWorkspaces() {
 
 export async function getWorkspaceByBucket(bucket) {
   const result = await getPool().query(
-    "SELECT * FROM workspaces WHERE bucket = $1",
+    "SELECT * FROM workspaces WHERE bucket = $1 AND deleted_at IS NULL",
     [bucket],
   );
   return result.rows[0] || null;
@@ -36,7 +49,7 @@ export async function getWorkspaceByBucket(bucket) {
 
 export async function getWorkspaceById(id) {
   const result = await getPool().query(
-    "SELECT * FROM workspaces WHERE id = $1",
+    "SELECT * FROM workspaces WHERE id = $1 AND deleted_at IS NULL",
     [id],
   );
   return result.rows[0] || null;
@@ -79,12 +92,8 @@ export async function getWorkspaceMembers(workspaceId) {
 }
 
 export async function getUserWorkspaces(userId, userRole) {
-  // Admin, editor, project_manager, and social_media_manager see all workspaces
-  if (
-    ["admin", "editor", "project_manager", "social_media_manager"].includes(
-      userRole,
-    )
-  ) {
+  // Only admin sees all workspaces automatically
+  if (userRole === "admin") {
     return getWorkspaces();
   }
 
@@ -96,9 +105,25 @@ export async function getUserWorkspaces(userId, userRole) {
      FROM workspaces w
      JOIN workspace_members wm ON w.id = wm.workspace_id
      LEFT JOIN users u ON w.created_by = u.id
-     WHERE wm.user_id = $1
+     WHERE wm.user_id = $1 AND w.deleted_at IS NULL
      ORDER BY w.created_at DESC`,
     [userId],
   );
   return result.rows;
+}
+
+export async function deleteWorkspace(id) {
+  const result = await getPool().query(
+    "DELETE FROM workspaces WHERE id = $1 RETURNING *",
+    [id],
+  );
+  return result.rows[0];
+}
+
+export async function getAnyWorkspaceByBucket(bucket) {
+  const result = await getPool().query(
+    "SELECT * FROM workspaces WHERE bucket = $1",
+    [bucket],
+  );
+  return result.rows[0];
 }

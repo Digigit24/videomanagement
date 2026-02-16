@@ -105,7 +105,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
               key={status}
               status={status}
               videos={statusVideos}
-              onVideoClick={(id) => navigate(`/video/${id}`)}
+              onVideoClick={(id, bucket) => navigate(`/workspace/${bucket}/video/${id}`)}
             />
           );
         })}
@@ -136,7 +136,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
 interface StatusColumnProps {
   status: VideoStatus;
   videos: Video[];
-  onVideoClick: (id: string) => void;
+  onVideoClick: (id: string, bucket: string) => void;
 }
 
 function StatusColumn({ status, videos, onVideoClick }: StatusColumnProps) {
@@ -163,7 +163,7 @@ function StatusColumn({ status, videos, onVideoClick }: StatusColumnProps) {
             <DraggableVideoCard
               key={video.id}
               video={video}
-              onClick={() => onVideoClick(video.id)}
+              onClick={() => onVideoClick(video.id, video.bucket)}
             />
           ))}
           {videos.length === 0 && (

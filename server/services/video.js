@@ -123,6 +123,19 @@ export async function getVideos(bucket) {
   }
 }
 
+export async function getBucketByVideoId(id) {
+  try {
+    const result = await pool().query(
+      "SELECT bucket FROM videos WHERE id = $1",
+      [id],
+    );
+    return result.rows[0]?.bucket || null;
+  } catch (error) {
+    console.error("Error getting bucket by video ID:", error);
+    throw error;
+  }
+}
+
 export async function getVideoById(id, bucket) {
   try {
     const result = await pool().query(

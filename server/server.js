@@ -1,10 +1,9 @@
-import dotenv from "dotenv";
+import "./env.js"; // Must be imported first
 import app from "./app.js";
 import { initDatabase } from "./db/index.js";
 import { seedAdmin } from "./services/user.js";
 import { startBackupCleanup } from "./controllers/video.js";
-
-dotenv.config({ path: "../.env" });
+import { processPermanentDeletions } from "./services/recycleBin.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -16,6 +15,17 @@ async function start() {
 
     // Start backup cleanup scheduler
     startBackupCleanup();
+
+    // Start recycle bin cleanup scheduler (every hour)
+    setInterval(
+      () => {
+        processPermanentDeletions().catch(console.error);
+      },
+      60 * 60 * 1000,
+    );
+
+    // Run once on startup
+    processPermanentDeletions().catch(console.error);
 
     // Start server
     app.listen(PORT, () => {

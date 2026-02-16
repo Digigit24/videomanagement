@@ -1,34 +1,52 @@
-import { createUser, getAllUsers, getUserById, updateUserAvatar, updateUserRole } from '../services/user.js';
-import { uploadToS3 } from '../services/upload.js';
-import { getPool } from '../db/index.js';
-import { apiError } from '../utils/logger.js';
-import multer from 'multer';
+import {
+  createUser,
+  getAllUsers,
+  getUserById,
+  updateUserAvatar,
+  updateUserRole,
+  updateOrgMemberFlag,
+  getUserWithPassword,
+  verifyPassword,
+} from "../services/user.js";
+import { softDeleteUser } from "../services/recycleBin.js";
+import { uploadToS3 } from "../services/upload.js";
+import { getPool } from "../db/index.js";
+import { apiError } from "../utils/logger.js";
+import multer from "multer";
 
 const avatarUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error("Only image files are allowed"));
     }
-  }
-}).single('avatar');
+  },
+}).single("avatar");
 
 export async function register(req, res) {
   try {
-    const { email, password, name, role } = req.body;
+    const { email, password, name, role, isOrgMember } = req.body;
 
     if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Email, password, and name are required' });
+      return res
+        .status(400)
+        .json({ error: "Email, password, and name are required" });
     }
 
-    const user = await createUser(email, password, name, role || 'member');
+    const user = await createUser(
+      email,
+      password,
+      name,
+      role || "member",
+      isOrgMember || false,
+    );
     res.status(201).json({ user });
   } catch (error) {
     apiError(req, error);
-    res.status(400).json({ error: error.message || 'Registration failed' });
+    res.status(400).json({ error: error.message || "Registration failed" });
   }
 }
 
@@ -38,7 +56,7 @@ export async function getUsers(req, res) {
     res.json({ users });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: 'Failed to get users' });
+    res.status(500).json({ error: "Failed to get users" });
   }
 }
 
@@ -48,13 +66,13 @@ export async function getUser(req, res) {
     const user = await getUserById(id);
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     res.json({ user });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: 'Failed to get user' });
+    res.status(500).json({ error: "Failed to get user" });
   }
 }
 
@@ -63,38 +81,50 @@ export async function getCurrentUser(req, res) {
     const user = await getUserById(req.user.id);
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     res.json({ user });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: 'Failed to get current user' });
+    res.status(500).json({ error: "Failed to get current user" });
   }
 }
 
 export async function deleteUser(req, res) {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can delete users' });
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can delete users" });
     }
 
     const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: "Admin password required" });
+    }
 
     if (id === req.user.id) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
+      return res.status(400).json({ error: "Cannot delete your own account" });
+    }
+
+    // Verify admin password
+    const adminUser = await getUserWithPassword(req.user.id);
+    const isValid = await verifyPassword(password, adminUser.password);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid password" });
     }
 
     const result = await getUserById(id);
     if (!result) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
-    await getPool().query('DELETE FROM users WHERE id = $1', [id]);
-    res.json({ message: 'User deleted successfully' });
+    await softDeleteUser(id);
+    res.json({ message: "User moved to recycle bin" });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: 'Failed to delete user' });
+    res.status(500).json({ error: "Failed to delete user" });
   }
 }
 
@@ -106,13 +136,18 @@ export async function uploadAvatar(req, res) {
 
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'No file provided' });
+        return res.status(400).json({ error: "No file provided" });
       }
 
       const objectKey = `avatars/${req.user.id}/${Date.now()}-${req.file.originalname}`;
       // Upload to first bucket
-      const buckets = process.env.ZATA_BUCKETS.split(',').map(b => b.trim());
-      await uploadToS3(buckets[0], objectKey, req.file.buffer, req.file.mimetype);
+      const buckets = process.env.ZATA_BUCKETS.split(",").map((b) => b.trim());
+      await uploadToS3(
+        buckets[0],
+        objectKey,
+        req.file.buffer,
+        req.file.mimetype,
+      );
 
       const avatarUrl = `/api/avatar/${objectKey}`;
       const user = await updateUserAvatar(req.user.id, avatarUrl);
@@ -120,15 +155,15 @@ export async function uploadAvatar(req, res) {
       res.json({ user });
     } catch (error) {
       apiError(req, error);
-      res.status(500).json({ error: 'Failed to upload avatar' });
+      res.status(500).json({ error: "Failed to upload avatar" });
     }
   });
 }
 
 export async function changeUserRole(req, res) {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can change roles' });
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can change roles" });
     }
 
     const { id } = req.params;
@@ -136,27 +171,52 @@ export async function changeUserRole(req, res) {
 
     const user = await updateUserRole(id, role);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     res.json({ user });
   } catch (error) {
     apiError(req, error);
-    res.status(400).json({ error: error.message || 'Failed to change role' });
+    res.status(400).json({ error: error.message || "Failed to change role" });
+  }
+}
+
+export async function toggleOrgMember(req, res) {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Only admins can change org membership" });
+    }
+
+    const { id } = req.params;
+    const { isOrgMember } = req.body;
+
+    const user = await updateOrgMemberFlag(id, isOrgMember);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    apiError(req, error);
+    res
+      .status(400)
+      .json({ error: error.message || "Failed to update org membership" });
   }
 }
 
 export async function getAvatarStream(req, res) {
   try {
     const objectKey = `avatars/${req.params[0]}`;
-    const buckets = process.env.ZATA_BUCKETS.split(',').map(b => b.trim());
+    const buckets = process.env.ZATA_BUCKETS.split(",").map((b) => b.trim());
 
-    const { getVideoStream } = await import('../services/storage.js');
+    const { getVideoStream } = await import("../services/storage.js");
     const stream = await getVideoStream(buckets[0], objectKey);
 
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader("Cache-Control", "public, max-age=86400");
     stream.pipe(res);
   } catch (error) {
-    res.status(404).json({ error: 'Avatar not found' });
+    res.status(404).json({ error: "Avatar not found" });
   }
 }

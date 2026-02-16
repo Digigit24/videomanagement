@@ -9,6 +9,7 @@ import {
   Invitation,
   UserRole,
   DeletedVideo,
+  Notification,
 } from "@/types";
 
 export const authService = {
@@ -49,18 +50,20 @@ export const userService = {
     email: string,
     password: string,
     role: string = "member",
+    isOrgMember: boolean = false,
   ) => {
     const { data } = await api.post("/register", {
       name,
       email,
       password,
       role,
+      isOrgMember,
     });
     return data.user as User;
   },
 
-  deleteUser: async (userId: string) => {
-    await api.delete(`/user/${userId}`);
+  deleteUser: async (userId: string, password?: string) => {
+    await api.post(`/user/${userId}/delete`, { password });
   },
 
   getCurrentUser: async () => {
@@ -86,6 +89,13 @@ export const userService = {
     const { data } = await api.get("/org-members");
     return data.members as User[];
   },
+
+  toggleOrgMember: async (userId: string, isOrgMember: boolean) => {
+    const { data } = await api.patch(`/user/${userId}/org-member`, {
+      isOrgMember,
+    });
+    return data.user as User;
+  },
 };
 
 export const workspaceService = {
@@ -94,9 +104,22 @@ export const workspaceService = {
     return data.workspaces as Workspace[];
   },
 
-  createWorkspace: async (clientName: string, memberIds?: string[]) => {
-    const { data } = await api.post("/workspaces", { clientName, memberIds });
+  createWorkspace: async (
+    clientName: string,
+    memberIds?: string[],
+    projectManagerId?: string | null,
+  ) => {
+    const { data } = await api.post("/workspaces", {
+      clientName,
+      memberIds,
+      projectManagerId,
+    });
     return data.workspace as Workspace;
+  },
+
+  deleteWorkspace: async (id: string, password?: string) => {
+    const { data } = await api.post(`/workspace/${id}/delete`, { password });
+    return data;
   },
 
   updateWorkspace: async (
@@ -228,8 +251,11 @@ export const videoService = {
     return data as { versions: Video[]; currentVersionId: string };
   },
 
-  deleteVideo: async (videoId: string, bucket: string) => {
-    await api.delete(`/video/${videoId}`, { params: { bucket } });
+  deleteVideo: async (videoId: string, bucket: string, password?: string) => {
+    await api.delete(`/video/${videoId}`, {
+      params: { bucket },
+      data: { password },
+    });
   },
 
   getDeletedVideos: async (bucket: string) => {
@@ -262,11 +288,22 @@ export const commentService = {
     content: string,
     videoTimestamp?: number,
     replyTo?: string,
+    file?: File,
   ) => {
-    const { data } = await api.post(`/video/${videoId}/comments`, {
-      content,
-      videoTimestamp: videoTimestamp ?? null,
-      replyTo: replyTo || null,
+    const formData = new FormData();
+    formData.append("content", content);
+    if (videoTimestamp !== undefined && videoTimestamp !== null) {
+      formData.append("videoTimestamp", videoTimestamp.toString());
+    }
+    if (replyTo) {
+      formData.append("replyTo", replyTo);
+    }
+    if (file) {
+      formData.append("attachment", file);
+    }
+
+    const { data } = await api.post(`/video/${videoId}/comments`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
     });
     return data.comment as Comment;
   },
@@ -280,5 +317,44 @@ export const commentService = {
       markerStatus,
     });
     return data.comment as Comment;
+  },
+};
+
+export const notificationService = {
+  getNotifications: async () => {
+    const { data } = await api.get("/notifications");
+    return data as { notifications: Notification[]; unreadCount: number };
+  },
+
+  getUnreadCount: async () => {
+    const { data } = await api.get("/notifications/count");
+    return data.count as number;
+  },
+
+  markSeen: async (id: string) => {
+    await api.patch(`/notification/${id}/seen`);
+  },
+
+  markAllSeen: async () => {
+    await api.patch("/notifications/seen-all");
+  },
+};
+
+export const recycleBinService = {
+  getRecycleBin: async () => {
+    const { data } = await api.get("/admin/recycle-bin");
+    return data;
+  },
+
+  restoreWorkspace: async (id: string) => {
+    const { data } = await api.post(
+      `/admin/recycle-bin/workspace/${id}/restore`,
+    );
+    return data;
+  },
+
+  restoreUser: async (id: string) => {
+    const { data } = await api.post(`/admin/recycle-bin/user/${id}/restore`);
+    return data;
   },
 };

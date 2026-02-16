@@ -1,14 +1,18 @@
+import { MAIN_BUCKET } from "../services/storage.js";
 import {
   createWorkspace,
   getWorkspaces,
   getWorkspaceByBucket,
+  getAnyWorkspaceByBucket,
   updateWorkspace,
   addWorkspaceMember,
   removeWorkspaceMember,
   getWorkspaceMembers,
   getUserWorkspaces,
   getWorkspaceById,
+  deleteWorkspace,
 } from "../services/workspace.js";
+import { softDeleteWorkspace } from "../services/recycleBin.js";
 import {
   createInvitation,
   getInvitationByCode,
@@ -20,15 +24,18 @@ import {
   createUser,
   getUserByEmail,
   getOrgMembers,
+  verifyPassword,
+  getUserById,
   VALID_ROLES,
 } from "../services/user.js";
+import { notifyWorkspaceMembers } from "../services/notification.js";
 import { uploadToS3 } from "../services/upload.js";
 import multer from "multer";
 import { apiError } from "../utils/logger.js";
 
 const logoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) {
       cb(null, true);
@@ -52,24 +59,29 @@ export async function createNewWorkspace(req, res) {
   try {
     const allowedRoles = ["admin", "project_manager"];
     if (!allowedRoles.includes(req.user.role)) {
-      return res
-        .status(403)
-        .json({
-          error: "Only admins and project managers can create workspaces",
-        });
+      return res.status(403).json({
+        error: "Only admins and project managers can create workspaces",
+      });
     }
 
-    const { clientName, memberIds } = req.body;
+    const { clientName, memberIds, projectManagerId } = req.body;
     if (!clientName) {
       return res.status(400).json({ error: "Client name is required" });
     }
 
     // Auto-generate bucket name from client name
-    const bucket = clientName
+    let bucket = clientName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
-      .substring(0, 63); // S3 bucket name limit
+      .substring(0, 63);
+
+    // Check if bucket exists, if so, append a suffix
+    const existingBucket = await getAnyWorkspaceByBucket(bucket);
+    if (existingBucket) {
+      const suffix = `-${Date.now().toString(36).slice(-4)}`;
+      bucket = bucket.substring(0, 59) + suffix;
+    }
 
     const workspace = await createWorkspace(
       bucket,
@@ -84,8 +96,34 @@ export async function createNewWorkspace(req, res) {
     // Add selected org members
     if (memberIds && Array.isArray(memberIds)) {
       for (const memberId of memberIds) {
-        await addWorkspaceMember(workspace.id, memberId);
+        if (memberId !== req.user.id) {
+          await addWorkspaceMember(workspace.id, memberId);
+        }
       }
+    }
+
+    // Add Assigned Project Manager
+    if (projectManagerId) {
+      if (projectManagerId !== req.user.id) {
+        await addWorkspaceMember(workspace.id, projectManagerId);
+      }
+    }
+
+    // Notify added members
+    try {
+      const userName = req.user.name || req.user.email;
+      await notifyWorkspaceMembers(
+        workspace.id,
+        req.user.id,
+        "workspace_created",
+        "New Workspace",
+        `${userName} added you to workspace "${clientName}"`,
+        "workspace",
+        workspace.id,
+      );
+    } catch (e) {
+      // Don't fail workspace creation if notification fails
+      console.error("Notification error:", e);
     }
 
     res.status(201).json({ workspace });
@@ -143,7 +181,7 @@ export async function uploadWorkspaceLogo(req, res) {
 
       const objectKey = `logos/${workspace.bucket}/${Date.now()}-${req.file.originalname}`;
       await uploadToS3(
-        workspace.bucket,
+        MAIN_BUCKET || workspace.bucket, // Fallback to workspace.bucket if MAIN_BUCKET not set
         objectKey,
         req.file.buffer,
         req.file.mimetype,
@@ -171,7 +209,6 @@ export async function getMembers(req, res) {
   }
 }
 
-// Get org members for workspace member picker
 export async function listOrgMembers(req, res) {
   try {
     const members = await getOrgMembers();
@@ -182,7 +219,6 @@ export async function listOrgMembers(req, res) {
   }
 }
 
-// Add member to workspace
 export async function addMember(req, res) {
   try {
     const allowedRoles = ["admin", "project_manager"];
@@ -198,6 +234,26 @@ export async function addMember(req, res) {
     }
 
     await addWorkspaceMember(id, userId);
+
+    // Notify the added user
+    try {
+      const workspace = await getWorkspaceById(id);
+      const userName = req.user.name || req.user.email;
+      const { createNotification } =
+        await import("../services/notification.js");
+      await createNotification(
+        userId,
+        "member_added",
+        "Added to Workspace",
+        `${userName} added you to workspace "${workspace?.client_name || ""}"`,
+        id,
+        "workspace",
+        id,
+      );
+    } catch (e) {
+      console.error("Notification error:", e);
+    }
+
     res.json({ message: "Member added" });
   } catch (error) {
     apiError(req, error);
@@ -205,7 +261,6 @@ export async function addMember(req, res) {
   }
 }
 
-// Remove member from workspace
 export async function removeMember(req, res) {
   try {
     const allowedRoles = ["admin", "project_manager"];
@@ -227,11 +282,9 @@ export async function createInvite(req, res) {
   try {
     const allowedRoles = ["admin", "project_manager"];
     if (!allowedRoles.includes(req.user.role)) {
-      return res
-        .status(403)
-        .json({
-          error: "Only admins and project managers can create invitations",
-        });
+      return res.status(403).json({
+        error: "Only admins and project managers can create invitations",
+      });
     }
 
     const { workspaceId, maxUses, expiresInHours } = req.body;
@@ -285,11 +338,13 @@ export async function acceptInvite(req, res) {
         .json({ error: "Name, email, password, and role are required" });
     }
 
-    const validRoles = ["client", "editor", "member"];
+    const validRoles = ["client", "video_editor", "member"];
     if (!validRoles.includes(role)) {
       return res
         .status(400)
-        .json({ error: "Invalid role. Must be client, editor, or member" });
+        .json({
+          error: "Invalid role. Must be client, video_editor, or member",
+        });
     }
 
     const invitation = await getInvitationByCode(code);
@@ -354,5 +409,45 @@ export async function revokeInvitation(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to revoke invitation" });
+  }
+}
+
+export async function removeWorkspace(req, res) {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Only admins can delete workspaces" });
+    }
+
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res
+        .status(400)
+        .json({ error: "Password is required to confirm deletion" });
+    }
+
+    // Get full user object with password hash
+    const user = await getUserByEmail(req.user.email);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const isValid = await verifyPassword(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid password" });
+    }
+
+    const deleted = await softDeleteWorkspace(id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Workspace not found" });
+    }
+
+    res.json({ message: "Workspace moved to recycle bin", workspace: deleted });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to delete workspace" });
   }
 }

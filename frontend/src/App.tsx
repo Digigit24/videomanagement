@@ -8,6 +8,7 @@ import WorkspaceVideos from '@/pages/WorkspaceVideos';
 import VideoDetail from '@/pages/VideoDetail';
 import Users from '@/pages/Users';
 import JoinInvite from '@/pages/JoinInvite';
+import RecycleBin from '@/pages/RecycleBin';
 
 function App() {
   const { user, loading, login, logout } = useAuth();
@@ -44,8 +45,10 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/workspace/:bucket" element={<WorkspaceVideos />} />
+            <Route path="/workspace/:bucket/video/:id" element={<VideoDetail />} />
             <Route path="/video/:id" element={<VideoDetail />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/recycle-bin" element={<RecycleBin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

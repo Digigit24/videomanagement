@@ -49,6 +49,20 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV2);
 
+    // Run v3 migrations (org member flag, notifications)
+    const migrationsV3 = fs.readFileSync(
+      path.join(__dirname, "migrations_v3.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV3);
+
+    // Run v4 migrations (recycle bin)
+    const migrationsV4 = fs.readFileSync(
+      path.join(__dirname, "migrations_v4.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV4);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

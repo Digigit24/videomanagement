@@ -1,51 +1,45 @@
 import { useState, useEffect, useRef } from 'react';
 import { workspaceService, userService } from '@/services/api.service';
-import { User } from '@/types';
+import { User, Workspace } from '@/types';
 import { X, Users, Plus, Check, Image } from 'lucide-react';
 
 interface CreateWorkspaceModalProps {
-  isOpen: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (workspace: Workspace) => void;
 }
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
-  editor: 'Editor',
+  video_editor: 'Video Editor',
   project_manager: 'Project Manager',
   social_media_manager: 'Social Media Manager',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-700',
-  editor: 'bg-blue-100 text-blue-700',
+  video_editor: 'bg-blue-100 text-blue-700',
   project_manager: 'bg-amber-100 text-amber-700',
   social_media_manager: 'bg-emerald-100 text-emerald-700',
 };
 
-export default function CreateWorkspaceModal({ isOpen, onClose, onCreated }: CreateWorkspaceModalProps) {
+export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModalProps) {
   const [clientName, setClientName] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [orgMembers, setOrgMembers] = useState<User[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedPM, setSelectedPM] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const projectManagers = orgMembers.filter(m => m.role === 'project_manager');
+  const availableMembers = orgMembers.filter(m => m.role !== 'admin' && m.role !== 'project_manager');
+
   useEffect(() => {
-    if (isOpen) {
-      loadOrgMembers();
-    } else {
-      // Reset form
-      setClientName('');
-      setLogoFile(null);
-      setLogoPreview(null);
-      setSelectedMembers([]);
-      setError('');
-    }
-  }, [isOpen]);
+    loadOrgMembers();
+  }, []);
 
   const loadOrgMembers = async () => {
     setLoadingMembers(true);
@@ -86,23 +80,24 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onCreated }: Cre
     setError('');
 
     try {
-      const workspace = await workspaceService.createWorkspace(clientName.trim(), selectedMembers);
+      const workspace = await workspaceService.createWorkspace(
+        clientName.trim(), 
+        selectedMembers,
+        selectedPM || null
+      );
 
       // Upload logo if selected
       if (logoFile && workspace.id) {
         await workspaceService.uploadLogo(workspace.id, logoFile);
       }
 
-      onCreated();
-      onClose();
+      onCreated(workspace);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create workspace');
     } finally {
       setLoading(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -111,7 +106,10 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onCreated }: Cre
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Create Client Workspace</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Create Client Workspace</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Set up a new client project space</p>
+          </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <X className="h-5 w-5 text-gray-400" />
           </button>
@@ -177,14 +175,31 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onCreated }: Cre
             )}
           </div>
 
+          {/* Project Manager Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">Assign Project Manager</label>
+            <select
+              value={selectedPM}
+              onChange={(e) => setSelectedPM(e.target.value)}
+              className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+            >
+              <option value="">Select a Project Manager</option>
+              {projectManagers.map(pm => (
+                <option key={pm.id} value={pm.id}>
+                  {pm.name} ({pm.email})
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Organization Members */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Add Organization Members
+              Add Team Members
             </label>
             <p className="text-xs text-gray-400">
-              These team members will have access to this workspace
+              Select other team members (Editors, Social Media Managers). Admins have full access.
             </p>
 
             {loadingMembers ? (
@@ -192,13 +207,13 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onCreated }: Cre
                 <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                 <span className="text-xs text-gray-400">Loading members...</span>
               </div>
-            ) : orgMembers.length === 0 ? (
-              <div className="text-xs text-gray-400 py-4 text-center">
-                No organization members found
+            ) : availableMembers.length === 0 ? (
+              <div className="text-xs text-gray-400 py-4 text-center border border-gray-200 rounded-lg">
+                No other available members found.
               </div>
             ) : (
               <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
-                {orgMembers.map((member) => {
+                {availableMembers.map((member) => {
                   const isSelected = selectedMembers.includes(member.id!);
                   return (
                     <button

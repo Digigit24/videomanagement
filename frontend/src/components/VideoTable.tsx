@@ -67,7 +67,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
           filteredVideos.map((video) => (
             <div
               key={video.id}
-              onClick={() => navigate(`/video/${video.id}`)}
+              onClick={() => navigate(`/workspace/${video.bucket}/video/${video.id}`)}
               className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer group"
             >
               {/* Video icon + filename */}

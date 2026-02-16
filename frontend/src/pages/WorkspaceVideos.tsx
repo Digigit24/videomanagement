@@ -8,14 +8,18 @@ import KanbanBoard from '@/components/KanbanBoard';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import UploadModal from '@/components/UploadModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft } from 'lucide-react';
+import { Upload, ArrowLeft, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { isToday, isThisWeek, isThisMonth, parseISO } from 'date-fns';
 
 export default function WorkspaceVideos() {
   const { bucket } = useParams<{ bucket: string }>();
   const navigate = useNavigate();
   const [videos, setVideos] = useState<Video[]>([]);
+  const [filteredVideos, setFilteredVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState<string>('all');
   const [view, setView] = useState<'list' | 'kanban'>(() => {
     return (localStorage.getItem('viewMode') as 'list' | 'kanban') || 'list';
   });
@@ -40,6 +44,10 @@ export default function WorkspaceVideos() {
     }
   }, [bucket]);
 
+  useEffect(() => {
+    filterVideos();
+  }, [videos, dateFilter]);
+
   const loadVideos = async () => {
     if (!bucket) return;
     setLoading(true);
@@ -54,6 +62,22 @@ export default function WorkspaceVideos() {
     }
   };
 
+  const filterVideos = () => {
+    if (dateFilter === 'all') {
+      setFilteredVideos(videos);
+      return;
+    }
+
+    const filtered = videos.filter(video => {
+      const date = parseISO(video.created_at);
+      if (dateFilter === 'today') return isToday(date);
+      if (dateFilter === 'week') return isThisWeek(date);
+      if (dateFilter === 'month') return isThisMonth(date);
+      return true;
+    });
+    setFilteredVideos(filtered);
+  };
+
   const handleOptimisticUpdate = (videoId: string, newStatus: VideoStatus) => {
     setVideos(prevVideos =>
       prevVideos.map(video =>
@@ -62,11 +86,7 @@ export default function WorkspaceVideos() {
           : video
       )
     );
-
-    const updatedVideos = videos.map(video =>
-      video.id === videoId ? { ...video, status: newStatus } : video
-    );
-    calculateStats(updatedVideos);
+    // filteredVideos will update via useEffect
   };
 
   const calculateStats = (videos: Video[]) => {
@@ -93,32 +113,60 @@ export default function WorkspaceVideos() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700">
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-        <div className="h-4 w-px bg-gray-200" />
-        <h1 className="text-lg font-semibold text-gray-900">{bucket}</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <div className="h-4 w-px bg-gray-200" />
+          <h1 className="text-lg font-semibold text-gray-900">{bucket}</h1>
+        </div>
+        
+        <div className="flex items-center gap-3">
+             <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className="w-[130px] h-8 text-xs border-dashed bg-white">
+              <Filter className="w-3.5 h-3.5 mr-2 text-gray-500" />
+              <SelectValue placeholder="Filter Date" />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <ViewSwitcher view={view} onViewChange={handleViewChange} />
+          
+          <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-2">
+            <Upload className="h-4 w-4" />
+            Upload
+          </Button>
+        </div>
       </div>
 
       <DashboardCards stats={stats} />
 
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900">Videos</h2>
-        <div className="flex items-center gap-3">
-          <Button onClick={() => setUploadModalOpen(true)} size="sm">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
-          <ViewSwitcher view={view} onViewChange={handleViewChange} />
+      {filteredVideos.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+          <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+            <Filter className="h-6 w-6 text-gray-300" />
+          </div>
+          <h3 className="text-sm font-medium text-gray-900">No videos found</h3>
+          <p className="text-xs text-gray-500 mt-1">
+            {videos.length === 0 ? 'Upload a video to get started' : 'Try adjusting your filters'}
+          </p>
+          {videos.length === 0 && (
+             <Button variant="outline" size="sm" onClick={() => setUploadModalOpen(true)} className="mt-4">
+              Upload Video
+            </Button>
+          )}
         </div>
-      </div>
-
-      {view === 'list' ? (
-        <VideoTable videos={videos} />
+      ) : view === 'list' ? (
+        <VideoTable videos={filteredVideos} />
       ) : (
-        <KanbanBoard videos={videos} onVideoUpdate={handleOptimisticUpdate} />
+        <KanbanBoard videos={filteredVideos} onVideoUpdate={handleOptimisticUpdate} />
       )}
 
       <UploadModal
