@@ -266,38 +266,53 @@ export default function ShareVideoPlayer() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Quality Selector */}
-              {qualities.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); }}
-                    className="text-white hover:text-white/80 transition-colors flex items-center gap-1"
-                  >
-                    <Settings className="h-4 w-4" />
-                    <span className="text-[10px] font-medium hidden sm:inline">
-                      {currentQuality === -1 ? 'Auto' : qualities.find(q => q.id === currentQuality)?.label || 'Auto'}
-                    </span>
-                  </button>
+              {/* Quality Selector - always visible */}
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); }}
+                  className="text-white hover:text-white/80 transition-colors flex items-center gap-1.5 bg-white/10 hover:bg-white/20 rounded-lg px-2 py-1"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span className="text-[10px] font-medium">
+                    {qualities.length === 0
+                      ? 'Auto'
+                      : currentQuality === -1
+                        ? 'Auto'
+                        : qualities.find(q => q.id === currentQuality)?.label || 'Auto'}
+                  </span>
+                </button>
 
-                  {showQualityMenu && (
-                    <div className="absolute bottom-8 right-0 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px] animate-scale-in">
-                      {qualities.map((q) => (
-                        <button
-                          key={q.id}
-                          onClick={(e) => { e.stopPropagation(); handleQualityChange(q.id); }}
-                          className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                            currentQuality === q.id
-                              ? 'text-blue-400 bg-blue-500/10'
-                              : 'text-gray-300 hover:bg-gray-800'
-                          }`}
-                        >
-                          {q.label}
-                        </button>
-                      ))}
+                {showQualityMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowQualityMenu(false); }} />
+                    <div className="absolute bottom-10 right-0 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl py-1.5 min-w-[140px] animate-scale-in z-50">
+                      <div className="px-3 py-1 text-[9px] font-bold text-gray-500 uppercase tracking-wider">Quality</div>
+                      {qualities.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-gray-400">
+                          Auto (detecting...)
+                        </div>
+                      ) : (
+                        qualities.map((q) => (
+                          <button
+                            key={q.id}
+                            onClick={(e) => { e.stopPropagation(); handleQualityChange(q.id); }}
+                            className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                              (q.id === -1 ? currentQuality === -1 : currentQuality === q.id)
+                                ? 'text-blue-400 bg-blue-500/10'
+                                : 'text-gray-300 hover:bg-gray-800'
+                            }`}
+                          >
+                            <span>{q.label}</span>
+                            {(q.id === -1 ? currentQuality === -1 : currentQuality === q.id) && (
+                              <span className="text-blue-400 text-[10px]">●</span>
+                            )}
+                          </button>
+                        ))
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                  </>
+                )}
+              </div>
 
               <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className="text-white hover:text-white/80 transition-colors">
                 <Maximize className="h-4 w-4" />

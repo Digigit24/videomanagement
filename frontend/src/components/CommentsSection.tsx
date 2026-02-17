@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect } from "react";
-import { Comment } from "@/types";
-import { commentService, reviewService } from "@/services/api.service";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { Comment, WorkspaceMember } from "@/types";
+import { commentService, reviewService, workspaceService } from "@/services/api.service";
 import { Button } from "./ui/button";
 import {
   MessageCircle,
@@ -12,6 +12,7 @@ import {
   Paperclip,
   FileVideo,
   Star,
+  AtSign,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { getApiUrl } from "@/lib/utils";
@@ -27,6 +28,7 @@ interface ClientReview {
 
 interface CommentsSectionProps {
   videoId: string;
+  workspaceId?: string | null;
   comments: Comment[];
   currentTime: number;
   onSeekTo: (time: number) => void;
@@ -36,6 +38,7 @@ interface CommentsSectionProps {
 
 export default function CommentsSection({
   videoId,
+  workspaceId,
   comments,
   currentTime,
   onSeekTo,
@@ -48,9 +51,15 @@ export default function CommentsSection({
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [clientReviews, setClientReviews] = useState<ClientReview[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionCursorIndex, setMentionCursorIndex] = useState(0);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const currentUserId = localStorage.getItem("userId");
 
   useEffect(() => {
     if (listRef.current) {
@@ -61,6 +70,26 @@ export default function CommentsSection({
   useEffect(() => {
     loadClientReviews();
   }, [videoId]);
+
+  useEffect(() => {
+    if (workspaceId) {
+      loadMembers();
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    setMentionCursorIndex(0);
+  }, [mentionSearch]);
+
+  const loadMembers = async () => {
+    if (!workspaceId) return;
+    try {
+      const data = await workspaceService.getMembers(workspaceId);
+      setMembers(data);
+    } catch (error) {
+      // Silently fail
+    }
+  };
 
   const loadClientReviews = async () => {
     try {
@@ -77,8 +106,69 @@ export default function CommentsSection({
     ...clientReviews,
   ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
+  // @mention logic
+  const getMentionContext = useCallback(
+    (value: string, cursorPos: number) => {
+      const textBeforeCursor = value.slice(0, cursorPos);
+      const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+      if (lastAtIndex === -1) return null;
+      if (lastAtIndex > 0) {
+        const charBefore = textBeforeCursor[lastAtIndex - 1];
+        if (charBefore !== " " && charBefore !== "\n") return null;
+      }
+      const searchText = textBeforeCursor.slice(lastAtIndex + 1);
+      if (searchText.length > 40) return null;
+      return { atIndex: lastAtIndex, searchText };
+    },
+    [],
+  );
+
+  const filteredMembers = members.filter(
+    (m) =>
+      m.id !== currentUserId &&
+      (m.name.toLowerCase().includes(mentionSearch) ||
+        m.email.toLowerCase().includes(mentionSearch)),
+  );
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart || 0;
+    setNewComment(value);
+
+    const mentionCtx = getMentionContext(value, cursorPos);
+    if (mentionCtx && members.length > 0) {
+      setMentionSearch(mentionCtx.searchText.toLowerCase());
+      setShowMentions(true);
+    } else {
+      setShowMentions(false);
+    }
+  };
+
+  const handleMentionSelect = (member: WorkspaceMember) => {
+    const cursorPos = inputRef.current?.selectionStart || newComment.length;
+    const mentionCtx = getMentionContext(newComment, cursorPos);
+
+    if (mentionCtx) {
+      const before = newComment.slice(0, mentionCtx.atIndex);
+      const after = newComment.slice(cursorPos);
+      const newValue = `${before}@${member.name} ${after}`;
+      setNewComment(newValue);
+
+      const newCursorPos = mentionCtx.atIndex + member.name.length + 2;
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.selectionStart = newCursorPos;
+          inputRef.current.selectionEnd = newCursorPos;
+        }
+      }, 0);
+    }
+    setShowMentions(false);
+    inputRef.current?.focus();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (showMentions) return;
     if (!newComment.trim() && !attachment) return;
 
     setSubmitting(true);
@@ -96,6 +186,9 @@ export default function CommentsSection({
       setNewComment("");
       setReplyTo(null);
       setAttachment(null);
+      if (inputRef.current) {
+        inputRef.current.style.height = "auto";
+      }
     } catch (error) {
       console.error("Failed to add comment:", error);
     } finally {
@@ -117,14 +210,49 @@ export default function CommentsSection({
     inputRef.current?.focus();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentions && filteredMembers.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionCursorIndex((prev) =>
+          prev < filteredMembers.length - 1 ? prev + 1 : 0,
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionCursorIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredMembers.length - 1,
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const idx = Math.min(mentionCursorIndex, filteredMembers.length - 1);
+        if (idx >= 0) {
+          handleMentionSelect(filteredMembers[idx]);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowMentions(false);
+        return;
+      }
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
+
   const formatTimestamp = (seconds: number | null) => {
     if (seconds === null) return null;
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
-
-  const currentUserId = localStorage.getItem("userId");
 
   const getInitials = (name: string | null) => {
     if (!name) return "??";
@@ -136,23 +264,46 @@ export default function CommentsSection({
       .slice(0, 2);
   };
 
+  // Render message content with @mention highlighting
+  const renderContent = (content: string, isOwn: boolean) => {
+    return content
+      .split(/(@\w[\w\s]*)/g)
+      .map((part, i) =>
+        part.startsWith("@") ? (
+          <span
+            key={i}
+            className={`font-bold ${isOwn ? "text-blue-100" : "text-blue-600"}`}
+          >
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      );
+  };
+
   return (
     <div className="flex flex-col h-full bg-white rounded-xl overflow-hidden">
-      {/* Header with Mode Toggle */}
+      {/* Header - Thread Group Identity */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-blue-600" />
           <h3 className="text-sm font-semibold text-gray-900">
-            Discussion <span className="text-gray-400 font-normal">({comments.length})</span>
+            Thread <span className="text-gray-400 font-normal">({mergedTimeline.length})</span>
           </h3>
+          {members.length > 0 && (
+            <span className="text-[9px] text-gray-400 font-medium">
+              {members.length} members
+            </span>
+          )}
         </div>
-        
+
         <div className="flex bg-gray-200/50 p-0.5 rounded-lg">
           <button
             onClick={() => setIncludeTimestamp(true)}
             className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
-              includeTimestamp 
-                ? "bg-white text-gray-900 shadow-sm" 
+              includeTimestamp
+                ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -161,8 +312,8 @@ export default function CommentsSection({
           <button
             onClick={() => setIncludeTimestamp(false)}
             className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
-              !includeTimestamp 
-                ? "bg-white text-gray-900 shadow-sm" 
+              !includeTimestamp
+                ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -171,10 +322,10 @@ export default function CommentsSection({
         </div>
       </div>
 
-      {/* Comments List */}
+      {/* Messages List */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 scroll-smooth"
         style={{ minHeight: '300px' }}
       >
         {mergedTimeline.length === 0 ? (
@@ -190,78 +341,76 @@ export default function CommentsSection({
         ) : (
           mergedTimeline.map((item) => {
             if (item.isReview) {
-              // Client Review Message
               const review = item as ClientReview;
               return (
-                <div key={`review-${review.id}`} className="group flex items-start gap-3 animate-fade-in">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 shadow-sm bg-emerald-500">
-                    <Star className="h-3.5 w-3.5" />
+                <div key={`review-${review.id}`} className="group flex items-start gap-2.5 animate-fade-in">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 shadow-sm bg-emerald-500">
+                    <Star className="h-3 w-3" />
                   </div>
                   <div className="flex flex-col max-w-[85%] items-start">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[11px] font-bold text-emerald-700">{review.reviewer_name}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium border border-emerald-100">Client Review</span>
-                      <span className="text-[10px] text-gray-400">
-                        {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
-                      </span>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[10px] font-bold text-emerald-700">{review.reviewer_name}</span>
+                      <span className="text-[8px] px-1 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium border border-emerald-100">Client</span>
                     </div>
                     <div className="relative px-3 py-2 rounded-2xl rounded-tl-none text-sm bg-emerald-50 text-gray-800 border border-emerald-100">
-                      <p className="whitespace-pre-wrap leading-relaxed">{review.content}</p>
+                      <p className="whitespace-pre-wrap leading-relaxed text-[13px]">{review.content}</p>
+                      <div className="text-[9px] mt-1 text-right text-emerald-400">
+                        {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                      </div>
                     </div>
                   </div>
                 </div>
               );
             }
 
-            // Regular comment
             const comment = item as Comment & { isReview: false };
+            const isOwn = comment.user_id === currentUserId;
             return (
               <div
                 key={comment.id}
-                className={`group flex items-start gap-3 ${comment.user_id === currentUserId ? 'flex-row-reverse' : ''}`}
+                className={`group flex items-start gap-2.5 ${isOwn ? 'flex-row-reverse' : ''}`}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 shadow-sm ${
-                  comment.user_id === currentUserId ? 'bg-blue-600' : 'bg-gray-400'
-                }`}>
-                  {getInitials(comment.user_name)}
-                </div>
-
-                <div className={`flex flex-col max-w-[85%] ${comment.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[11px] font-bold text-gray-900">
-                      {comment.user_id === currentUserId ? 'Me' : comment.user_name}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                    </span>
+                {!isOwn && (
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 shadow-sm bg-gray-400">
+                    {getInitials(comment.user_name)}
                   </div>
+                )}
+
+                <div className={`flex flex-col max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                  {!isOwn && (
+                    <span className="text-[10px] font-bold text-blue-600 mb-0.5 ml-1">
+                      {comment.user_name}
+                    </span>
+                  )}
 
                   <div className={`relative px-3 py-2 rounded-2xl text-sm ${
-                    comment.user_id === currentUserId
-                      ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-100 shadow-lg'
-                      : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                    isOwn
+                      ? 'bg-blue-600 text-white rounded-tr-sm'
+                      : 'bg-gray-100 text-gray-800 rounded-tl-sm'
                   }`}>
                     {comment.reply_to && (
                       <div className={`text-[10px] mb-1.5 pb-1.5 border-b ${
-                        comment.user_id === currentUserId ? 'border-blue-400 text-blue-100' : 'border-gray-200 text-gray-500'
+                        isOwn ? 'border-blue-400/50 text-blue-100' : 'border-gray-200 text-gray-500'
                       }`}>
                         <Reply className="h-2.5 w-2.5 inline mr-1" />
                         Replying to <span className="font-bold">{comment.reply_user_name}</span>
                       </div>
                     )}
 
-                    <p className="whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                    <p className="whitespace-pre-wrap leading-relaxed text-[13px]">
+                      {renderContent(comment.content, isOwn)}
+                    </p>
 
                     {comment.video_timestamp !== null && (
                       <button
                         onClick={() => onSeekTo(comment.video_timestamp!)}
-                        className={`mt-2 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-mono transition-colors ${
-                          comment.user_id === currentUserId
-                            ? 'bg-blue-500/50 hover:bg-blue-400 text-white border border-blue-400'
+                        className={`mt-1.5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono transition-colors ${
+                          isOwn
+                            ? 'bg-blue-500/50 hover:bg-blue-400 text-white border border-blue-400/50'
                             : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 shadow-sm'
                         }`}
                       >
-                        <Clock className="h-3 w-3" />
+                        <Clock className="h-2.5 w-2.5" />
                         {formatTimestamp(comment.video_timestamp)}
                       </button>
                     )}
@@ -272,30 +421,36 @@ export default function CommentsSection({
                           href={getApiUrl(comment.attachment.url)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all border ${
-                            comment.user_id === currentUserId
-                              ? 'bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400'
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all border text-[11px] ${
+                            isOwn
+                              ? 'bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400/50'
                               : 'bg-white hover:bg-blue-50 text-blue-600 border-blue-100'
                           }`}
                         >
-                          <FileVideo className="h-4 w-4" />
-                          <span className="text-[11px] font-medium truncate max-w-[120px]">
+                          <FileVideo className="h-3.5 w-3.5" />
+                          <span className="font-medium truncate max-w-[100px]">
                             {comment.attachment.filename}
                           </span>
                         </a>
                       </div>
                     )}
+
+                    <div className={`text-[9px] mt-1 text-right ${
+                      isOwn ? "text-blue-200/70" : "text-gray-400"
+                    }`}>
+                      {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                    </div>
                   </div>
 
-                  <div className={`mt-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${
-                    comment.user_id === currentUserId ? 'flex-row-reverse' : ''
+                  <div className={`mt-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+                    isOwn ? 'flex-row-reverse' : ''
                   }`}>
-                    <button onClick={() => handleReply(comment)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                      <Reply className="h-3.5 w-3.5" />
+                    <button onClick={() => handleReply(comment)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
+                      <Reply className="h-3 w-3" />
                     </button>
-                    {comment.user_id === currentUserId && (
-                      <button onClick={() => handleDelete(comment.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                        <Trash2 className="h-3.5 w-3.5" />
+                    {isOwn && (
+                      <button onClick={() => handleDelete(comment.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     )}
                   </div>
@@ -307,19 +462,49 @@ export default function CommentsSection({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t border-gray-100">
-        <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="p-3 bg-white border-t border-gray-100 relative">
+        {/* Mention Picker Dropdown */}
+        {showMentions && filteredMembers.length > 0 && (
+          <div className="absolute bottom-full left-2 right-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto z-50 ring-1 ring-black/5">
+            <div className="px-3 py-1.5 text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50 sticky top-0">
+              <AtSign className="h-2.5 w-2.5 inline mr-1" />
+              Mention Member
+            </div>
+            {filteredMembers.map((member, idx) => (
+              <button
+                key={member.id}
+                type="button"
+                onClick={() => handleMentionSelect(member)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
+                  idx === mentionCursorIndex
+                    ? "bg-blue-50"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0">
+                  {getInitials(member.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-gray-900 truncate">{member.name}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{member.email}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-2">
           {replyTo && (
             <div className="flex items-center justify-between gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-1 h-6 bg-blue-400 rounded-full" />
+                <div className="w-1 h-5 bg-blue-400 rounded-full" />
                 <div className="min-w-0 text-xs">
-                  <span className="font-bold text-blue-600 block">Reply to {replyTo.user_name}</span>
-                  <p className="text-gray-500 truncate">{replyTo.content}</p>
+                  <span className="font-bold text-blue-600 block text-[10px]">Reply to {replyTo.user_name}</span>
+                  <p className="text-gray-500 truncate text-[10px]">{replyTo.content}</p>
                 </div>
               </div>
               <button type="button" onClick={() => setReplyTo(null)} className="text-blue-400 hover:text-blue-600 p-1">
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
@@ -329,53 +514,45 @@ export default function CommentsSection({
               <FileVideo className="h-4 w-4 text-indigo-500" />
               <span className="text-xs text-indigo-700 truncate flex-1 font-medium">{attachment.name}</span>
               <button type="button" onClick={() => setAttachment(null)} className="text-indigo-400 hover:text-indigo-600 p-1">
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )}
 
           <div className="flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
             {includeTimestamp && (
-              <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-900 text-white rounded-xl text-[10px] font-mono shadow-sm animate-in fade-in zoom-in-95 duration-200">
-                <Clock className="h-3.5 w-3.5 text-blue-400" />
+              <div className="flex items-center gap-1 px-2 py-1 bg-gray-900 text-white rounded-lg text-[10px] font-mono shadow-sm flex-shrink-0">
+                <Clock className="h-3 w-3 text-blue-400" />
                 {formatTimestamp(Math.floor(currentTime))}
               </div>
             )}
-            
+
             <textarea
-              ref={inputRef as any}
+              ref={inputRef}
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder={includeTimestamp ? "Add feedback at this timestamp..." : "Send a message..."}
+              onChange={handleInputChange}
+              placeholder={includeTimestamp ? "Add feedback at this timestamp..." : "Type a message... Use @ to mention"}
               disabled={submitting}
-              className="flex-1 min-h-[40px] max-h-32 py-2 px-2 text-sm bg-transparent outline-none resize-none placeholder:text-gray-400 scrollbar-hide"
+              className="flex-1 min-h-[36px] max-h-28 py-2 px-2 text-sm bg-transparent outline-none resize-none placeholder:text-gray-400 scrollbar-hide"
               rows={1}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = 'auto';
                 target.style.height = `${target.scrollHeight}px`;
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e as any);
-                }
-              }}
+              onKeyDown={handleKeyDown}
             />
 
-            <div className="flex items-center gap-1 mb-0.5">
-              <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={(e) => e.target.files?.[0] && setAttachment(e.target.files[0])} />
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-xl transition-all" title="Attach video">
+            <div className="flex items-center gap-1 mb-0.5 flex-shrink-0">
+              <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={(e) => { if (e.target.files?.[0]) setAttachment(e.target.files[0]); e.target.value = ''; }} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all" title="Attach video">
                 <Paperclip className="h-4 w-4" />
               </button>
-              <Button type="submit" disabled={submitting || (!newComment.trim() && !attachment)} className="h-9 w-9 rounded-xl shadow-lg shadow-blue-200 p-0">
-                <Send className="h-4 w-4 translate-x-0.5 -translate-y-0.5" />
+              <Button type="submit" disabled={submitting || (!newComment.trim() && !attachment)} className="h-8 w-8 rounded-xl shadow-lg shadow-blue-200 p-0">
+                <Send className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
-          <p className="text-[10px] text-gray-400 px-2">
-            Tip: Press <kbd className="font-sans font-bold">Enter</kbd> to send
-          </p>
         </form>
       </div>
     </div>

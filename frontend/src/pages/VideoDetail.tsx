@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
-import { videoService, commentService } from '@/services/api.service';
-import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
+import { videoService, commentService, workspaceService } from '@/services/api.service';
+import { Video, VideoStatus, Comment, VideoViewer, Workspace } from '@/types';
 import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
 import HLSPlayer from '@/components/HLSPlayer';
@@ -11,7 +11,7 @@ import TimestampPanel from '@/components/TimestampPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Upload, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -40,7 +40,6 @@ export default function VideoDetail() {
   const currentBucket = bucket || contextBucket;
   const navigate = useNavigate();
   const playerRef = useRef<ReactPlayer>(null);
-  const uploadRef = useRef<HTMLInputElement>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [viewers, setViewers] = useState<VideoViewer[]>([]);
@@ -49,8 +48,6 @@ export default function VideoDetail() {
   const [currentTime, setCurrentTime] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
   const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void } | null>(null);
-  const [uploadingVersion, setUploadingVersion] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [showShareLinks, setShowShareLinks] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
@@ -59,6 +56,7 @@ export default function VideoDetail() {
     newStatus: null,
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
 
   const userRole = localStorage.getItem('userRole');
   const isAdmin = userRole === 'admin';
@@ -68,14 +66,6 @@ export default function VideoDetail() {
   const canChangeStatus = isClient || isAdmin;
   const canChangeMarkerStatus = isVideoEditor || isAdmin;
 
-  const canUpload = [
-    'admin',
-    'video_editor',
-    'project_manager',
-    'social_media_manager',
-    'client'
-  ].includes(userRole || '');
-
   const canDelete = ['admin', 'video_editor', 'project_manager'].includes(userRole || '');
 
   useEffect(() => {
@@ -83,9 +73,21 @@ export default function VideoDetail() {
       loadVideo();
       loadComments();
       loadViewers();
+      loadWorkspace();
       videoService.recordView(id).catch(() => {});
     }
   }, [id, currentBucket]);
+
+  const loadWorkspace = async () => {
+    if (!currentBucket) return;
+    try {
+      const workspaces = await workspaceService.getWorkspaces();
+      const ws = workspaces.find(w => w.bucket === currentBucket);
+      if (ws) setWorkspaceId(ws.id);
+    } catch (error) {
+      // Non-critical, silently fail
+    }
+  };
 
   const loadVideo = async () => {
     if (!id || !currentBucket) return;
@@ -171,35 +173,6 @@ export default function VideoDetail() {
     );
   };
 
-  const handleReplaceVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !video || !currentBucket) return;
-
-    setUploadingVersion(true);
-    setUploadProgress(0);
-
-    try {
-      const newVideo = await videoService.uploadVideo(
-        file,
-        currentBucket,
-        (progress) => {
-          if (progress.total) {
-            setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
-          }
-        },
-        video.id
-      );
-
-      navigate(`/workspace/${currentBucket}/video/${newVideo.id}`);
-    } catch (error) {
-      console.error('Failed to replace video:', error);
-    } finally {
-      setUploadingVersion(false);
-      setUploadProgress(0);
-      if (uploadRef.current) uploadRef.current.value = '';
-    }
-  };
-
   const handleDeleteVideo = async (password?: string) => {
     if (!id || !currentBucket) return;
     try {
@@ -228,11 +201,26 @@ export default function VideoDetail() {
 
   const handleCopyLink = async (url: string, type: string) => {
     try {
-      await navigator.clipboard.writeText(url);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // Fallback for non-HTTPS contexts
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
       setCopiedLink(type);
       setTimeout(() => setCopiedLink(null), 2000);
     } catch (error) {
-      console.error('Failed to copy:', error);
+      // Last resort: prompt user to copy manually
+      window.prompt('Copy this link:', url);
     }
   };
 
@@ -335,39 +323,6 @@ export default function VideoDetail() {
               </>
             )}
           </div>
-
-          {/* Replace Video */}
-          {canUpload && (
-            <>
-              <input
-                ref={uploadRef}
-                type="file"
-                accept="video/mp4,video/quicktime,video/webm"
-                onChange={handleReplaceVideo}
-                className="hidden"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => uploadRef.current?.click()}
-                disabled={uploadingVersion}
-                className="text-xs flex-shrink-0"
-              >
-                {uploadingVersion ? (
-                  <span className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
-                    {uploadProgress}%
-                  </span>
-                ) : (
-                  <>
-                    <Upload className="h-3.5 w-3.5 mr-1" />
-                    <span className="hidden sm:inline">Upload New Version</span>
-                    <span className="sm:hidden">New</span>
-                  </>
-                )}
-              </Button>
-            </>
-          )}
 
           {/* Download */}
           <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 flex-shrink-0">
@@ -528,30 +483,6 @@ export default function VideoDetail() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 bg-gray-50 rounded-lg border border-gray-100 mb-3 sm:mb-4">
-              {canUpload && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => uploadRef.current?.click()}
-                  disabled={uploadingVersion}
-                  className="text-xs h-8"
-                >
-                  {uploadingVersion ? (
-                    <span className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
-                      {uploadProgress}%
-                    </span>
-                  ) : (
-                    <>
-                      <Upload className="h-3.5 w-3.5 mr-1" />
-                      Replace Video
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-
             <div className="flex items-center justify-between">
               <div className="text-[9px] sm:text-[10px] text-gray-300 font-mono uppercase tracking-wider truncate">
                 ID: {video.id}
@@ -586,6 +517,7 @@ export default function VideoDetail() {
               <div className="border-t border-gray-100 pt-4 sm:pt-6">
                 <CommentsSection
                   videoId={video.id}
+                  workspaceId={workspaceId}
                   comments={comments}
                   currentTime={currentTime}
                   onSeekTo={handleSeekTo}

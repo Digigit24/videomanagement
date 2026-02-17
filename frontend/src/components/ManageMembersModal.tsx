@@ -15,6 +15,8 @@ const ROLE_LABELS: Record<string, string> = {
   video_editor: 'Video Editor',
   project_manager: 'Project Manager',
   social_media_manager: 'Social Media Manager',
+  client: 'Client',
+  member: 'Member',
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -22,6 +24,8 @@ const ROLE_COLORS: Record<string, string> = {
   video_editor: 'bg-blue-100 text-blue-700',
   project_manager: 'bg-amber-100 text-amber-700',
   social_media_manager: 'bg-emerald-100 text-emerald-700',
+  client: 'bg-teal-100 text-teal-700',
+  member: 'bg-gray-100 text-gray-600',
 };
 
 export default function ManageMembersModal({ workspaceId, onClose }: ManageMembersModalProps) {
@@ -62,11 +66,14 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
   };
 
   const handleRemoveMember = async (userId: string) => {
+    const member = currentMembers.find(m => m.id === userId);
+    if (!confirm(`Remove ${member?.name || 'this member'} from workspace?`)) return;
+    setError('');
     try {
       await workspaceService.removeMember(workspaceId, userId);
-      await loadData(); // Reload to refresh list
+      await loadData();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to remove member');
+      setError(err.response?.data?.error || 'Failed to remove member. Make sure you have admin or project manager permissions.');
     }
   };
 
@@ -128,9 +135,9 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ROLE_COLORS[member.role] || 'bg-gray-100 text-gray-500'}`}>
                       {ROLE_LABELS[member.role] || member.role}
                     </span>
-                    <button 
+                    <button
                       onClick={() => handleRemoveMember(member.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       title="Remove Member"
                     >
                       <Trash2 className="h-4 w-4" />
