@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, Settings, Loader2 } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Settings, Loader2, ShieldX } from 'lucide-react';
 
 export default function ShareVideoPlayer() {
   const { videoId } = useParams<{ videoId: string }>();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || undefined;
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -32,8 +34,13 @@ export default function ShareVideoPlayer() {
   }, [videoId]);
 
   const loadVideo = async () => {
+    if (!token) {
+      setError('Invalid share link. A valid share token is required to access this video.');
+      setLoading(false);
+      return;
+    }
     try {
-      const data = await publicVideoService.getVideoInfo(videoId!);
+      const data = await publicVideoService.getVideoInfo(videoId!, token);
       setVideo(data);
       initPlayer(data);
     } catch (err) {
@@ -48,7 +55,7 @@ export default function ShareVideoPlayer() {
     if (!videoEl) return;
 
     if (videoData.hls_ready && Hls.isSupported()) {
-      const hlsUrl = publicVideoService.getHLSUrl(videoData.id);
+      const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
       const hls = new Hls({
         startLevel: -1,
         capLevelToPlayerSize: true,
@@ -72,13 +79,13 @@ export default function ShareVideoPlayer() {
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           // Fallback to direct stream
-          videoEl.src = publicVideoService.getStreamUrl(videoData.id);
+          videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
         }
       });
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl') && videoData.hls_ready) {
-      videoEl.src = publicVideoService.getHLSUrl(videoData.id);
+      videoEl.src = publicVideoService.getHLSUrl(videoData.id, token);
     } else {
-      videoEl.src = publicVideoService.getStreamUrl(videoData.id);
+      videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
     }
   };
 
@@ -168,9 +175,11 @@ export default function ShareVideoPlayer() {
       <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
         <div className="text-center animate-fade-in-up">
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-            <Play className="h-8 w-8 text-red-400" />
+            {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <Play className="h-8 w-8 text-red-400" />}
           </div>
-          <h1 className="text-xl font-bold text-white mb-2">Video Unavailable</h1>
+          <h1 className="text-xl font-bold text-white mb-2">
+            {!token ? 'Access Denied' : 'Video Unavailable'}
+          </h1>
           <p className="text-gray-400 text-sm max-w-md">{error || 'This video could not be loaded.'}</p>
         </div>
       </div>

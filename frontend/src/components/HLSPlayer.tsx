@@ -196,8 +196,8 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         }}
       />
 
-      {/* Top-right controls overlay */}
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      {/* Top-right controls overlay — always visible on mobile, hover on desktop */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
         {/* Download button on player */}
         {downloadUrl && (
           <button

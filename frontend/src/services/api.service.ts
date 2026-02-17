@@ -293,6 +293,11 @@ export const videoService = {
     const { data } = await api.get(`/video/${videoId}/viewers`);
     return data.viewers as VideoViewer[];
   },
+
+  getShareToken: async (videoId: string) => {
+    const { data } = await api.post(`/video/${videoId}/share-token`);
+    return data.token as string;
+  },
 };
 
 export const commentService = {
@@ -410,23 +415,29 @@ export const notificationService = {
   },
 };
 
-// Public API (no auth needed - for share links)
+// Public API (no auth needed - for share links, requires share token)
 export const publicVideoService = {
-  getVideoInfo: async (videoId: string) => {
-    const { data } = await api.get(`/public/video/${videoId}`);
+  getVideoInfo: async (videoId: string, token?: string) => {
+    const params: any = {};
+    if (token) params.token = token;
+    const { data } = await api.get(`/public/video/${videoId}`, { params });
     return data.video;
   },
 
-  getStreamUrl: (videoId: string) => {
-    return `https://video.celiyo.com/api/public/stream/${videoId}`;
+  getStreamUrl: (videoId: string, token?: string) => {
+    const base = `https://video.celiyo.com/api/public/stream/${videoId}`;
+    return token ? `${base}?token=${token}` : base;
   },
 
-  getHLSUrl: (videoId: string) => {
-    return `https://video.celiyo.com/api/public/hls/${videoId}/master.m3u8`;
+  getHLSUrl: (videoId: string, token?: string) => {
+    const base = `https://video.celiyo.com/api/public/hls/${videoId}/master.m3u8`;
+    return token ? `${base}?token=${token}` : base;
   },
 
-  getReviews: async (videoId: string) => {
-    const { data } = await api.get(`/public/video/${videoId}/reviews`);
+  getReviews: async (videoId: string, token?: string) => {
+    const params: any = {};
+    if (token) params.token = token;
+    const { data } = await api.get(`/public/video/${videoId}/reviews`, { params });
     return data.reviews;
   },
 
@@ -435,12 +446,15 @@ export const publicVideoService = {
     reviewerName: string,
     content: string,
     replyTo?: string,
+    token?: string,
   ) => {
+    const params: any = {};
+    if (token) params.token = token;
     const { data } = await api.post(`/public/video/${videoId}/reviews`, {
       reviewerName,
       content,
       replyTo,
-    });
+    }, { params });
     return data.review;
   },
 };
