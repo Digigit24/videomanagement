@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ChevronDown } from 'lucide-react';
+import { Send, Play, Reply, User, MessageCircle, Loader2, ChevronDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Review {
