@@ -18,6 +18,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { getApiUrl } from "@/lib/utils";
 
 interface WorkspaceChatProps {
   workspaceId: string;
@@ -101,6 +102,7 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
         replyTo?.id,
         selectedMentions,
         attachment || undefined,
+        (percent) => setUploadProgress(percent),
       );
 
       setMessages((prev) => [...prev, message]);
@@ -267,7 +269,7 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
 
   const getAttachmentUrl = (url: string) => {
     const token = localStorage.getItem("token");
-    const baseUrl = url.startsWith("http") ? url : `https://video.celiyo.com${url}`;
+    const baseUrl = getApiUrl(url);
     return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}token=${token}`;
   };
 
@@ -489,8 +491,8 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
                     </div>
                   </div>
 
-                  {/* Actions - always tappable on mobile */}
-                  <div className={`flex gap-2 mt-1 ${isMe ? 'mr-1' : 'ml-1'} opacity-0 group-hover:opacity-100 sm:transition-opacity`}>
+                  {/* Actions - visible on mobile via tap, hover on desktop */}
+                  <div className={`flex gap-2 mt-1 ${isMe ? 'mr-1' : 'ml-1'} sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}>
                     <button onClick={() => handleReply(message)} className="text-[10px] text-gray-400 hover:text-blue-500 active:text-blue-600 transition-colors p-1">
                       Reply
                     </button>
