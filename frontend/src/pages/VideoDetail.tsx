@@ -11,7 +11,8 @@ import TimestampPanel from '@/components/TimestampPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare, MessageCircle } from 'lucide-react';
+import WorkspaceChat from '@/components/WorkspaceChat';
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -54,6 +55,7 @@ export default function VideoDetail() {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [loadingShareToken, setLoadingShareToken] = useState(false);
 
+  const [sidebarTab, setSidebarTab] = useState<'feedback' | 'chat'>('chat');
   const [confirmStatus, setConfirmStatus] = useState<{ open: boolean; newStatus: VideoStatus | null }>({
     open: false,
     newStatus: null,
@@ -576,38 +578,72 @@ export default function VideoDetail() {
         {/* Sidebar - Right (4/12) */}
         <div className="lg:col-span-4 space-y-4">
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col lg:sticky lg:top-20 max-h-[70vh] lg:max-h-[calc(100vh-100px)] animate-slide-in-right">
-            {/* Tabs Header */}
-            <div className="flex border-b border-gray-100">
-              <button className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-gray-900 border-b-2 border-gray-900">
-                Markers & Comments
+            {/* Tabs Header - prominent & recognizable */}
+            <div className="flex border-b border-gray-200 bg-gray-50/50 rounded-t-xl">
+              <button
+                onClick={() => setSidebarTab('feedback')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all relative ${
+                  sidebarTab === 'feedback'
+                    ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tl-xl'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50'
+                }`}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                FEEDBACK
+              </button>
+              <button
+                onClick={() => setSidebarTab('chat')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all relative ${
+                  sidebarTab === 'chat'
+                    ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tr-xl'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50'
+                }`}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                CHAT
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
-              {/* Timestamp Panel */}
-              <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
-                <TimestampPanel
-                  comments={timestampComments}
-                  onSeekTo={handleSeekTo}
-                  onMarkerStatusUpdate={handleMarkerStatusUpdate}
-                  currentTime={currentTime}
-                  canEditStatus={canChangeMarkerStatus}
-                />
-              </div>
+            {/* Feedback Tab */}
+            {sidebarTab === 'feedback' && (
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
+                {/* Timestamp Panel */}
+                <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
+                  <TimestampPanel
+                    comments={timestampComments}
+                    onSeekTo={handleSeekTo}
+                    onMarkerStatusUpdate={handleMarkerStatusUpdate}
+                    currentTime={currentTime}
+                    canEditStatus={canChangeMarkerStatus}
+                  />
+                </div>
 
-              {/* Chat Thread */}
-              <div className="border-t border-gray-100 pt-4 sm:pt-6">
-                <CommentsSection
-                  videoId={video.id}
-                  workspaceId={workspaceId}
-                  comments={comments}
-                  currentTime={currentTime}
-                  onSeekTo={handleSeekTo}
-                  onCommentAdded={handleCommentAdded}
-                  onCommentDeleted={handleCommentDeleted}
-                />
+                {/* Comments Thread */}
+                <div className="border-t border-gray-100 pt-4 sm:pt-6">
+                  <CommentsSection
+                    videoId={video.id}
+                    workspaceId={workspaceId}
+                    comments={comments}
+                    currentTime={currentTime}
+                    onSeekTo={handleSeekTo}
+                    onCommentAdded={handleCommentAdded}
+                    onCommentDeleted={handleCommentDeleted}
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Chat Tab */}
+            {sidebarTab === 'chat' && workspaceId && (
+              <div className="flex-1 overflow-hidden">
+                <WorkspaceChat workspaceId={workspaceId} />
+              </div>
+            )}
+            {sidebarTab === 'chat' && !workspaceId && (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <p className="text-xs text-gray-400">Loading workspace chat...</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
