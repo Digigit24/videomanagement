@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Reply, User, MessageCircle, Loader2, ChevronDown, ShieldX } from 'lucide-react';
+import { Send, Play, Reply, User, MessageCircle, Loader2, ChevronDown, ShieldX, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Review {
@@ -16,13 +16,24 @@ interface Review {
   created_at: string;
 }
 
+const QUICK_REACTIONS = [
+  { emoji: "👍", label: "Looks good" },
+  { emoji: "✅", label: "Approved" },
+  { emoji: "🔄", label: "Needs changes" },
+  { emoji: "❤️", label: "Love it" },
+  { emoji: "🤔", label: "Let me think" },
+  { emoji: "🎬", label: "Great edit" },
+];
+
 export default function VideoReview() {
   const { videoId } = useParams<{ videoId: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || undefined;
   const videoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isNearBottomRef = useRef(true);
 
   const [video, setVideo] = useState<any>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -43,13 +54,27 @@ export default function VideoReview() {
     }
   }, [videoId]);
 
+  // Poll for new reviews every 5 seconds
   useEffect(() => {
-    scrollToBottom();
-  }, [reviews]);
+    if (!videoId || !nameSet) return;
+    const interval = setInterval(loadReviews, 5000);
+    return () => clearInterval(interval);
+  }, [videoId, nameSet]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Check if user is near bottom before new messages arrive
+  const checkNearBottom = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 80;
+    }
   };
+
+  // Auto-scroll only if near bottom
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [reviews.length]);
 
   const loadVideo = async () => {
     if (!token) {
@@ -89,9 +114,14 @@ export default function VideoReview() {
   const loadReviews = async () => {
     try {
       const data = await publicVideoService.getReviews(videoId!, token);
-      setReviews(data);
+      setReviews((prev) => {
+        if (JSON.stringify(prev.map(r => r.id)) === JSON.stringify(data.map((r: Review) => r.id))) {
+          return prev;
+        }
+        return data;
+      });
     } catch (err) {
-      console.error('Failed to load reviews:', err);
+      // Silent fail on poll
     }
   };
 
@@ -118,9 +148,33 @@ export default function VideoReview() {
       setReviews(prev => [...prev, review]);
       setMessage('');
       setReplyTo(null);
+      isNearBottomRef.current = true; // Force scroll for own messages
       inputRef.current?.focus();
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
     } catch (err) {
       console.error('Failed to send review:', err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleQuickReaction = async (text: string) => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const review = await publicVideoService.addReview(
+        videoId!,
+        reviewerName,
+        text,
+        undefined,
+        token,
+      );
+      setReviews(prev => [...prev, review]);
+      isNearBottomRef.current = true;
+    } catch (err) {
+      console.error('Failed to send reaction:', err);
     } finally {
       setSending(false);
     }
@@ -136,7 +190,7 @@ export default function VideoReview() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 animate-fade-in">
+        <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
           <p className="text-gray-500 text-sm">Loading review...</p>
         </div>
@@ -147,7 +201,7 @@ export default function VideoReview() {
   if (error || !video) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center animate-fade-in-up">
+        <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
             {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <MessageCircle className="h-8 w-8 text-red-400" />}
           </div>
@@ -160,18 +214,18 @@ export default function VideoReview() {
     );
   }
 
-  // Name entry screen
+  // Name entry screen - clean & minimal
   if (!nameSet) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-sm animate-fade-in-up">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-sm">
           <div className="text-center mb-6">
             <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-3">
               <User className="h-6 w-6 text-blue-600" />
             </div>
             <h1 className="text-lg font-bold text-gray-900">Join Review</h1>
             <p className="text-sm text-gray-500 mt-1">Enter your name to start reviewing</p>
-            <p className="text-xs text-gray-400 mt-1 truncate">Video: {video.filename}</p>
+            <p className="text-xs text-gray-400 mt-1 truncate">{video.filename}</p>
           </div>
           <form onSubmit={handleSetName} className="space-y-4">
             <input
@@ -197,10 +251,10 @@ export default function VideoReview() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-h-screen">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between flex-shrink-0 animate-fade-in-down">
+      {/* Header - minimal & lightweight */}
+      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-bold text-gray-900 tracking-tight">ReviewFlow</span>
+          <span className="text-sm font-bold text-gray-900 tracking-tight">Review</span>
           <span className="text-gray-300">|</span>
           <span className="text-xs text-gray-500 truncate">{video.filename}</span>
         </div>
@@ -216,40 +270,48 @@ export default function VideoReview() {
             <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] text-white font-bold">
               {reviewerName.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs font-medium text-gray-700">{reviewerName}</span>
+            <span className="text-xs font-medium text-gray-700 max-w-[80px] truncate">{reviewerName}</span>
           </div>
         </div>
       </div>
 
-      {/* Video Player (collapsible) */}
+      {/* Video Player (collapsible) - with controls */}
       {showPlayer && (
-        <div className="bg-black flex-shrink-0 relative animate-fade-in" style={{ maxHeight: '35vh' }}>
+        <div className="bg-black flex-shrink-0 relative group" style={{ maxHeight: '35vh' }}>
           <video
             ref={videoRef}
             className="w-full object-contain"
             style={{ maxHeight: '35vh' }}
             playsInline
+            controls
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
-            onClick={togglePlay}
+            onClick={(e) => {
+              // Only toggle on direct click, not controls click
+              if ((e.target as HTMLElement).tagName === 'VIDEO') {
+                togglePlay();
+              }
+            }}
           />
-          {!isPlaying && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <button
-                onClick={togglePlay}
-                className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
-              >
-                <Play className="h-6 w-6 text-white ml-0.5" />
-              </button>
+          {/* Overlay play button for first play */}
+          {!isPlaying && videoRef.current && videoRef.current.currentTime === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
+              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Play className="h-8 w-8 text-white ml-1" />
+              </div>
             </div>
           )}
         </div>
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-0.5">
+      <div
+        ref={messagesContainerRef}
+        onScroll={checkNearBottom}
+        className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-0.5"
+      >
         {reviews.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12 animate-fade-in">
+          <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-3">
               <MessageCircle className="h-7 w-7 text-gray-300" />
             </div>
@@ -257,6 +319,19 @@ export default function VideoReview() {
             <p className="text-xs text-gray-400 max-w-[240px]">
               Be the first to share your thoughts on this video
             </p>
+            {/* Quick reaction buttons for empty state */}
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
+              {QUICK_REACTIONS.map(({ emoji, label }) => (
+                <button
+                  key={label}
+                  onClick={() => handleQuickReaction(`${emoji} ${label}`)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all active:scale-95"
+                >
+                  <span>{emoji}</span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           reviews.map((review, i) => {
@@ -266,8 +341,7 @@ export default function VideoReview() {
             return (
               <div
                 key={review.id}
-                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${showAvatar ? 'mt-3' : 'mt-0.5'} animate-fade-in-up`}
-                style={{ animationDelay: `${Math.min(i * 30, 300)}ms`, animationFillMode: 'both' }}
+                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${showAvatar ? 'mt-3' : 'mt-0.5'}`}
               >
                 <div className={`flex gap-2 max-w-[85%] sm:max-w-[70%] ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                   {/* Avatar */}
@@ -314,7 +388,10 @@ export default function VideoReview() {
                         {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
                       </span>
                       <button
-                        onClick={() => setReplyTo(review)}
+                        onClick={() => {
+                          setReplyTo(review);
+                          inputRef.current?.focus();
+                        }}
                         className="text-[9px] text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-0.5"
                       >
                         <Reply className="h-2.5 w-2.5" />
@@ -330,11 +407,30 @@ export default function VideoReview() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Quick reactions bar */}
+      {reviews.length > 0 && (
+        <div className="px-3 sm:px-4 pb-1 flex-shrink-0">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+            {QUICK_REACTIONS.map(({ emoji, label }) => (
+              <button
+                key={label}
+                onClick={() => handleQuickReaction(`${emoji} ${label}`)}
+                disabled={sending}
+                className="flex-shrink-0 px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-[10px] text-gray-600 transition-all active:scale-95 disabled:opacity-50"
+                title={label}
+              >
+                {emoji} {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input Area */}
-      <div className="bg-white border-t border-gray-200 p-3 sm:p-4 flex-shrink-0 animate-slide-up">
+      <div className="bg-white border-t border-gray-200 p-3 sm:p-4 flex-shrink-0">
         {/* Reply Preview */}
         {replyTo && (
-          <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mb-2 animate-fade-in">
+          <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 mb-2">
             <div className="flex items-center gap-2 min-w-0">
               <Reply className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
               <div className="min-w-0">
@@ -344,9 +440,9 @@ export default function VideoReview() {
             </div>
             <button
               onClick={() => setReplyTo(null)}
-              className="text-xs text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0"
+              className="text-gray-400 hover:text-gray-600 ml-2 flex-shrink-0 p-1"
             >
-              Cancel
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
@@ -363,9 +459,14 @@ export default function VideoReview() {
                   handleSendReview(e);
                 }
               }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+              }}
               placeholder="Type your feedback..."
               rows={1}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none overflow-hidden"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
               style={{ minHeight: '42px', maxHeight: '120px' }}
             />
           </div>

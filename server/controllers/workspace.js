@@ -57,10 +57,10 @@ export async function listWorkspaces(req, res) {
 
 export async function createNewWorkspace(req, res) {
   try {
-    const allowedRoles = ["admin", "project_manager"];
+    const allowedRoles = ["admin", "project_manager", "social_media_manager"];
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
-        error: "Only admins and project managers can create workspaces",
+        error: "Only admins, project managers, and social media managers can create workspaces",
       });
     }
 

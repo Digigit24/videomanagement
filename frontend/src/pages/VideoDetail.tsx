@@ -71,7 +71,7 @@ export default function VideoDetail() {
   // All org members (except client) can change marker/timestamp feedback status
   const canChangeMarkerStatus = ['admin', 'video_editor', 'project_manager', 'social_media_manager', 'member'].includes(userRole || '');
 
-  const canDelete = ['admin', 'video_editor', 'project_manager'].includes(userRole || '');
+  const canDelete = ['admin', 'video_editor', 'project_manager', 'social_media_manager'].includes(userRole || '');
 
   useEffect(() => {
     if (id && currentBucket) {

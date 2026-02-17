@@ -15,7 +15,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { Video, VideoStatus } from '@/types';
 import { videoService } from '@/services/api.service';
 import { formatBytes, formatDate } from '@/lib/utils';
-import { FileVideo, User, Play, GripVertical } from 'lucide-react';
+import { FileVideo, User, Play, GripVertical, Link2, Check, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Toast } from './ui/toast';
 
@@ -239,6 +239,62 @@ function KanbanThumbnail({ video }: { video: Video }) {
   );
 }
 
+function KanbanCopyLinkButton({ videoId }: { videoId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'copied'>('idle');
+
+  const handleCopyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (state === 'loading' || state === 'copied') return;
+
+    setState('loading');
+    try {
+      const token = await videoService.getShareToken(videoId);
+      const reviewUrl = `${window.location.origin}/v/${videoId}/review?token=${token}`;
+
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(reviewUrl);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = reviewUrl;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+
+      setState('copied');
+      setTimeout(() => setState('idle'), 2000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      setState('idle');
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopyLink}
+      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
+        state === 'copied'
+          ? 'bg-emerald-100 text-emerald-700'
+          : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600'
+      }`}
+      title={state === 'copied' ? 'Link copied!' : 'Copy review link'}
+    >
+      {state === 'loading' ? (
+        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+      ) : state === 'copied' ? (
+        <Check className="h-2.5 w-2.5" />
+      ) : (
+        <Link2 className="h-2.5 w-2.5" />
+      )}
+      {state === 'copied' ? 'Copied' : 'Link'}
+    </button>
+  );
+}
+
 function DraggableVideoCard({ video, canDrag, onClick }: DraggableVideoCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: video.id,
@@ -287,12 +343,17 @@ function DraggableVideoCard({ video, canDrag, onClick }: DraggableVideoCardProps
           <span>{formatBytes(video.size)}</span>
         </div>
 
-        {video.uploaded_by_name && (
-          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-400">
-            <User className="h-2.5 w-2.5" />
-            <span>{video.uploaded_by_name}</span>
-          </div>
-        )}
+        <div className="flex items-center justify-between mt-1.5">
+          {video.uploaded_by_name ? (
+            <div className="flex items-center gap-1 text-[10px] text-gray-400">
+              <User className="h-2.5 w-2.5" />
+              <span>{video.uploaded_by_name}</span>
+            </div>
+          ) : (
+            <div />
+          )}
+          <KanbanCopyLinkButton videoId={video.id} />
+        </div>
       </div>
     </div>
   );
