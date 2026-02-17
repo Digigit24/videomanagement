@@ -446,33 +446,7 @@ export default function VideoDetail() {
             </div>
 
             <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg border border-gray-100 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</span>
-                {canChangeStatus ? (
-                  <Select
-                    value={video.status}
-                    onValueChange={handleStatusChangeRequest}
-                    disabled={updating}
-                  >
-                    <SelectTrigger className={`w-[160px] h-8 text-xs font-medium border ${statusColors[video.status]}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
-                            {status}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${statusColors[video.status]}`}>
-                    {video.status}
-                  </span>
-                )}
-              </div>
+
 
               {/* Replace Video Trigger */}
               {canUpload && (

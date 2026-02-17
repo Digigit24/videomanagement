@@ -5,7 +5,7 @@ import { Workspace } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   FolderOpen, Plus, Users, Video,
-  Settings, ChevronRight, Link as LinkIcon, ExternalLink, MoreHorizontal,
+  Settings, Link as LinkIcon, ExternalLink, MoreHorizontal,
   Trash2
 } from 'lucide-react';
 import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
@@ -191,100 +191,95 @@ export default function Dashboard() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex flex-col bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden shadow-sm">
             {workspaces.map(workspace => (
               <div
                 key={workspace.id}
-                className="group bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-md transition-all overflow-hidden cursor-pointer"
+                className="group flex items-center gap-4 p-4 hover:bg-gray-50 transition-all cursor-pointer relative"
                 onClick={() => navigate(`/workspace/${workspace.bucket}`)}
               >
-                {/* Card Header */}
-                <div className="p-4 pb-2">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2.5">
-                      {workspace.client_logo ? (
-                        <img src={getApiUrl(workspace.client_logo)} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-100" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
-                          {workspace.client_name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                          {workspace.client_name}
-                        </h3>
-                        <p className="text-[10px] text-gray-400 font-mono">{workspace.bucket}</p>
-                      </div>
+                {/* Avatar */}
+                <div className="flex-shrink-0">
+                  {workspace.client_logo ? (
+                    <img src={getApiUrl(workspace.client_logo)} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-100" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+                      {workspace.client_name.charAt(0).toUpperCase()}
                     </div>
-
-                    {/* Context menu */}
-                    {canCreateWorkspace && (
-                      <div className="relative flex items-center">
-                        {isAdmin && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setWorkspaceToDelete(workspace);
-                            }}
-                            className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors mr-1"
-                            title="Delete Workspace"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setContextMenu(contextMenu === workspace.id ? null : workspace.id);
-                          }}
-                          className="p-1 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-
-                          {contextMenu === workspace.id && (
-                          <div className="absolute right-0 top-7 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => { handleCreateInvitation(workspace.id); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-left"
-                            >
-                              <LinkIcon className="h-3.5 w-3.5" />
-                              Copy Invite Link
-                            </button>
-                            <button
-                              onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-left"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              Open Workspace
-                            </button>
-                            {isAdmin && (
-                              <button
-                                onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 text-left"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete Workspace
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
 
-                {/* Card Footer Stats */}
-                <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center gap-4">
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Video className="h-3 w-3" />
-                    <span>{workspace.video_count} videos</span>
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <h3 className="text-base font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                      {workspace.client_name}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                       {/* Context menu trigger */}
+                       {canCreateWorkspace && (
+                        <div 
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                           <button
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setContextMenu(contextMenu === workspace.id ? null : workspace.id);
+                             }}
+                             className="p-1.5 rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors"
+                           >
+                             <MoreHorizontal className="h-4 w-4" />
+                           </button>
+                           
+                           {/* Dropdown Menu */}
+                           {contextMenu === workspace.id && (
+                             <div className="absolute right-4 top-10 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                               <button
+                                 onClick={() => { handleCreateInvitation(workspace.id); }}
+                                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 text-left"
+                               >
+                                 <LinkIcon className="h-3.5 w-3.5" />
+                                 Copy Invite Link
+                               </button>
+                               <button
+                                 onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
+                                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 text-left"
+                               >
+                                 <ExternalLink className="h-3.5 w-3.5" />
+                                 Open Workspace
+                               </button>
+                               {isAdmin && (
+                                 <button
+                                   onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
+                                   className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 text-left"
+                                 >
+                                   <Trash2 className="h-3.5 w-3.5" />
+                                   Delete Workspace
+                                 </button>
+                               )}
+                             </div>
+                           )}
+                        </div>
+                       )}
+                       
+                       <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100 font-mono">
+                         {workspace.bucket}
+                       </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Users className="h-3 w-3" />
-                    <span>{workspace.member_count} members</span>
+                  
+                  <div className="flex items-center gap-3 text-sm text-gray-500 truncate">
+                    <div className="flex items-center gap-1">
+                      <Video className="h-3.5 w-3.5" />
+                      <span>{workspace.video_count} videos</span>
+                    </div>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3.5 w-3.5" />
+                      <span>{workspace.member_count} members</span>
+                    </div>
                   </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-gray-300 ml-auto group-hover:text-blue-400 transition-colors" />
                 </div>
               </div>
             ))}

@@ -68,7 +68,7 @@ export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef }:
           <button
             onClick={handleDownload}
             className="bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg backdrop-blur-sm transition-all hover:scale-105 shadow-lg"
-            title="Download highest quality"
+            title="Download Original (Highest Quality)"
           >
             <Download className="h-4 w-4" />
           </button>

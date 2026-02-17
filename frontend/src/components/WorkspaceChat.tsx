@@ -5,17 +5,14 @@ import { Button } from "./ui/button";
 import {
   MessageCircle,
   Send,
-  Trash2,
   Reply,
   X,
   Paperclip,
   Image,
   FileVideo,
   File,
-  AtSign,
-  Play,
   FileText,
-  Upload,
+  MoreVertical,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -114,6 +111,9 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
       }
     } catch (error) {
       console.error("Failed to send message:", error);
+      alert(
+        "Failed to send message. Please checking file size (max 5GB) and network connection.",
+      );
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
@@ -325,424 +325,361 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
 
   return (
     <>
-      <div
-        className="flex flex-col bg-white rounded-xl overflow-hidden border border-gray-200"
-        style={{ height: "calc(100vh - 220px)", minHeight: "500px" }}
-      >
+      <div className="flex flex-col w-full h-[calc(100vh-80px)] lg:h-[calc(100vh-90px)] bg-[#f3f4f6] dark:bg-gray-950 rounded-xl overflow-hidden shadow-sm border border-gray-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-4 w-4 text-blue-600" />
-            <h3 className="text-sm font-semibold text-gray-900">
-              Chat{" "}
-              <span className="text-gray-400 font-normal">
-                ({messages.length})
-              </span>
-            </h3>
+        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 flex-shrink-0 sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+              <MessageCircle className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 leading-none mb-1">
+                Workspace Chat
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                {members.length} members
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span>{members.length} members</span>
-          </div>
+          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">
+            <MoreVertical className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* Messages List */}
+        {/* Messages List - Background pattern for WhatsApp feel */}
         <div
           ref={listRef}
-          className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth"
+          className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-4 scroll-smooth bg-[#efeae2]/40 relative"
+          style={{
+             backgroundImage: "url('https://site-assets.fontawesome.com/releases/v6.4.2/svgs/solid/message-lines.svg')",
+             backgroundSize: "400px",
+             backgroundRepeat: "repeat",
+             backgroundBlendMode: "soft-light",
+             backgroundPosition: "center"
+          }}
         >
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <MessageCircle className="h-8 w-8 text-gray-400" />
+          {/* Overlay to fade the pattern */}
+          <div className="absolute inset-0 bg-gray-50/95" style={{ pointerEvents: 'none' }} />
+          
+          <div className="relative z-0 space-y-4 pb-2">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
               </div>
-              <p className="text-sm font-medium text-gray-900">
-                No messages yet
-              </p>
-              <p className="text-xs text-gray-500 max-w-[200px] mx-auto mt-1">
-                Start a conversation with your team!
-              </p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`group flex items-start gap-2.5 ${message.user_id === currentUserId ? "flex-row-reverse" : ""}`}
-              >
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 ${
-                    message.user_id === currentUserId
-                      ? "bg-blue-600"
-                      : "bg-gray-400"
-                  }`}
-                >
-                  {getInitials(message.user_name)}
+            ) : messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                  <MessageCircle className="h-8 w-8 text-gray-400" />
                 </div>
-
-                <div
-                  className={`flex flex-col max-w-[80%] ${message.user_id === currentUserId ? "items-end" : "items-start"}`}
-                >
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[11px] font-bold text-gray-900">
-                      {message.user_id === currentUserId
-                        ? "Me"
-                        : message.user_name}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      {formatDistanceToNow(new Date(message.created_at), {
-                        addSuffix: true,
-                      })}
-                    </span>
-                  </div>
-
+                <p className="text-sm font-medium text-gray-900">
+                  No messages yet
+                </p>
+                <p className="text-xs text-gray-500 max-w-[200px] mx-auto mt-1">
+                  Start the conversation!
+                </p>
+              </div>
+            ) : (
+              messages.map((message) => {
+                const isMe = message.user_id === currentUserId;
+                return (
                   <div
-                    className={`relative px-3 py-2 rounded-2xl text-sm ${
-                      message.user_id === currentUserId
-                        ? "bg-blue-600 text-white rounded-tr-sm"
-                        : "bg-gray-100 text-gray-800 rounded-tl-sm"
-                    }`}
+                    key={message.id}
+                    className={`group flex items-end gap-2 ${isMe ? "flex-row-reverse" : ""}`}
                   >
-                    {/* Reply reference */}
-                    {message.reply_to && (
-                      <div
-                        className={`text-[10px] mb-1.5 pb-1.5 border-b ${
-                          message.user_id === currentUserId
-                            ? "border-blue-400 text-blue-100"
-                            : "border-gray-200 text-gray-500"
-                        }`}
-                      >
-                        <Reply className="h-2.5 w-2.5 inline mr-1" />
-                        Replying to{" "}
-                        <span className="font-bold">
-                          {message.reply_user_name}
-                        </span>
-                        {message.reply_content && (
-                          <p className="truncate mt-0.5 opacity-75">
-                            {message.reply_content}
-                          </p>
-                        )}
+                    {!isMe && (
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 shadow-sm mb-1">
+                        {getInitials(message.user_name)}
                       </div>
                     )}
 
-                    {/* Message content */}
-                    {message.content && (
-                      <p className="whitespace-pre-wrap leading-relaxed">
-                        {message.content
-                          .split(/(@\w[\w\s]*)/g)
-                          .map((part, i) =>
-                            part.startsWith("@") ? (
-                              <span
-                                key={i}
-                                className={`font-bold ${message.user_id === currentUserId ? "text-blue-200" : "text-blue-600"}`}
-                              >
-                                {part}
-                              </span>
-                            ) : (
-                              <span key={i}>{part}</span>
-                            ),
-                          )}
-                      </p>
-                    )}
+                    <div
+                      className={`flex flex-col max-w-[85%] sm:max-w-[70%] ${isMe ? "items-end" : "items-start"}`}
+                    >
+                      <div
+                        className={`relative px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm text-sm ${
+                          isMe
+                            ? "bg-blue-600 text-white rounded-2xl rounded-tr-none"
+                            : "bg-white text-gray-800 rounded-2xl rounded-tl-none border border-gray-100"
+                        }`}
+                      >
+                        {/* Sender Name in Group Chat (only for others) */}
+                        {!isMe && (
+                          <div className="text-[10px] font-bold text-blue-600 mb-1 leading-none">
+                            {message.user_name}
+                          </div>
+                        )}
 
-                    {/* Attachments */}
-                    {message.attachments &&
-                      message.attachments.length > 0 &&
-                      message.attachments.map((att) => (
-                        <div key={att.id} className="mt-2">
-                          {isImageFile(att.content_type) ? (
-                            <a
-                              href={getAttachmentUrl(att.url)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <img
-                                src={getAttachmentUrl(att.url)}
-                                alt={att.filename}
-                                className="max-w-[260px] max-h-[200px] rounded-lg object-cover border border-white/20 cursor-pointer hover:opacity-90 transition-opacity"
-                              />
-                            </a>
-                          ) : isVideoFile(att.content_type) ? (
-                            <div
-                              className="relative cursor-pointer group/video max-w-[260px] rounded-lg overflow-hidden"
-                              onClick={() =>
-                                setVideoDialog({
-                                  url: getAttachmentUrl(att.url),
-                                  filename: att.filename,
-                                })
-                              }
-                            >
-                              {/* Video thumbnail */}
-                              <div className="bg-gray-900 aspect-video flex items-center justify-center">
-                                <div className="flex flex-col items-center gap-2">
-                                  <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover/video:bg-white/40 transition-all group-hover/video:scale-110">
-                                    <Play className="h-6 w-6 text-white ml-0.5" />
-                                  </div>
-                                  <span className="text-white/70 text-[10px] font-medium truncate max-w-[200px] px-2">
-                                    {att.filename}
-                                  </span>
-                                </div>
-                              </div>
-                              <div
-                                className={`absolute bottom-0 left-0 right-0 px-2 py-1 text-[10px] font-medium flex items-center gap-1 ${
-                                  message.user_id === currentUserId
-                                    ? "bg-blue-700/80 text-blue-100"
-                                    : "bg-gray-800/80 text-gray-200"
-                                }`}
-                              >
-                                <FileVideo className="h-3 w-3" />
-                                <span>Tap to play</span>
-                                {att.size > 0 && (
-                                  <span className="ml-auto opacity-70">
-                                    {formatFileSize(att.size)}
-                                  </span>
-                                )}
-                              </div>
+                        {/* Reply reference */}
+                        {message.reply_to && (
+                          <div
+                            className={`text-[10px] mb-2 p-1.5 rounded bg-black/5 border-l-2 ${
+                              isMe ? "border-white/50 text-white/90" : "border-blue-500 text-gray-600"
+                            }`}
+                          >
+                            <div className="font-bold flex items-center gap-1">
+                              <Reply className="h-2.5 w-2.5" />
+                              {message.reply_user_name}
                             </div>
-                          ) : (
-                            <a
-                              href={getAttachmentUrl(att.url)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all border ${
-                                message.user_id === currentUserId
-                                  ? "bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400/30"
-                                  : "bg-white hover:bg-blue-50 text-gray-700 border-gray-200"
-                              }`}
-                            >
-                              {(() => {
-                                const IconComp = getFileIcon(att.content_type);
-                                return <IconComp className="h-5 w-5 flex-shrink-0" />;
-                              })()}
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium truncate">
-                                  {att.filename}
-                                </p>
-                                <p
-                                  className={`text-[10px] ${
-                                    message.user_id === currentUserId
-                                      ? "text-blue-200"
-                                      : "text-gray-400"
+                            {message.reply_content && (
+                              <p className="truncate mt-0.5 opacity-80 line-clamp-1">
+                                {message.reply_content}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Message content */}
+                        {message.content && (
+                          <p className={`whitespace-pre-wrap leading-relaxed break-words ${isMe ? "text-white" : "text-gray-800"}`}>
+                            {message.content
+                              .split(/(@\w[\w\s]*)/g)
+                              .map((part, i) =>
+                                part.startsWith("@") ? (
+                                  <span
+                                    key={i}
+                                    className={`font-bold ${isMe ? "text-blue-100" : "text-blue-600"}`}
+                                  >
+                                    {part}
+                                  </span>
+                                ) : (
+                                  <span key={i}>{part}</span>
+                                ),
+                              )}
+                          </p>
+                        )}
+
+                        {/* Attachments */}
+                        {message.attachments &&
+                          message.attachments.length > 0 &&
+                          message.attachments.map((att) => (
+                            <div key={att.id} className="mt-2 text-left">
+                              {isImageFile(att.content_type) ? (
+                                <a
+                                  href={getAttachmentUrl(att.url)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={getAttachmentUrl(att.url)}
+                                    alt={att.filename}
+                                    className="max-w-full sm:max-w-[280px] rounded-lg object-cover border border-white/10"
+                                    style={{ maxHeight: '200px' }}
+                                  />
+                                </a>
+                              ) : isVideoFile(att.content_type) ? (
+                                <div className="relative max-w-full sm:max-w-[280px] rounded-lg overflow-hidden bg-black aspect-video border border-white/10">
+                                  <video
+                                    src={getAttachmentUrl(att.url)}
+                                    controls
+                                    preload="metadata"
+                                    playsInline
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                              ) : (
+                                <a
+                                  href={getAttachmentUrl(att.url)}
+                                  download={att.filename}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all border mt-1 ${
+                                    isMe
+                                      ? "bg-white/10 hover:bg-white/20 text-white border-white/20"
+                                      : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
                                   }`}
                                 >
-                                  {getFileTypeLabel(att.content_type)}
-                                  {att.size > 0 &&
-                                    ` · ${formatFileSize(att.size)}`}
-                                </p>
-                              </div>
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                  </div>
+                                  {(() => {
+                                    const IconComp = getFileIcon(att.content_type);
+                                    return <IconComp className="h-5 w-5 flex-shrink-0" />;
+                                  })()}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold truncate leading-tight">
+                                      {att.filename}
+                                    </p>
+                                    <p
+                                      className={`text-[10px] mt-0.5 ${
+                                        isMe ? "text-blue-100" : "text-gray-400"
+                                      }`}
+                                    >
+                                      {getFileTypeLabel(att.content_type)} • {formatFileSize(att.size)}
+                                    </p>
+                                  </div>
+                                </a>
+                              )}
+                            </div>
+                          ))}
 
-                  {/* Actions */}
-                  <div
-                    className={`mt-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-                      message.user_id === currentUserId
-                        ? "flex-row-reverse"
-                        : ""
-                    }`}
-                  >
-                    <button
-                      onClick={() => handleReply(message)}
-                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all"
-                    >
-                      <Reply className="h-3 w-3" />
-                    </button>
-                    {message.user_id === currentUserId && (
-                      <button
-                        onClick={() => handleDelete(message.id)}
-                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
+                        {/* Timestamp */}
+                        <div className={`text-[9px] mt-1 text-right tabular-nums ${
+                          isMe ? "text-blue-100/80" : "text-gray-400"
+                        }`}>
+                          {formatDistanceToNow(new Date(message.created_at), {
+                            addSuffix: true,
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Actions (visible on hover) */}
+                      {isMe && (
+                        <div className="flex gap-2 mt-1 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button
+                            onClick={() => handleDelete(message.id)}
+                            className="text-[10px] text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                      {!isMe && (
+                         <div className="flex gap-2 mt-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                               onClick={() => handleReply(message)}
+                               className="text-[10px] text-gray-400 hover:text-blue-500 transition-colors"
+                             >
+                               Reply
+                             </button>
+                         </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Input Area */}
-        <div className="p-3 bg-white border-t border-gray-100 flex-shrink-0">
+        <div className="p-2 sm:p-3 bg-white border-t border-gray-100 flex-shrink-0">
           <form onSubmit={handleSubmit} className="space-y-2">
             {replyTo && (
-              <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-l-4 border-blue-500 rounded-r-lg mb-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-1 h-5 bg-blue-400 rounded-full" />
                   <div className="min-w-0 text-xs">
-                    <span className="font-bold text-blue-600 block">
-                      Reply to {replyTo.user_name}
+                    <span className="font-bold text-blue-600 block mb-0.5">
+                      Replying to {replyTo.user_name}
                     </span>
-                    <p className="text-gray-500 truncate">{replyTo.content}</p>
+                    <p className="text-gray-500 truncate max-w-[200px]">{replyTo.content}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setReplyTo(null)}
-                  className="text-blue-400 hover:text-blue-600 p-0.5"
+                  className="text-gray-400 hover:text-gray-600 p-1"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             )}
 
             {attachment && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl">
+              <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg mb-2">
                 {(() => {
                   const IconComp = getFileIcon(attachment.type);
-                  return <IconComp className="h-4 w-4 text-indigo-500 flex-shrink-0" />;
+                  return <IconComp className="h-5 w-5 text-indigo-600 flex-shrink-0" />;
                 })()}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-indigo-700 truncate font-medium">
+                  <p className="text-xs text-indigo-900 truncate font-medium">
                     {attachment.name}
                   </p>
-                  <p className="text-[10px] text-indigo-400">
-                    {getFileTypeLabel(attachment.type)} ·{" "}
-                    {formatFileSize(attachment.size)}
+                  <p className="text-[10px] text-indigo-500">
+                    {getFileTypeLabel(attachment.type)} • {formatFileSize(attachment.size)}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAttachment(null)}
-                  className="text-indigo-400 hover:text-indigo-600 p-0.5"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {submitting ? (
+                    <div className="w-16">
+                         <div className="h-1 w-full bg-indigo-200 rounded-full overflow-hidden">
+                             <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                         </div>
+                    </div>
+                ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAttachment(null)}
+                      className="text-indigo-400 hover:text-indigo-600 p-1"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                )}
               </div>
             )}
 
-            {/* Upload progress */}
-            {submitting && attachment && (
-              <div className="px-3">
-                <div className="flex items-center gap-2 text-xs text-blue-600">
-                  <Upload className="h-3 w-3 animate-pulse" />
-                  <span>Uploading {getFileTypeLabel(attachment.type)}...</span>
-                </div>
-                <div className="mt-1 w-full bg-blue-100 rounded-full h-1">
-                  <div
-                    className="bg-blue-600 h-1 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress || 10}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Mention dropdown — positioned above input */}
+            {/* Mention dropdown */}
             {showMentions && filteredMembers.length > 0 && (
               <div
                 ref={mentionListRef}
-                className="bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto"
+                className="absolute bottom-16 left-4 right-4 sm:left-auto sm:w-64 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-50 ring-1 ring-black/5"
               >
-                <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                  <AtSign className="h-3 w-3 inline mr-1" />
-                  Mention a member
+                <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50">
+                  Mention Member
                 </div>
                 {filteredMembers.map((member, idx) => (
                   <button
                     key={member.id}
                     type="button"
                     onClick={() => handleMentionSelect(member)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
                       idx === mentionCursorIndex
                         ? "bg-blue-50"
                         : "hover:bg-gray-50"
                     }`}
                   >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
                       {getInitials(member.name)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-gray-900 truncate">
+                      <p className="text-sm font-medium text-gray-900 truncate">
                         {member.name}
                       </p>
-                      <p className="text-[10px] text-gray-400 truncate">
-                        {member.email} · {member.role}
-                      </p>
                     </div>
-                    {idx === mentionCursorIndex && (
-                      <span className="text-[9px] text-blue-400 font-medium px-1.5 py-0.5 bg-blue-100 rounded whitespace-nowrap">
-                        Enter ↵
-                      </span>
-                    )}
                   </button>
                 ))}
               </div>
             )}
 
-            <div className="flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
-              <textarea
-                ref={inputRef}
-                value={newMessage}
-                onChange={handleInputChange}
-                placeholder="Type a message... Use @ to mention"
-                disabled={submitting}
-                className="flex-1 min-h-[36px] max-h-24 py-1.5 px-2 text-sm bg-transparent outline-none resize-none placeholder:text-gray-400 scrollbar-hide"
-                rows={1}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = "auto";
-                  target.style.height = `${target.scrollHeight}px`;
-                }}
-                onKeyDown={handleKeyDown}
-              />
+            <div className="flex items-end gap-2">
+                <div className="flex-1 bg-gray-100 focus-within:bg-white border border-transparent focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded-2xl transition-all">
+                  <textarea
+                    ref={inputRef}
+                    value={newMessage}
+                    onChange={handleInputChange}
+                    placeholder="Type a message..."
+                    disabled={submitting}
+                    className="w-full max-h-32 min-h-[44px] py-3 px-4 text-sm bg-transparent outline-none resize-none placeholder:text-gray-500"
+                    rows={1}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = "auto";
+                      target.style.height = `${target.scrollHeight}px`;
+                    }}
+                    onKeyDown={handleKeyDown}
+                  />
+                </div>
 
-              <div className="flex items-center gap-0.5 mb-0.5">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all"
-                  title="Attach file (photos, videos, documents, any file)"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cursorPos =
-                      inputRef.current?.selectionStart || newMessage.length;
-                    const before = newMessage.slice(0, cursorPos);
-                    const after = newMessage.slice(cursorPos);
-                    const needsSpace =
-                      before.length > 0 && !before.endsWith(" ") && !before.endsWith("\n");
-                    const newVal = before + (needsSpace ? " @" : "@") + after;
-                    setNewMessage(newVal);
-                    setShowMentions(true);
-                    setMentionSearch("");
-                    inputRef.current?.focus();
-                    // Set cursor after @
-                    const newCursorPos =
-                      cursorPos + (needsSpace ? 2 : 1);
-                    setTimeout(() => {
-                      if (inputRef.current) {
-                        inputRef.current.selectionStart = newCursorPos;
-                        inputRef.current.selectionEnd = newCursorPos;
-                      }
-                    }, 0);
-                  }}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all"
-                  title="Mention someone"
-                >
-                  <AtSign className="h-4 w-4" />
-                </button>
-                <Button
-                  type="submit"
-                  disabled={submitting || (!newMessage.trim() && !attachment)}
-                  className="h-8 w-8 rounded-xl shadow-lg shadow-blue-200 p-0"
-                >
-                  <Send className="h-3.5 w-3.5 translate-x-0.5 -translate-y-0.5" />
-                </Button>
-              </div>
+                <div className="flex items-center gap-1 mb-1">
+                     <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleFileSelect}
+                      />
+                     <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-3 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all flex-shrink-0"
+                        title="Attach file"
+                      >
+                        <Paperclip className="h-5 w-5" />
+                      </button>
+                      
+                    <Button
+                        type="submit"
+                        disabled={submitting || (!newMessage.trim() && !attachment)}
+                        className="h-11 w-11 rounded-full shadow-md bg-blue-600 hover:bg-blue-700 p-0 flex-shrink-0"
+                    >
+                        <Send className="h-5 w-5 text-white" />
+                    </Button>
+                </div>
             </div>
           </form>
         </div>
@@ -750,31 +687,28 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
 
       {/* Video Player Dialog */}
       {videoDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/90 backdrop-blur-sm"
             onClick={() => setVideoDialog(null)}
           />
-          <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl max-w-3xl w-full mx-4">
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-900">
-              <div className="flex items-center gap-2">
-                <FileVideo className="h-4 w-4 text-blue-400" />
-                <span className="text-sm font-medium text-white truncate">
-                  {videoDialog.filename}
-                </span>
-              </div>
+          <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl max-w-4xl w-full border border-gray-800">
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-900/50 backdrop-blur absolute top-0 left-0 right-0 z-10">
+              <span className="text-sm font-medium text-white truncate px-2">
+                {videoDialog.filename}
+              </span>
               <button
                 onClick={() => setVideoDialog(null)}
-                className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80"
               >
-                <X className="h-5 w-5 text-gray-400" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             <video
               src={videoDialog.url}
               controls
               autoPlay
-              className="w-full max-h-[70vh]"
+              className="w-full max-h-[80vh] aspect-video object-contain"
             />
           </div>
         </div>
