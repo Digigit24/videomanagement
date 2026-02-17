@@ -124,6 +124,28 @@ export async function getVideos(bucket) {
   }
 }
 
+export async function getVideosPollHash(bucket) {
+  try {
+    const result = await pool().query(
+      `SELECT COUNT(*) as count,
+              MAX(updated_at) as last_updated,
+              MAX(created_at) as last_created
+       FROM videos
+       WHERE bucket = $1 AND is_active_version = TRUE`,
+      [bucket],
+    );
+    const row = result.rows[0];
+    return {
+      count: parseInt(row.count),
+      lastUpdated: row.last_updated,
+      lastCreated: row.last_created,
+    };
+  } catch (error) {
+    console.error("Error getting videos poll hash:", error);
+    throw error;
+  }
+}
+
 export async function getBucketByVideoId(id) {
   try {
     const result = await pool().query(

@@ -168,6 +168,17 @@ router.get("/workspace/:bucket/analytics", authenticate, async (req, res) => {
 // Workspace
 router.post("/workspace/:id/delete", authenticate, removeWorkspace);
 
+// Videos - poll endpoint (lightweight check for changes)
+router.get("/videos/poll", authenticate, validateBucket, async (req, res) => {
+  try {
+    const { getVideosPollHash } = await import("../services/video.js");
+    const hash = await getVideosPollHash(req.bucket);
+    res.json(hash);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to poll videos" });
+  }
+});
+
 // Videos
 router.get("/videos", authenticate, validateBucket, listVideos);
 router.get("/video/:id", authenticate, validateBucket, getVideo);

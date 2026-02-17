@@ -30,7 +30,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadWorkspaces();
+    // Short polling: refresh workspace data every 4 seconds to catch new uploads
+    const interval = setInterval(refreshWorkspacesSilent, 4000);
+    return () => clearInterval(interval);
   }, []);
+
+  const refreshWorkspacesSilent = async () => {
+    try {
+      const ws = await workspaceService.getWorkspaces();
+      setWorkspaces(ws);
+    } catch {
+      // Silently fail — will retry in 4s
+    }
+  };
 
   const loadWorkspaces = async () => {
     try {

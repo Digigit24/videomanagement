@@ -37,10 +37,10 @@ export default function NotificationBell() {
   const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Poll for unread count every 30s
+  // Short polling: check unread count every 4 seconds for near-real-time notifications
   useEffect(() => {
     loadUnreadCount();
-    const interval = setInterval(loadUnreadCount, 30000);
+    const interval = setInterval(loadUnreadCount, 4000);
     return () => clearInterval(interval);
   }, []);
 
