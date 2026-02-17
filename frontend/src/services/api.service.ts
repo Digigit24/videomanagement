@@ -66,7 +66,7 @@ export const userService = {
   },
 
   deleteUser: async (userId: string, password?: string) => {
-    await api.post(`/user/${userId}/delete`, { password });
+    await api.delete(`/user/${userId}`, { data: { password } });
   },
 
   getCurrentUser: async () => {
@@ -350,6 +350,7 @@ export const chatService = {
     replyTo?: string,
     mentions?: string[],
     file?: File,
+    onProgress?: (percent: number) => void,
   ) => {
     const formData = new FormData();
     formData.append("content", content);
@@ -368,6 +369,11 @@ export const chatService = {
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent: any) => {
+          if (onProgress && progressEvent.total) {
+            onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+          }
+        },
       },
     );
     return data.message as ChatMessage;
