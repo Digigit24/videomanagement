@@ -217,10 +217,16 @@ router.get(
   async (req, res) => {
     const { bucket } = req.params;
     const objectKey = req.params[0];
-    const { getObjectStream } = await import("../services/storage.js");
+    const { getObjectStream, resolveBucket, MAIN_BUCKET } =
+      await import("../services/storage.js");
 
     try {
-      const stream = await getObjectStream(bucket, objectKey);
+      const { bucket: physicalBucket, prefix } = resolveBucket(bucket);
+      const finalKey = prefix ? `${prefix}${objectKey}` : objectKey;
+
+      // We use MAIN_BUCKET (or physicalBucket) here because we've already manually applied the prefix
+      // and we want to bypass getObjectStream's internal prefix logic for this specific relative key case
+      const stream = await getObjectStream(physicalBucket, finalKey);
       stream.pipe(res);
     } catch (error) {
       res.status(404).json({ error: "Attachment not found" });
@@ -232,11 +238,15 @@ router.get(
 router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
   try {
     const pool = (await import("../db/index.js")).getPool();
-    const result = await pool.query("SELECT thumbnail_key, bucket FROM videos WHERE id = $1", [req.params.id]);
+    const result = await pool.query(
+      "SELECT thumbnail_key, bucket FROM videos WHERE id = $1",
+      [req.params.id],
+    );
     if (!result.rows[0]?.thumbnail_key) {
       return res.status(404).json({ error: "Thumbnail not available" });
     }
-    const { getObjectStream, resolveBucket: resolve } = await import("../services/storage.js");
+    const { getObjectStream, resolveBucket: resolve } =
+      await import("../services/storage.js");
     const { bucket } = resolve(result.rows[0].bucket);
     const stream = await getObjectStream(bucket, result.rows[0].thumbnail_key);
     res.setHeader("Content-Type", "image/jpeg");
@@ -377,7 +387,12 @@ async function validateShareAccess(req, res, next) {
   const videoId = req.params.videoId || req.params.id;
 
   if (!token) {
-    return res.status(403).json({ error: "Share token is required. This video can only be accessed via a valid share link." });
+    return res
+      .status(403)
+      .json({
+        error:
+          "Share token is required. This video can only be accessed via a valid share link.",
+      });
   }
 
   try {
@@ -390,7 +405,9 @@ async function validateShareAccess(req, res, next) {
 
     // Ensure token matches the requested video
     if (shareData.video_id !== videoId) {
-      return res.status(403).json({ error: "Share token does not match this video" });
+      return res
+        .status(403)
+        .json({ error: "Share token does not match this video" });
     }
 
     req.shareToken = shareData;
@@ -409,9 +426,8 @@ router.post("/public/video/:videoId/reviews", validateShareAccess, addReview);
 router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const hlsPath = req.params[0];
-  const { getObjectStream, MAIN_BUCKET } = await import(
-    "../services/storage.js"
-  );
+  const { getObjectStream, MAIN_BUCKET } =
+    await import("../services/storage.js");
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
 
   try {
@@ -443,9 +459,8 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
 router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
-  const { getVideoStream, resolveBucket } = await import(
-    "../services/storage.js"
-  );
+  const { getVideoStream, resolveBucket } =
+    await import("../services/storage.js");
   const pool = (await import("../db/index.js")).getPool();
 
   try {
@@ -481,11 +496,7 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
 });
 
 // Share token management (authenticated)
-router.post(
-  "/video/:videoId/share-token",
-  authenticate,
-  generateShareToken,
-);
+router.post("/video/:videoId/share-token", authenticate, generateShareToken);
 router.get("/share/:token", validateShareToken);
 
 // Video reviews (authenticated access for internal users)
