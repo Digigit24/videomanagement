@@ -371,13 +371,42 @@ router.get(
   },
 );
 
-// Public Video & Review endpoints (no auth needed - accessed via share links)
-router.get("/public/video/:videoId", getPublicVideoInfo);
-router.get("/public/video/:videoId/reviews", listReviews);
-router.post("/public/video/:videoId/reviews", addReview);
+// Share token validation middleware for public endpoints
+async function validateShareAccess(req, res, next) {
+  const token = req.query.token || req.headers["x-share-token"];
+  const videoId = req.params.videoId || req.params.id;
 
-// Public HLS streaming for shared videos (no auth)
-router.get("/public/hls/:id/*", async (req, res) => {
+  if (!token) {
+    return res.status(403).json({ error: "Share token is required. This video can only be accessed via a valid share link." });
+  }
+
+  try {
+    const { getShareToken } = await import("../services/videoReview.js");
+    const shareData = await getShareToken(token);
+
+    if (!shareData) {
+      return res.status(403).json({ error: "Invalid or expired share link" });
+    }
+
+    // Ensure token matches the requested video
+    if (shareData.video_id !== videoId) {
+      return res.status(403).json({ error: "Share token does not match this video" });
+    }
+
+    req.shareToken = shareData;
+    next();
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to validate share access" });
+  }
+}
+
+// Public Video & Review endpoints (requires valid share token)
+router.get("/public/video/:videoId", validateShareAccess, getPublicVideoInfo);
+router.get("/public/video/:videoId/reviews", validateShareAccess, listReviews);
+router.post("/public/video/:videoId/reviews", validateShareAccess, addReview);
+
+// Public HLS streaming for shared videos (requires share token)
+router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const hlsPath = req.params[0];
   const { getObjectStream, MAIN_BUCKET } = await import(
@@ -410,8 +439,8 @@ router.get("/public/hls/:id/*", async (req, res) => {
   }
 });
 
-// Public direct video stream for shared videos (no auth)
-router.get("/public/stream/:id", async (req, res) => {
+// Public direct video stream for shared videos (requires share token)
+router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
   const { getVideoStream, resolveBucket } = await import(

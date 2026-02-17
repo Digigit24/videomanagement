@@ -51,6 +51,8 @@ export default function VideoDetail() {
   const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void } | null>(null);
   const [showShareLinks, setShowShareLinks] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [loadingShareToken, setLoadingShareToken] = useState(false);
 
   const [confirmStatus, setConfirmStatus] = useState<{ open: boolean; newStatus: VideoStatus | null }>({
     open: false,
@@ -205,13 +207,29 @@ export default function VideoDetail() {
   };
 
   const getVideoShareUrl = () => {
-    if (!video) return '';
-    return `${window.location.origin}/v/${video.id}`;
+    if (!video || !shareToken) return '';
+    return `${window.location.origin}/v/${video.id}?token=${shareToken}`;
   };
 
   const getReviewShareUrl = () => {
-    if (!video) return '';
-    return `${window.location.origin}/v/${video.id}/review`;
+    if (!video || !shareToken) return '';
+    return `${window.location.origin}/v/${video.id}/review?token=${shareToken}`;
+  };
+
+  const handleOpenSharePanel = async () => {
+    const opening = !showShareLinks;
+    setShowShareLinks(opening);
+    if (opening && !shareToken && video) {
+      setLoadingShareToken(true);
+      try {
+        const token = await videoService.getShareToken(video.id);
+        setShareToken(token);
+      } catch (error) {
+        console.error('Failed to generate share token:', error);
+      } finally {
+        setLoadingShareToken(false);
+      }
+    }
   };
 
   const handleCopyLink = async (url: string, type: string) => {
@@ -278,7 +296,7 @@ export default function VideoDetail() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowShareLinks(!showShareLinks)}
+              onClick={handleOpenSharePanel}
               className="text-xs gap-1 h-9 min-w-[40px]"
             >
               <Link2 className="h-4 w-4" />
@@ -288,52 +306,67 @@ export default function VideoDetail() {
             {showShareLinks && (
               <>
                 <div className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent" onClick={() => setShowShareLinks(false)} />
-                <div className="fixed inset-x-3 bottom-3 sm:absolute sm:inset-auto sm:right-0 sm:top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-auto sm:w-80 p-4 animate-scale-in">
+                <div className="fixed inset-x-3 bottom-3 sm:absolute sm:inset-auto sm:right-0 sm:top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-auto sm:w-96 p-4 animate-scale-in">
                   <p className="text-sm font-semibold text-gray-900 mb-3">Share Links</p>
 
-                  {/* Video Link */}
-                  <div className="bg-gray-50 rounded-lg p-3 mb-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Link2 className="h-4 w-4 text-blue-600" />
-                      <span className="text-xs font-medium text-gray-700">Video Link</span>
+                  {loadingShareToken ? (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      <span className="text-xs text-gray-500 ml-2">Generating secure link...</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        readOnly
-                        value={getVideoShareUrl()}
-                        className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono truncate"
-                      />
-                      <button
-                        onClick={() => handleCopyLink(getVideoShareUrl(), 'video')}
-                        className="p-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors flex-shrink-0"
-                      >
-                        {copiedLink === 'video' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1.5">Client can watch the video directly</p>
-                  </div>
+                  ) : (
+                    <>
+                      {/* Video Link */}
+                      <div className="bg-gray-50 rounded-lg p-3 mb-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Link2 className="h-4 w-4 text-blue-600" />
+                          <span className="text-xs font-medium text-gray-700">Video Link</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            readOnly
+                            value={getVideoShareUrl()}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                            className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono cursor-text select-all"
+                          />
+                          <button
+                            onClick={() => handleCopyLink(getVideoShareUrl(), 'video')}
+                            className="p-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors flex-shrink-0"
+                            title="Copy video link"
+                          >
+                            {copiedLink === 'video' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1.5">Client can watch the video directly</p>
+                      </div>
 
-                  {/* Review Link */}
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <MessageSquare className="h-4 w-4 text-emerald-600" />
-                      <span className="text-xs font-medium text-gray-700">Review Link</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        readOnly
-                        value={getReviewShareUrl()}
-                        className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono truncate"
-                      />
-                      <button
-                        onClick={() => handleCopyLink(getReviewShareUrl(), 'review')}
-                        className="p-2.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex-shrink-0"
-                      >
-                        {copiedLink === 'review' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1.5">Client can review and give feedback</p>
-                  </div>
+                      {/* Review Link */}
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <MessageSquare className="h-4 w-4 text-emerald-600" />
+                          <span className="text-xs font-medium text-gray-700">Review Link</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            readOnly
+                            value={getReviewShareUrl()}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                            className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono cursor-text select-all"
+                          />
+                          <button
+                            onClick={() => handleCopyLink(getReviewShareUrl(), 'review')}
+                            className="p-2.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex-shrink-0"
+                            title="Copy review link"
+                          >
+                            {copiedLink === 'review' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1.5">Client can review and give feedback</p>
+                      </div>
+
+                      <p className="text-[10px] text-gray-400 mt-3 text-center">Only people with this link can access</p>
+                    </>
+                  )}
                 </div>
               </>
             )}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Reply, User, MessageCircle, Loader2, ChevronDown } from 'lucide-react';
+import { Send, Play, Reply, User, MessageCircle, Loader2, ChevronDown, ShieldX } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Review {
@@ -18,6 +18,8 @@ interface Review {
 
 export default function VideoReview() {
   const { videoId } = useParams<{ videoId: string }>();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || undefined;
   const videoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -50,12 +52,17 @@ export default function VideoReview() {
   };
 
   const loadVideo = async () => {
+    if (!token) {
+      setError('Invalid share link. A valid share token is required to access this review page.');
+      setLoading(false);
+      return;
+    }
     try {
-      const data = await publicVideoService.getVideoInfo(videoId!);
+      const data = await publicVideoService.getVideoInfo(videoId!, token);
       setVideo(data);
       initPlayer(data);
     } catch (err) {
-      setError('This video is not available.');
+      setError('This video is not available or the link has expired.');
     } finally {
       setLoading(false);
     }
@@ -67,21 +74,21 @@ export default function VideoReview() {
 
     if (videoData.hls_ready && Hls.isSupported()) {
       const hls = new Hls({ startLevel: -1 });
-      hls.loadSource(publicVideoService.getHLSUrl(videoData.id));
+      hls.loadSource(publicVideoService.getHLSUrl(videoData.id, token));
       hls.attachMedia(videoEl);
       hls.on(Hls.Events.ERROR, () => {
-        videoEl.src = publicVideoService.getStreamUrl(videoData.id);
+        videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
       });
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl') && videoData.hls_ready) {
-      videoEl.src = publicVideoService.getHLSUrl(videoData.id);
+      videoEl.src = publicVideoService.getHLSUrl(videoData.id, token);
     } else {
-      videoEl.src = publicVideoService.getStreamUrl(videoData.id);
+      videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
     }
   };
 
   const loadReviews = async () => {
     try {
-      const data = await publicVideoService.getReviews(videoId!);
+      const data = await publicVideoService.getReviews(videoId!, token);
       setReviews(data);
     } catch (err) {
       console.error('Failed to load reviews:', err);
@@ -106,6 +113,7 @@ export default function VideoReview() {
         reviewerName,
         message.trim(),
         replyTo?.id,
+        token,
       );
       setReviews(prev => [...prev, review]);
       setMessage('');
@@ -141,9 +149,11 @@ export default function VideoReview() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center animate-fade-in-up">
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
-            <MessageCircle className="h-8 w-8 text-red-400" />
+            {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <MessageCircle className="h-8 w-8 text-red-400" />}
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Review Unavailable</h1>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">
+            {!token ? 'Access Denied' : 'Review Unavailable'}
+          </h1>
           <p className="text-gray-500 text-sm">{error || 'This review page could not be loaded.'}</p>
         </div>
       </div>
