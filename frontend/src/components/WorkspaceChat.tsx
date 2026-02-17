@@ -21,9 +21,74 @@ import {
   FileSpreadsheet,
   Presentation,
   Volume2,
+  Camera,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { getApiUrl } from "@/lib/utils";
+
+// Fetches authenticated media via Authorization header and returns a blob URL
+function useAuthBlobUrl(url: string | null): { blobUrl: string | null; loading: boolean; error: boolean } {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!url) { setBlobUrl(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+
+    const token = localStorage.getItem("token");
+    // Build the base URL without any existing token param
+    const cleanUrl = url.replace(/[?&]token=[^&]*/g, '').replace(/\?$/, '');
+
+    fetch(cleanUrl, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.blob(); })
+      .then(blob => {
+        if (!cancelled) {
+          setBlobUrl(URL.createObjectURL(blob));
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError(true);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      setBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+    };
+  }, [url]);
+
+  return { blobUrl, loading, error };
+}
+
+// Image component that loads via fetch with Authorization header
+function AuthImage({ src, alt, className, style, onClick, onError }: {
+  src: string; alt: string; className?: string; style?: React.CSSProperties;
+  onClick?: () => void; onError?: () => void;
+}) {
+  const { blobUrl, error } = useAuthBlobUrl(src);
+
+  useEffect(() => {
+    if (error && onError) onError();
+  }, [error, onError]);
+
+  if (!blobUrl) {
+    return (
+      <div className={className} style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6' }}>
+        <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return <img src={blobUrl} alt={alt} className={className} style={style} onClick={onClick} loading="lazy" />;
+}
 
 interface WorkspaceChatProps {
   workspaceId: string;
@@ -366,9 +431,14 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
   };
 
   const getAttachmentUrl = (url: string) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || "";
     const baseUrl = getApiUrl(url);
-    return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}token=${token}`;
+    return `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+  };
+
+  // Get clean API URL (without token) for fetch-based loading
+  const getCleanAttachmentUrl = (url: string) => {
+    return getApiUrl(url);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -441,17 +511,17 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
     const url = getAttachmentUrl(att.url);
     const hasImageError = imageErrors.has(att.id);
 
-    // Image - show inline like WhatsApp
+    // Image - show inline like WhatsApp (uses fetch + blob URL for reliable auth)
     if (isImageFile(resolvedType) && !hasImageError) {
+      const cleanUrl = getCleanAttachmentUrl(att.url);
       return (
         <div key={att.id} className="mt-2 text-left">
           <div className="relative group/img">
-            <img
-              src={url}
+            <AuthImage
+              src={cleanUrl}
               alt={att.filename}
               className="max-w-full sm:max-w-[300px] rounded-lg object-cover cursor-pointer hover:opacity-95 transition-opacity"
               style={{ maxHeight: "280px" }}
-              loading="lazy"
               onClick={() => setLightboxImage(url)}
               onError={() => setImageErrors(prev => new Set(prev).add(att.id))}
             />
@@ -977,6 +1047,22 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.zip,.rar,.7z,.gif"
                 onChange={handleFileSelect}
               />
+              <input
+                type="file"
+                id="camera-input"
+                className="hidden"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileSelect}
+              />
+              <button
+                type="button"
+                onClick={() => document.getElementById('camera-input')?.click()}
+                className="p-2.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all flex-shrink-0 active:bg-emerald-100"
+                title="Take a photo"
+              >
+                <Camera className="h-5 w-5" />
+              </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}

@@ -232,9 +232,22 @@ function KanbanThumbnail({ video }: { video: Video }) {
     );
   }
 
+  // Fallback: show video preview frame from stream
+  const streamUrl = videoService.getStreamUrl(video.id, video.bucket);
   return (
-    <div className="relative w-full aspect-video rounded overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 mb-2 flex items-center justify-center">
-      <FileVideo className="h-6 w-6 text-gray-300" />
+    <div className="relative w-full aspect-video rounded overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 mb-2">
+      <video
+        src={streamUrl}
+        muted
+        playsInline
+        preload="metadata"
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+        <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow">
+          <Play className="h-3.5 w-3.5 text-gray-900 ml-0.5" />
+        </div>
+      </div>
     </div>
   );
 }

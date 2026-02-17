@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Video, VideoStatus } from '@/types';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { videoService } from '@/services/api.service';
@@ -23,6 +23,18 @@ const statusColors: Record<VideoStatus, string> = {
 
 function VideoThumbnail({ video }: { video: Video }) {
   const [error, setError] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // On hover, play video preview for videos without thumbnails
+  useEffect(() => {
+    if (hovering && videoRef.current && !video.thumbnail_key) {
+      videoRef.current.play().catch(() => {});
+    } else if (!hovering && videoRef.current) {
+      videoRef.current.pause();
+      if (videoRef.current.currentTime > 0) videoRef.current.currentTime = 0;
+    }
+  }, [hovering, video.thumbnail_key]);
 
   if (video.thumbnail_key && !error) {
     return (
@@ -45,14 +57,32 @@ function VideoThumbnail({ video }: { video: Video }) {
     );
   }
 
+  // Fallback: show video preview on hover, or a styled placeholder
+  const streamUrl = videoService.getStreamUrl(video.id, video.bucket);
   return (
-    <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 mb-3 flex items-center justify-center">
-      <FileVideo className="h-10 w-10 text-gray-300" />
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-          <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+    <div
+      className="relative w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 mb-3"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      <video
+        ref={videoRef}
+        src={streamUrl}
+        muted
+        playsInline
+        preload="metadata"
+        className="w-full h-full object-cover"
+      />
+      {!hovering && (
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+              <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+            </div>
+            <span className="text-[9px] text-white/70 font-medium">Hover to preview</span>
+          </div>
         </div>
-      </div>
+      )}
       <span className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColors[video.status]}`}>
         {video.status}
       </span>

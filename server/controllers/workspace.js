@@ -32,6 +32,7 @@ import { notifyWorkspaceMembers } from "../services/notification.js";
 import { uploadToS3 } from "../services/upload.js";
 import multer from "multer";
 import { apiError } from "../utils/logger.js";
+import { logActivity } from "../services/activity.js";
 
 const logoUpload = multer({
   storage: multer.memoryStorage(),
@@ -108,6 +109,13 @@ export async function createNewWorkspace(req, res) {
         await addWorkspaceMember(workspace.id, projectManagerId);
       }
     }
+
+    // Log activity
+    await logActivity(req.user.id, "workspace_created", "workspace", workspace.id, {
+      clientName,
+      bucket: workspace.bucket,
+      memberCount: (memberIds?.length || 0) + 1,
+    });
 
     // Notify added members
     try {
@@ -235,6 +243,13 @@ export async function addMember(req, res) {
 
     await addWorkspaceMember(id, userId);
 
+    // Log activity
+    const addedUser = await getUserById(userId);
+    await logActivity(req.user.id, "member_added", "workspace", id, {
+      addedUserId: userId,
+      addedUserName: addedUser?.name || addedUser?.email,
+    });
+
     // Notify the added user
     try {
       const workspace = await getWorkspaceById(id);
@@ -269,6 +284,14 @@ export async function removeMember(req, res) {
     }
 
     const { id, userId } = req.params;
+
+    // Log activity before removal
+    const removedUser = await getUserById(userId);
+    await logActivity(req.user.id, "member_removed", "workspace", id, {
+      removedUserId: userId,
+      removedUserName: removedUser?.name || removedUser?.email,
+    });
+
     await removeWorkspaceMember(id, userId);
     res.json({ message: "Member removed" });
   } catch (error) {
@@ -440,10 +463,17 @@ export async function removeWorkspace(req, res) {
       return res.status(401).json({ error: "Invalid password" });
     }
 
+    const workspace = await getWorkspaceById(id);
     const deleted = await softDeleteWorkspace(id);
     if (!deleted) {
       return res.status(404).json({ error: "Workspace not found" });
     }
+
+    // Log activity
+    await logActivity(req.user.id, "workspace_deleted", "workspace", id, {
+      clientName: workspace?.client_name,
+      bucket: workspace?.bucket,
+    });
 
     res.json({ message: "Workspace moved to recycle bin", workspace: deleted });
   } catch (error) {
