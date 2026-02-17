@@ -224,7 +224,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2">
                        {canCreateWorkspace && (
                         <div
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          className={`transition-opacity ${contextMenu === workspace.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                           onClick={(e) => e.stopPropagation()}
                         >
                            <button
