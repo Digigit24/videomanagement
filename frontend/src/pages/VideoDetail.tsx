@@ -216,16 +216,20 @@ export default function VideoDetail() {
     return `${window.location.origin}/v/${video.id}/review?token=${shareToken}`;
   };
 
+  const [shareError, setShareError] = useState(false);
+
   const handleOpenSharePanel = async () => {
     const opening = !showShareLinks;
     setShowShareLinks(opening);
     if (opening && !shareToken && video) {
       setLoadingShareToken(true);
+      setShareError(false);
       try {
         const token = await videoService.getShareToken(video.id);
         setShareToken(token);
       } catch (error) {
         console.error('Failed to generate share token:', error);
+        setShareError(true);
       } finally {
         setLoadingShareToken(false);
       }
@@ -233,28 +237,47 @@ export default function VideoDetail() {
   };
 
   const handleCopyLink = async (url: string, type: string) => {
+    if (!url) {
+      alert('Share link is not ready yet. Please wait...');
+      return;
+    }
     try {
+      // Try modern clipboard API first
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(url);
-      } else {
-        // Fallback for non-HTTPS contexts
-        const textarea = document.createElement('textarea');
-        textarea.value = url;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        textarea.style.top = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
+        setCopiedLink(type);
+        setTimeout(() => setCopiedLink(null), 2500);
+        return;
       }
-      setCopiedLink(type);
-      setTimeout(() => setCopiedLink(null), 2000);
-    } catch (error) {
-      // Last resort: prompt user to copy manually
-      window.prompt('Copy this link:', url);
+    } catch (e) {
+      // Clipboard API failed, try fallback
     }
+
+    try {
+      // Fallback: textarea + execCommand
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (success) {
+        setCopiedLink(type);
+        setTimeout(() => setCopiedLink(null), 2500);
+        return;
+      }
+    } catch (e) {
+      // execCommand also failed
+    }
+
+    // Last resort: show prompt for manual copy
+    window.prompt('Copy this link manually:', url);
   };
 
   if (loading || !video || !currentBucket) {
@@ -313,6 +336,13 @@ export default function VideoDetail() {
                     <div className="flex items-center justify-center py-6">
                       <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                       <span className="text-xs text-gray-500 ml-2">Generating secure link...</span>
+                    </div>
+                  ) : shareError ? (
+                    <div className="text-center py-4">
+                      <p className="text-xs text-red-500 mb-2">Failed to generate share link</p>
+                      <Button variant="outline" size="sm" onClick={() => { setShareToken(null); handleOpenSharePanel(); }} className="text-xs">
+                        Retry
+                      </Button>
                     </div>
                   ) : (
                     <>

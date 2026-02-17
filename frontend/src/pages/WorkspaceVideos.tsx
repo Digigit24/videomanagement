@@ -10,7 +10,7 @@ import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Send, TrendingUp, Calendar as CalendarIcon } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Send, TrendingUp, Calendar as CalendarIcon, Video, FileVideo as FileVideoIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
 
@@ -23,9 +23,8 @@ export default function WorkspaceVideos() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [showChat, setShowChat] = useState(false);
+  const [activeTab, setActiveTab] = useState<'videos' | 'chat' | 'analytics'>('chat');
   const [showManageMembers, setShowManageMembers] = useState(false);
-  const [showAnalytics, setShowAnalytics] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [analytics, setAnalytics] = useState<WorkspaceAnalytics | null>(null);
   const [view, setView] = useState<'list' | 'kanban'>(() => {
@@ -217,56 +216,101 @@ export default function WorkspaceVideos() {
           <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{workspace?.client_name || bucket}</h1>
         </div>
 
-        {/* Actions Row - scrollable on mobile */}
+        {/* Main Tab Navigation */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-          {/* Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[120px] sm:w-[140px] h-8 text-xs border-dashed bg-white flex-shrink-0">
-              <Filter className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Draft">Draft</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Under Review">Under Review</SelectItem>
-              <SelectItem value="Approved">Approved</SelectItem>
-              <SelectItem value="Changes Needed">Changes Needed</SelectItem>
-              <SelectItem value="Rejected">Rejected</SelectItem>
-              <SelectItem value="Posted">Posted</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Date Filter */}
-          <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[110px] sm:w-[130px] h-8 text-xs border-dashed bg-white flex-shrink-0">
-              <CalendarIcon className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
-              <SelectValue placeholder="Date" />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Clear filters button */}
-          {activeFilters > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setDateFilter('all'); setStatusFilter('all'); }}
-              className="h-8 text-xs text-gray-500 hover:text-gray-700 flex-shrink-0 gap-1"
+          <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
+            <button
+              onClick={() => setActiveTab('videos')}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+                activeTab === 'videos'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+              }`}
             >
-              <X className="h-3 w-3" />
-              Clear ({activeFilters})
-            </Button>
-          )}
+              <FileVideoIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Videos
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === 'videos' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
+                {videos.length}
+              </span>
+            </button>
+            {workspace && (
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+                  activeTab === 'chat'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >
+                <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Chat
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+                activeTab === 'analytics'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+              }`}
+            >
+              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Analytics
+            </button>
+          </div>
 
           <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
 
-          <ViewSwitcher view={view} onViewChange={handleViewChange} />
+          {/* Video filters - only show on Videos tab */}
+          {activeTab === 'videos' && (
+            <>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[120px] sm:w-[140px] h-8 text-xs border-dashed bg-white flex-shrink-0">
+                  <Filter className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="Draft">Draft</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Under Review">Under Review</SelectItem>
+                  <SelectItem value="Approved">Approved</SelectItem>
+                  <SelectItem value="Changes Needed">Changes Needed</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
+                  <SelectItem value="Posted">Posted</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="w-[110px] sm:w-[130px] h-8 text-xs border-dashed bg-white flex-shrink-0">
+                  <CalendarIcon className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+                  <SelectValue placeholder="Date" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {activeFilters > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setDateFilter('all'); setStatusFilter('all'); }}
+                  className="h-8 text-xs text-gray-500 hover:text-gray-700 flex-shrink-0 gap-1"
+                >
+                  <X className="h-3 w-3" />
+                  Clear ({activeFilters})
+                </Button>
+              )}
+
+              <ViewSwitcher view={view} onViewChange={handleViewChange} />
+            </>
+          )}
+
+          <div className="flex-1" />
 
           {workspace && (
             <Button
@@ -280,46 +324,6 @@ export default function WorkspaceVideos() {
             </Button>
           )}
 
-          {workspace && (
-            <Button
-              variant={showChat ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setShowChat(!showChat); if (!showChat) setShowAnalytics(false); }}
-              className="gap-1 sm:gap-1.5 flex-shrink-0 h-8 text-xs"
-            >
-              {showChat ? (
-                <>
-                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Close Chat</span>
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Chat</span>
-                </>
-              )}
-            </Button>
-          )}
-
-          <Button
-            variant={showAnalytics ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setShowAnalytics(!showAnalytics); if (!showAnalytics) setShowChat(false); }}
-            className="gap-1 sm:gap-1.5 flex-shrink-0 h-8 text-xs"
-          >
-            {showAnalytics ? (
-              <>
-                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Close Analytics</span>
-              </>
-            ) : (
-              <>
-                <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Analytics</span>
-              </>
-            )}
-          </Button>
-
           <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-1 sm:gap-2 flex-shrink-0 h-8 text-xs">
             <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Upload
@@ -327,12 +331,14 @@ export default function WorkspaceVideos() {
         </div>
       </div>
 
-      <div className="animate-fade-in-up">
-        <DashboardCards stats={stats} totalEverPosted={analytics?.historical.totalEverPosted} />
-      </div>
+      {activeTab === 'videos' && (
+        <div className="animate-fade-in-up">
+          <DashboardCards stats={stats} totalEverPosted={analytics?.historical.totalEverPosted} />
+        </div>
+      )}
 
       {/* Analytics Panel */}
-      {showAnalytics && analytics && (
+      {activeTab === 'analytics' && analytics && (
         <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm animate-fade-in-up space-y-5">
           <div className="flex items-center gap-2 mb-1">
             <BarChart3 className="h-4 w-4 text-blue-600" />
@@ -464,9 +470,16 @@ export default function WorkspaceVideos() {
         </div>
       )}
 
-      <div className={`grid ${showChat ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'} gap-4`}>
-        {/* Videos */}
-        <div className={`${showChat ? 'lg:col-span-6' : ''} animate-fade-in`}>
+      {activeTab === 'analytics' && !analytics && (
+        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+          <BarChart3 className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">No analytics data available yet</p>
+        </div>
+      )}
+
+      {/* Videos Tab */}
+      {activeTab === 'videos' && (
+        <div className="animate-fade-in">
           {filteredVideos.length === 0 ? (
             <div className="text-center py-10 sm:py-12 bg-white rounded-xl border border-dashed border-gray-300">
               <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3">
@@ -488,14 +501,21 @@ export default function WorkspaceVideos() {
             <KanbanBoard videos={filteredVideos} onVideoUpdate={handleOptimisticUpdate} />
           )}
         </div>
+      )}
 
-        {/* Chat Panel */}
-        {showChat && workspace && (
-          <div className="lg:col-span-6 animate-slide-in-right">
-            <WorkspaceChat workspaceId={workspace.id} />
-          </div>
-        )}
-      </div>
+      {/* Chat Tab - Full Width */}
+      {activeTab === 'chat' && workspace && (
+        <div className="animate-fade-in">
+          <WorkspaceChat workspaceId={workspace.id} />
+        </div>
+      )}
+
+      {activeTab === 'chat' && !workspace && (
+        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+          <MessageCircle className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">Loading workspace chat...</p>
+        </div>
+      )}
 
       <UploadModal
         isOpen={uploadModalOpen}
