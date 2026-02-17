@@ -5,6 +5,7 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -14,7 +15,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { Video, VideoStatus } from '@/types';
 import { videoService } from '@/services/api.service';
 import { formatBytes, formatDate } from '@/lib/utils';
-import { FileVideo, User } from 'lucide-react';
+import { FileVideo, User, Play, GripVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Toast } from './ui/toast';
 
@@ -50,19 +51,30 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const navigate = useNavigate();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  const userRole = localStorage.getItem('userRole') || '';
+  const canChangeStatus = ['admin', 'project_manager', 'client'].includes(userRole);
+
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  });
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 200,
+      tolerance: 8,
+    },
+  });
+
+  const sensors = useSensors(pointerSensor, touchSensor);
 
   const getVideosByStatus = (status: VideoStatus) => {
     return videos.filter(v => v.status === status);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (!canChangeStatus) return;
     const video = videos.find(v => v.id === event.active.id);
     setActiveVideo(video || null);
   };
@@ -71,24 +83,27 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
     const { active, over } = event;
     setActiveVideo(null);
 
-    if (!over) return;
+    if (!over || !canChangeStatus) return;
 
     const videoId = active.id as string;
     const newStatus = over.id as VideoStatus;
     const video = videos.find(v => v.id === videoId);
 
-    if (video && video.status !== newStatus) {
+    if (video && video.status !== newStatus && statusColumns.includes(newStatus)) {
       const previousStatus = video.status;
 
+      // Optimistic update
       onVideoUpdate(videoId, newStatus);
 
       try {
         await videoService.updateStatus(video.id, newStatus);
         setToast({ message: `Status updated to ${newStatus}`, type: 'success' });
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to update status:', error);
+        // Revert optimistic update
         onVideoUpdate(videoId, previousStatus);
-        setToast({ message: 'Failed to update status', type: 'error' });
+        const errorMsg = error?.response?.data?.error || 'Failed to update status';
+        setToast({ message: errorMsg, type: 'error' });
       }
     }
   };
@@ -100,7 +115,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 overflow-x-auto pb-4">
+      <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1">
         {statusColumns.map(status => {
           const statusVideos = getVideosByStatus(status);
 
@@ -109,6 +124,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
               key={status}
               status={status}
               videos={statusVideos}
+              canDrag={canChangeStatus}
               onVideoClick={(id, bucket) => navigate(`/workspace/${bucket}/video/${id}`)}
             />
           );
@@ -126,6 +142,12 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
         )}
       </DragOverlay>
 
+      {!canChangeStatus && (
+        <p className="text-xs text-gray-400 text-center mt-2">
+          Only admin, project manager, or client can change video status by dragging
+        </p>
+      )}
+
       {toast && (
         <Toast
           message={toast.message}
@@ -140,17 +162,18 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
 interface StatusColumnProps {
   status: VideoStatus;
   videos: Video[];
+  canDrag: boolean;
   onVideoClick: (id: string, bucket: string) => void;
 }
 
-function StatusColumn({ status, videos, onVideoClick }: StatusColumnProps) {
+function StatusColumn({ status, videos, canDrag, onVideoClick }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
 
   return (
     <div className="flex-shrink-0 w-64">
-      <div className={`rounded-lg border ${statusColors[status]} ${isOver ? 'ring-2 ring-blue-400' : ''}`}>
+      <div className={`rounded-lg border ${statusColors[status]} ${isOver ? 'ring-2 ring-blue-400 shadow-md' : ''} transition-all`}>
         <div className="px-3 py-2.5 border-b border-gray-200/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -167,12 +190,13 @@ function StatusColumn({ status, videos, onVideoClick }: StatusColumnProps) {
             <DraggableVideoCard
               key={video.id}
               video={video}
+              canDrag={canDrag}
               onClick={() => onVideoClick(video.id, video.bucket)}
             />
           ))}
           {videos.length === 0 && (
             <div className="text-center text-gray-300 text-xs py-8">
-              Drop videos here
+              {canDrag ? 'Drop videos here' : 'No videos'}
             </div>
           )}
         </div>
@@ -183,17 +207,48 @@ function StatusColumn({ status, videos, onVideoClick }: StatusColumnProps) {
 
 interface DraggableVideoCardProps {
   video: Video;
+  canDrag: boolean;
   onClick: () => void;
 }
 
-function DraggableVideoCard({ video, onClick }: DraggableVideoCardProps) {
+function KanbanThumbnail({ video }: { video: Video }) {
+  const [error, setError] = useState(false);
+
+  if (video.thumbnail_key && !error) {
+    return (
+      <div className="relative w-full aspect-video rounded overflow-hidden bg-gray-900 mb-2">
+        <img
+          src={videoService.getThumbnailUrl(video.id)}
+          alt={video.filename}
+          className="w-full h-full object-cover"
+          onError={() => setError(true)}
+        />
+        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow">
+            <Play className="h-3.5 w-3.5 text-gray-900 ml-0.5" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full aspect-video rounded overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 mb-2 flex items-center justify-center">
+      <FileVideo className="h-6 w-6 text-gray-300" />
+    </div>
+  );
+}
+
+function DraggableVideoCard({ video, canDrag, onClick }: DraggableVideoCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: video.id,
+    disabled: !canDrag,
   });
 
   const style = transform
     ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 50,
       }
     : undefined;
 
@@ -201,32 +256,40 @@ function DraggableVideoCard({ video, onClick }: DraggableVideoCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`bg-white border border-gray-200 rounded-lg p-3 cursor-move hover:shadow-sm transition-shadow ${
-        isDragging ? 'opacity-40' : ''
-      }`}
+      className={`bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow group ${
+        isDragging ? 'opacity-40 shadow-lg' : ''
+      } ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
     >
+      {/* Drag handle area */}
+      {canDrag && (
+        <div
+          {...listeners}
+          {...attributes}
+          className="flex items-center justify-center py-1 bg-gray-50/50 border-b border-gray-100 cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical className="h-3 w-3 text-gray-300" />
+        </div>
+      )}
+
       <div
         onClick={(e) => {
           e.stopPropagation();
           onClick();
         }}
-        className="cursor-pointer"
+        className="cursor-pointer p-2.5"
       >
-        <div className="flex items-start gap-2 mb-2">
-          <FileVideo className="h-3.5 w-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
-          <h3 className="text-xs font-medium text-gray-900 line-clamp-2 flex-1">{video.filename}</h3>
-        </div>
+        <KanbanThumbnail video={video} />
 
-        <div className="flex items-center justify-between text-xs text-gray-400">
+        <h3 className="text-xs font-medium text-gray-900 line-clamp-2 mb-1.5">{video.filename}</h3>
+
+        <div className="flex items-center justify-between text-[10px] text-gray-400">
           <span>{formatDate(video.created_at)}</span>
           <span>{formatBytes(video.size)}</span>
         </div>
 
         {video.uploaded_by_name && (
-          <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-400">
-            <User className="h-3 w-3" />
+          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-400">
+            <User className="h-2.5 w-2.5" />
             <span>{video.uploaded_by_name}</span>
           </div>
         )}

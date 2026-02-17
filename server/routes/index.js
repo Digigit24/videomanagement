@@ -217,6 +217,25 @@ router.get(
   },
 );
 
+// Video thumbnail
+router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const result = await pool.query("SELECT thumbnail_key, bucket FROM videos WHERE id = $1", [req.params.id]);
+    if (!result.rows[0]?.thumbnail_key) {
+      return res.status(404).json({ error: "Thumbnail not available" });
+    }
+    const { getObjectStream, resolveBucket: resolve } = await import("../services/storage.js");
+    const { bucket } = resolve(result.rows[0].bucket);
+    const stream = await getObjectStream(bucket, result.rows[0].thumbnail_key);
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    stream.pipe(res);
+  } catch (error) {
+    res.status(404).json({ error: "Thumbnail not found" });
+  }
+});
+
 // Video views
 router.post("/video/:videoId/view", authenticate, async (req, res) => {
   try {

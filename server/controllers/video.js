@@ -73,11 +73,12 @@ export async function updateStatus(req, res) {
       return res.status(400).json({ error: "Status required" });
     }
 
-    // Only client and admin can change video status
-    if (userRole !== "client" && userRole !== "admin") {
+    // Only admin, project_manager, and client can change video status
+    const statusChangeRoles = ["admin", "project_manager", "client"];
+    if (!statusChangeRoles.includes(userRole)) {
       return res
         .status(403)
-        .json({ error: "Only clients can change video status" });
+        .json({ error: "Only admin, project manager, or client can change video status" });
     }
 
     const video = await updateVideoStatus(id, status, req.user.id);
@@ -124,13 +125,14 @@ export async function uploadVideo(req, res) {
         return res.status(400).json({ error: "No video file provided" });
       }
 
-      // Admin, editor, project_manager, social_media_manager can upload videos
+      // All workspace members can upload videos
       const allowedRoles = [
         "admin",
         "video_editor",
         "project_manager",
         "social_media_manager",
         "client",
+        "member",
       ];
       if (!allowedRoles.includes(req.user.role)) {
         return res

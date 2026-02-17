@@ -137,11 +137,12 @@ export async function updateMarkerStatus(req, res) {
     const { markerStatus } = req.body;
     const userRole = req.user.role;
 
-    // Only video_editor and admin can change marker status
-    if (userRole !== "video_editor" && userRole !== "admin") {
+    // video_editor, admin, and org members can change marker status
+    const markerRoles = ["video_editor", "admin", "member", "project_manager", "social_media_manager"];
+    if (!markerRoles.includes(userRole)) {
       return res
         .status(403)
-        .json({ error: "Only editors and admins can update marker status" });
+        .json({ error: "You don't have permission to update marker status" });
     }
 
     const validStatuses = ["pending", "working", "done"];
