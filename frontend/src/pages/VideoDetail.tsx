@@ -81,6 +81,18 @@ export default function VideoDetail() {
     }
   }, [id, currentBucket]);
 
+  // Short polling: refresh comments every 4 seconds for near-real-time feedback
+  useEffect(() => {
+    if (!id) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await commentService.getComments(id);
+        setComments(data);
+      } catch {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [id]);
+
   const loadWorkspace = async () => {
     if (!currentBucket) return;
     try {

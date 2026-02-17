@@ -167,8 +167,9 @@ export async function getMessages(req, res) {
     const { workspaceId } = req.params;
     const limit = parseInt(req.query.limit) || 100;
     const before = req.query.before || null;
+    const since = req.query.since || null;
 
-    const messages = await getWorkspaceMessages(workspaceId, limit, before);
+    const messages = await getWorkspaceMessages(workspaceId, limit, before, since);
     res.json({ messages });
   } catch (error) {
     apiError(req, error);

@@ -34,7 +34,7 @@ export async function createMessage(
   }
 }
 
-export async function getWorkspaceMessages(workspaceId, limit = 100, before = null) {
+export async function getWorkspaceMessages(workspaceId, limit = 100, before = null, since = null) {
   try {
     let query = `SELECT m.*, u.name as user_name, u.email as user_email, u.avatar_url as user_avatar,
             rm.content as reply_content, rm.user_id as reply_user_id,
@@ -50,6 +50,11 @@ export async function getWorkspaceMessages(workspaceId, limit = 100, before = nu
     if (before) {
       query += ` AND m.created_at < $${params.length + 1}`;
       params.push(before);
+    }
+
+    if (since) {
+      query += ` AND m.created_at > $${params.length + 1}`;
+      params.push(since);
     }
 
     query += ` ORDER BY m.created_at DESC LIMIT $${params.length + 1}`;

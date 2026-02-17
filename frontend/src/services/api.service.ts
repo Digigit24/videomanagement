@@ -237,6 +237,11 @@ export const videoService = {
     return data.video as Video;
   },
 
+  pollVideos: async (bucket: string) => {
+    const { data } = await api.get("/videos/poll", { params: { bucket } });
+    return data as { count: number; lastUpdated: string | null; lastCreated: string | null };
+  },
+
   getThumbnailUrl: (id: string) => {
     const token = localStorage.getItem("token");
     return `https://video.celiyo.com/api/video/${id}/thumbnail?token=${token}`;
@@ -334,10 +339,11 @@ export const commentService = {
 };
 
 export const chatService = {
-  getMessages: async (workspaceId: string, limit?: number, before?: string) => {
+  getMessages: async (workspaceId: string, limit?: number, before?: string, since?: string) => {
     const params: any = {};
     if (limit) params.limit = limit;
     if (before) params.before = before;
+    if (since) params.since = since;
     const { data } = await api.get(`/workspace/${workspaceId}/messages`, {
       params,
     });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { videoService, workspaceService } from '@/services/api.service';
 import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics } from '@/types';
@@ -42,11 +42,15 @@ export default function WorkspaceVideos() {
     posted: 0,
   });
 
+  // Short polling state for video list
+  const pollHashRef = useRef<{ count: number; lastUpdated: string | null; lastCreated: string | null } | null>(null);
+
   const handleViewChange = (newView: 'list' | 'kanban') => {
     setView(newView);
     localStorage.setItem('viewMode', newView);
   };
 
+  // Initial load
   useEffect(() => {
     if (bucket) {
       localStorage.setItem('currentBucket', bucket);
@@ -54,6 +58,13 @@ export default function WorkspaceVideos() {
       loadWorkspaceInfo();
       loadAnalytics();
     }
+  }, [bucket]);
+
+  // Short polling: check for video changes every 4 seconds
+  useEffect(() => {
+    if (!bucket) return;
+    const interval = setInterval(pollVideoChanges, 4000);
+    return () => clearInterval(interval);
   }, [bucket]);
 
   useEffect(() => {
@@ -67,12 +78,52 @@ export default function WorkspaceVideos() {
       const data = await videoService.getVideos(bucket);
       setVideos(data);
       calculateStats(data);
+      // Store current poll hash
+      try {
+        const hash = await videoService.pollVideos(bucket);
+        pollHashRef.current = hash;
+      } catch {}
     } catch (error) {
       console.error('Failed to load videos:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Silently refresh videos without showing loading spinner
+  const refreshVideosSilent = useCallback(async () => {
+    if (!bucket) return;
+    try {
+      const data = await videoService.getVideos(bucket);
+      setVideos(data);
+      calculateStats(data);
+    } catch (error) {
+      console.error('Failed to refresh videos:', error);
+    }
+  }, [bucket]);
+
+  // Lightweight poll: only fetch full video list if something changed
+  const pollVideoChanges = useCallback(async () => {
+    if (!bucket) return;
+    try {
+      const hash = await videoService.pollVideos(bucket);
+      const prev = pollHashRef.current;
+
+      // Detect changes: count changed, or timestamps changed
+      if (
+        !prev ||
+        hash.count !== prev.count ||
+        hash.lastUpdated !== prev.lastUpdated ||
+        hash.lastCreated !== prev.lastCreated
+      ) {
+        pollHashRef.current = hash;
+        // Something changed — silently refresh the full video list
+        await refreshVideosSilent();
+      }
+    } catch {
+      // Silently fail — will retry in 4s
+    }
+  }, [bucket, refreshVideosSilent]);
 
   const loadWorkspaceInfo = async () => {
     try {

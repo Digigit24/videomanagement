@@ -48,18 +48,37 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const lastMessageTimeRef = useRef<string | null>(null);
+  const isNearBottomRef = useRef(true);
 
   const currentUserId = localStorage.getItem("userId");
 
+  // Track if user is scrolled near bottom (auto-scroll on new messages)
+  const checkNearBottom = useCallback(() => {
+    if (listRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 100;
+    }
+  }, []);
+
+  // Initial load: fetch all messages
   useEffect(() => {
+    lastMessageTimeRef.current = null;
+    setMessages([]);
+    setLoading(true);
     loadMessages();
     loadMembers();
-    const interval = setInterval(loadMessages, 15000);
+  }, [workspaceId]);
+
+  // Short polling: every 4 seconds, fetch only new messages since last known
+  useEffect(() => {
+    const interval = setInterval(pollNewMessages, 4000);
     return () => clearInterval(interval);
   }, [workspaceId]);
 
+  // Auto-scroll when new messages arrive (only if user was near bottom)
   useEffect(() => {
-    if (listRef.current && !loading) {
+    if (listRef.current && !loading && isNearBottomRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages.length, loading]);
@@ -72,10 +91,36 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
     try {
       const data = await chatService.getMessages(workspaceId);
       setMessages(data);
+      if (data.length > 0) {
+        lastMessageTimeRef.current = data[data.length - 1].created_at;
+      }
     } catch (error) {
       console.error("Failed to load messages:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const pollNewMessages = async () => {
+    if (!lastMessageTimeRef.current) return;
+    try {
+      const newMsgs = await chatService.getMessages(
+        workspaceId,
+        undefined,
+        undefined,
+        lastMessageTimeRef.current,
+      );
+      if (newMsgs.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const unique = newMsgs.filter((m) => !existingIds.has(m.id));
+          if (unique.length === 0) return prev;
+          return [...prev, ...unique];
+        });
+        lastMessageTimeRef.current = newMsgs[newMsgs.length - 1].created_at;
+      }
+    } catch (error) {
+      // Silently fail on poll errors - will retry in 4s
     }
   };
 
@@ -328,7 +373,7 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
       </div>
 
       {/* Messages */}
-      <div ref={listRef} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 scroll-smooth bg-gray-50/80">
+      <div ref={listRef} onScroll={checkNearBottom} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 scroll-smooth bg-gray-50/80">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
