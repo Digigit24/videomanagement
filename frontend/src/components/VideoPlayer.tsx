@@ -8,9 +8,10 @@ interface VideoPlayerProps {
   downloadUrl?: string;
   onProgress?: (state: { played: number; playedSeconds: number }) => void;
   playerRef?: React.RefObject<ReactPlayer>;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
-export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef }: VideoPlayerProps) {
+export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef, onPlayingChange }: VideoPlayerProps) {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -87,8 +88,8 @@ export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef }:
           setError(true);
           setLoading(false);
         }}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlay={() => { setPlaying(true); onPlayingChange?.(true); }}
+        onPause={() => { setPlaying(false); onPlayingChange?.(false); }}
         onProgress={onProgress}
         progressInterval={500}
         config={{

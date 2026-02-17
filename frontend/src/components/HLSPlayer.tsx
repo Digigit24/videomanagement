@@ -7,10 +7,11 @@ interface HLSPlayerProps {
   fallbackUrl: string;
   downloadUrl?: string;
   onProgress?: (state: { played: number; playedSeconds: number }) => void;
-  onPlayerRef?: (ref: { seekTo: (time: number) => void }) => void;
+  onPlayerRef?: (ref: { seekTo: (time: number) => void; pause: () => void }) => void;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
-export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress, onPlayerRef }: HLSPlayerProps) {
+export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress, onPlayerRef, onPlayingChange }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [error, setError] = useState(false);
@@ -25,11 +26,37 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     }
   }, []);
 
+  const pause = useCallback(() => {
+    if (videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+    }
+  }, []);
+
   useEffect(() => {
     if (onPlayerRef) {
-      onPlayerRef({ seekTo });
+      onPlayerRef({ seekTo, pause });
     }
-  }, [onPlayerRef, seekTo]);
+  }, [onPlayerRef, seekTo, pause]);
+
+  // Notify parent about play/pause state changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !onPlayingChange) return;
+
+    const handlePlay = () => onPlayingChange(true);
+    const handlePause = () => onPlayingChange(false);
+    const handleEnded = () => onPlayingChange(false);
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [onPlayingChange]);
 
   useEffect(() => {
     const video = videoRef.current;

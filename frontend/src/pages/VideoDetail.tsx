@@ -49,13 +49,44 @@ export default function VideoDetail() {
   const [updating, setUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
-  const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void } | null>(null);
+  const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void; pause: () => void } | null>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [showShareLinks, setShowShareLinks] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [loadingShareToken, setLoadingShareToken] = useState(false);
 
   const [sidebarTab, setSidebarTab] = useState<'feedback' | 'chat'>('chat');
+
+  // Auto-pause video when switching to feedback tab
+  const handleTabSwitch = useCallback((tab: 'feedback' | 'chat') => {
+    setSidebarTab(tab);
+    if (tab === 'feedback' && isVideoPlaying) {
+      // Pause video when user switches to feedback while video is playing
+      if (hlsPlayerControls) {
+        hlsPlayerControls.pause();
+      } else if (playerRef.current) {
+        const internalPlayer = playerRef.current.getInternalPlayer();
+        if (internalPlayer && typeof internalPlayer.pause === 'function') {
+          internalPlayer.pause();
+        }
+      }
+    }
+  }, [isVideoPlaying, hlsPlayerControls]);
+
+  // Auto-switch to feedback and pause when user starts typing feedback while video plays
+  const handleFeedbackTypingStart = useCallback(() => {
+    if (isVideoPlaying) {
+      if (hlsPlayerControls) {
+        hlsPlayerControls.pause();
+      } else if (playerRef.current) {
+        const internalPlayer = playerRef.current.getInternalPlayer();
+        if (internalPlayer && typeof internalPlayer.pause === 'function') {
+          internalPlayer.pause();
+        }
+      }
+    }
+  }, [isVideoPlaying, hlsPlayerControls]);
   const [confirmStatus, setConfirmStatus] = useState<{ open: boolean; newStatus: VideoStatus | null }>({
     open: false,
     newStatus: null,
@@ -518,6 +549,7 @@ export default function VideoDetail() {
                 downloadUrl={downloadUrl}
                 onProgress={handleProgress}
                 onPlayerRef={(ref) => setHlsPlayerControls(ref)}
+                onPlayingChange={setIsVideoPlaying}
               />
             ) : (
               <VideoPlayer
@@ -525,6 +557,7 @@ export default function VideoDetail() {
                 downloadUrl={downloadUrl}
                 onProgress={handleProgress}
                 playerRef={playerRef}
+                onPlayingChange={setIsVideoPlaying}
               />
             )}
           </div>
@@ -581,7 +614,7 @@ export default function VideoDetail() {
             {/* Tabs Header - prominent & recognizable */}
             <div className="flex border-b border-gray-200 bg-gray-50/50 rounded-t-xl">
               <button
-                onClick={() => setSidebarTab('feedback')}
+                onClick={() => handleTabSwitch('feedback')}
                 className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all relative ${
                   sidebarTab === 'feedback'
                     ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tl-xl'
@@ -592,7 +625,7 @@ export default function VideoDetail() {
                 FEEDBACK
               </button>
               <button
-                onClick={() => setSidebarTab('chat')}
+                onClick={() => handleTabSwitch('chat')}
                 className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all relative ${
                   sidebarTab === 'chat'
                     ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tr-xl'
@@ -628,6 +661,7 @@ export default function VideoDetail() {
                     onSeekTo={handleSeekTo}
                     onCommentAdded={handleCommentAdded}
                     onCommentDeleted={handleCommentDeleted}
+                    onTypingStart={handleFeedbackTypingStart}
                   />
                 </div>
               </div>
