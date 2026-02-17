@@ -223,13 +223,18 @@ export default function VideoDetail() {
     );
   };
 
+  const [deleteError, setDeleteError] = useState('');
+
   const handleDeleteVideo = async (password?: string) => {
     if (!id || !currentBucket) return;
+    setDeleteError('');
     try {
       await videoService.deleteVideo(id, currentBucket, password);
+      setConfirmDelete(false);
       navigate(`/workspace/${currentBucket}`);
-    } catch (error) {
-      console.error("Failed to delete video:", error);
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || 'Failed to delete video. Please try again.';
+      setDeleteError(msg);
     }
   };
 
@@ -703,8 +708,9 @@ export default function VideoDetail() {
         confirmText="Delete"
         variant="danger"
         showPassword={isAdmin}
+        error={deleteError}
         onConfirm={handleDeleteVideo}
-        onCancel={() => setConfirmDelete(false)}
+        onCancel={() => { setConfirmDelete(false); setDeleteError(''); }}
       />
     </div>
   );
