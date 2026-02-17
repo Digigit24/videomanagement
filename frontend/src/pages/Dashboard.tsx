@@ -200,7 +200,7 @@ export default function Dashboard() {
             {workspaces.map((workspace, i) => (
               <div
                 key={workspace.id}
-                className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 transition-all duration-200 cursor-pointer relative animate-fade-in-up first:rounded-t-xl last:rounded-b-xl"
+                className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 transition-all duration-200 cursor-pointer relative animate-fade-in-up first:rounded-t-xl last:rounded-b-xl ${contextMenu === workspace.id ? 'z-30' : ''}`}
                 style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
                 onClick={() => navigate(`/workspace/${workspace.bucket}`)}
               >
@@ -240,7 +240,7 @@ export default function Dashboard() {
                            {contextMenu === workspace.id && (
                              <div className="absolute right-3 sm:right-4 top-10 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1 overflow-hidden animate-scale-in">
                                <button
-                                 onClick={() => { handleCreateInvitation(workspace.id); }}
+                                 onClick={(e) => { e.stopPropagation(); handleCreateInvitation(workspace.id); }}
                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 text-left"
                                >
                                  <LinkIcon className="h-3.5 w-3.5" />
