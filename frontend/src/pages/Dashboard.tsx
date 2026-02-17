@@ -196,11 +196,11 @@ export default function Dashboard() {
             )}
           </div>
         ) : (
-          <div className="flex flex-col bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden shadow-sm">
+          <div className="flex flex-col bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 shadow-sm">
             {workspaces.map((workspace, i) => (
               <div
                 key={workspace.id}
-                className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 transition-all duration-200 cursor-pointer relative animate-fade-in-up"
+                className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 transition-all duration-200 cursor-pointer relative animate-fade-in-up first:rounded-t-xl last:rounded-b-xl"
                 style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
                 onClick={() => navigate(`/workspace/${workspace.bucket}`)}
               >
