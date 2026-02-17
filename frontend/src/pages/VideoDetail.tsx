@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService, commentService, workspaceService } from '@/services/api.service';
-import { Video, VideoStatus, Comment, VideoViewer, Workspace } from '@/types';
+import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
 import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
 import HLSPlayer from '@/components/HLSPlayer';
