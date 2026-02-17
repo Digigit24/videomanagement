@@ -190,3 +190,14 @@ export interface WorkspaceMember {
   avatar_url: string | null;
   joined_at: string;
 }
+
+export interface VideoReview {
+  id: string;
+  video_id: string;
+  reviewer_name: string;
+  content: string;
+  reply_to: string | null;
+  reply_content?: string;
+  reply_reviewer_name?: string;
+  created_at: string;
+}

@@ -387,6 +387,48 @@ export const notificationService = {
   },
 };
 
+// Public API (no auth needed - for share links)
+export const publicVideoService = {
+  getVideoInfo: async (videoId: string) => {
+    const { data } = await api.get(`/public/video/${videoId}`);
+    return data.video;
+  },
+
+  getStreamUrl: (videoId: string) => {
+    return `https://video.celiyo.com/api/public/stream/${videoId}`;
+  },
+
+  getHLSUrl: (videoId: string) => {
+    return `https://video.celiyo.com/api/public/hls/${videoId}/master.m3u8`;
+  },
+
+  getReviews: async (videoId: string) => {
+    const { data } = await api.get(`/public/video/${videoId}/reviews`);
+    return data.reviews;
+  },
+
+  addReview: async (
+    videoId: string,
+    reviewerName: string,
+    content: string,
+    replyTo?: string,
+  ) => {
+    const { data } = await api.post(`/public/video/${videoId}/reviews`, {
+      reviewerName,
+      content,
+      replyTo,
+    });
+    return data.review;
+  },
+};
+
+export const reviewService = {
+  getVideoReviews: async (videoId: string) => {
+    const { data } = await api.get(`/video/${videoId}/reviews`);
+    return data.reviews;
+  },
+};
+
 export const recycleBinService = {
   getRecycleBin: async () => {
     const { data } = await api.get("/admin/recycle-bin");

@@ -61,6 +61,13 @@ import {
   removeMessage,
 } from "../controllers/chatMessage.js";
 import {
+  generateShareToken,
+  validateShareToken,
+  getPublicVideoInfo,
+  addReview,
+  listReviews,
+} from "../controllers/videoReview.js";
+import {
   authenticate,
   authenticateStream,
   validateBucket,
@@ -321,6 +328,97 @@ router.get(
     }
   },
 );
+
+// Public Video & Review endpoints (no auth needed - accessed via share links)
+router.get("/public/video/:videoId", getPublicVideoInfo);
+router.get("/public/video/:videoId/reviews", listReviews);
+router.post("/public/video/:videoId/reviews", addReview);
+
+// Public HLS streaming for shared videos (no auth)
+router.get("/public/hls/:id/*", async (req, res) => {
+  const { id } = req.params;
+  const hlsPath = req.params[0];
+  const { getObjectStream, MAIN_BUCKET } = await import(
+    "../services/storage.js"
+  );
+  const { getVideoPublicInfo } = await import("../services/videoReview.js");
+
+  try {
+    const video = await getVideoPublicInfo(id);
+    if (!video || !video.hls_ready) {
+      return res.status(404).json({ error: "HLS not available" });
+    }
+
+    const objectKey = `hls/${id}/${hlsPath}`;
+    const stream = await getObjectStream(
+      MAIN_BUCKET || video.bucket,
+      objectKey,
+    );
+
+    if (hlsPath.endsWith(".m3u8")) {
+      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    } else if (hlsPath.endsWith(".ts")) {
+      res.setHeader("Content-Type", "video/mp2t");
+    }
+    res.setHeader("Cache-Control", "public, max-age=3600");
+
+    stream.pipe(res);
+  } catch (error) {
+    res.status(404).json({ error: "Stream not found" });
+  }
+});
+
+// Public direct video stream for shared videos (no auth)
+router.get("/public/stream/:id", async (req, res) => {
+  const { id } = req.params;
+  const { getVideoPublicInfo } = await import("../services/videoReview.js");
+  const { getVideoStream, resolveBucket } = await import(
+    "../services/storage.js"
+  );
+  const pool = (await import("../db/index.js")).getPool();
+
+  try {
+    const video = await getVideoPublicInfo(id);
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    const videoRow = await pool.query("SELECT * FROM videos WHERE id = $1", [
+      id,
+    ]);
+    if (!videoRow.rows[0]) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    const range = req.headers.range;
+    const bucket = await resolveBucket(video.bucket);
+    const stream = await getVideoStream(
+      bucket,
+      videoRow.rows[0].object_key,
+      range,
+    );
+
+    if (stream.statusCode) {
+      res.writeHead(stream.statusCode, stream.headers);
+      stream.body.pipe(res);
+    } else {
+      stream.pipe(res);
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Stream failed" });
+  }
+});
+
+// Share token management (authenticated)
+router.post(
+  "/video/:videoId/share-token",
+  authenticate,
+  generateShareToken,
+);
+router.get("/share/:token", validateShareToken);
+
+// Video reviews (authenticated access for internal users)
+router.get("/video/:videoId/reviews", authenticate, listReviews);
 
 // Activities
 router.get("/activities", authenticate, listActivities);

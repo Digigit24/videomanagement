@@ -129,21 +129,24 @@ export default function WorkspaceVideos() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      {/* Header Row */}
+      <div className="flex flex-col gap-3">
+        {/* Top: Back + Title */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Button>
-          <div className="h-4 w-px bg-gray-200" />
-          <h1 className="text-lg font-semibold text-gray-900">{workspace?.client_name || bucket}</h1>
+          <div className="h-4 w-px bg-gray-200 hidden sm:block" />
+          <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{workspace?.client_name || bucket}</h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Actions Row - scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[130px] h-8 text-xs border-dashed bg-white">
-              <Filter className="w-3.5 h-3.5 mr-2 text-gray-500" />
+            <SelectTrigger className="w-[110px] sm:w-[130px] h-8 text-xs border-dashed bg-white flex-shrink-0">
+              <Filter className="w-3.5 h-3.5 mr-1.5 sm:mr-2 text-gray-500" />
               <SelectValue placeholder="Filter Date" />
             </SelectTrigger>
             <SelectContent align="end">
@@ -156,55 +159,55 @@ export default function WorkspaceVideos() {
 
           <ViewSwitcher view={view} onViewChange={handleViewChange} />
 
-          {/* Manage Members */}
           {workspace && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowManageMembers(true)}
-              className="gap-1.5"
+              className="gap-1 sm:gap-1.5 flex-shrink-0 h-8 text-xs"
             >
-              <Users className="h-4 w-4" />
-              Members
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Members</span>
             </Button>
           )}
 
-          {/* Chat Toggle */}
           {workspace && (
             <Button
               variant={showChat ? "default" : "outline"}
               size="sm"
               onClick={() => setShowChat(!showChat)}
-              className="gap-1.5"
+              className="gap-1 sm:gap-1.5 flex-shrink-0 h-8 text-xs"
             >
               {showChat ? (
                 <>
-                  <X className="h-4 w-4" />
-                  Close Chat
+                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Close Chat</span>
                 </>
               ) : (
                 <>
-                  <MessageCircle className="h-4 w-4" />
-                  Chat
+                  <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Chat</span>
                 </>
               )}
             </Button>
           )}
 
-          <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-2">
-            <Upload className="h-4 w-4" />
+          <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-1 sm:gap-2 flex-shrink-0 h-8 text-xs">
+            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Upload
           </Button>
         </div>
       </div>
 
-      <DashboardCards stats={stats} />
+      <div className="animate-fade-in-up">
+        <DashboardCards stats={stats} />
+      </div>
 
       <div className={`grid ${showChat ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'} gap-4`}>
         {/* Videos */}
-        <div className={showChat ? 'lg:col-span-6' : ''}>
+        <div className={`${showChat ? 'lg:col-span-6' : ''} animate-fade-in`}>
           {filteredVideos.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+            <div className="text-center py-10 sm:py-12 bg-white rounded-xl border border-dashed border-gray-300">
               <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3">
                 <Filter className="h-6 w-6 text-gray-300" />
               </div>
@@ -227,7 +230,7 @@ export default function WorkspaceVideos() {
 
         {/* Chat Panel */}
         {showChat && workspace && (
-          <div className="lg:col-span-6">
+          <div className="lg:col-span-6 animate-slide-in-right">
             <WorkspaceChat workspaceId={workspace.id} />
           </div>
         )}
@@ -245,7 +248,7 @@ export default function WorkspaceVideos() {
           workspaceId={workspace.id}
           onClose={() => {
             setShowManageMembers(false);
-            loadWorkspaceInfo(); // Refresh member count in header if needed
+            loadWorkspaceInfo();
           }}
         />
       )}

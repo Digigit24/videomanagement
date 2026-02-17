@@ -35,8 +35,7 @@ export default function Dashboard() {
   const loadWorkspaces = async () => {
     try {
       const ws = await workspaceService.getWorkspaces();
-      
-      // Auto-redirect for clients with single workspace
+
       if (userRole === 'client' && ws.length === 1) {
         navigate(`/workspace/${ws[0].bucket}`);
         return;
@@ -77,14 +76,14 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       {/* Welcome Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">
-            Welcome back, {userName} 👋
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="animate-fade-in-up">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900">
+            Welcome back, {userName}
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
             {isOrgRole
               ? `Manage ${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'} — ${totalVideos} video${totalVideos === 1 ? '' : 's'} across teams`
               : `You have access to ${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'}`
@@ -93,7 +92,7 @@ export default function Dashboard() {
         </div>
 
         {canCreateWorkspace && (
-          <Button onClick={() => setShowCreateModal(true)} className="gap-1.5">
+          <Button onClick={() => setShowCreateModal(true)} className="gap-1.5 w-full sm:w-auto animate-fade-in">
             <Plus className="h-4 w-4" />
             New Client
           </Button>
@@ -101,46 +100,40 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <FolderOpen className="h-4 w-4 text-blue-500" />
-            <span className="text-xs text-gray-500 font-medium">Workspaces</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        {[
+          { icon: FolderOpen, color: 'text-blue-500', label: 'Workspaces', value: workspaces.length },
+          { icon: Video, color: 'text-purple-500', label: 'Videos', value: totalVideos },
+          { icon: Users, color: 'text-emerald-500', label: 'Members', value: totalMembers },
+          { icon: Settings, color: 'text-amber-500', label: 'Role', value: userRole.replace('_', ' ') },
+        ].map((stat, i) => (
+          <div
+            key={stat.label}
+            className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 animate-fade-in-up transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+            style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <stat.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color}`} />
+              <span className="text-[10px] sm:text-xs text-gray-500 font-medium">{stat.label}</span>
+            </div>
+            {stat.label === 'Role' ? (
+              <p className="text-xs sm:text-sm font-bold text-gray-900 capitalize">{stat.value}</p>
+            ) : (
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stat.value}</p>
+            )}
           </div>
-          <p className="text-2xl font-bold text-gray-900">{workspaces.length}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Video className="h-4 w-4 text-purple-500" />
-            <span className="text-xs text-gray-500 font-medium">Videos</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{totalVideos}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="h-4 w-4 text-emerald-500" />
-            <span className="text-xs text-gray-500 font-medium">Members</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{totalMembers}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Settings className="h-4 w-4 text-amber-500" />
-            <span className="text-xs text-gray-500 font-medium">Role</span>
-          </div>
-          <p className="text-sm font-bold text-gray-900 capitalize">{userRole.replace('_', ' ')}</p>
-        </div>
+        ))}
       </div>
 
       {/* Quick Actions */}
       {isAdmin && (
-        <div className="bg-gradient-to-r from-gray-800 to-gray-950 rounded-xl p-5 text-white">
+        <div className="bg-gradient-to-r from-gray-800 to-gray-950 rounded-xl p-4 sm:p-5 text-white animate-fade-in-up">
           <h3 className="text-sm font-semibold mb-3">Quick Actions</h3>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs"
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs transition-all duration-200"
               onClick={() => navigate('/users')}
             >
               <Users className="h-3.5 w-3.5 mr-1.5" />
@@ -149,7 +142,7 @@ export default function Dashboard() {
             <Button
               variant="outline"
               size="sm"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs"
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs transition-all duration-200"
               onClick={() => setShowCreateModal(true)}
             >
               <Plus className="h-3.5 w-3.5 mr-1.5" />
@@ -158,7 +151,7 @@ export default function Dashboard() {
             <Button
               variant="outline"
               size="sm"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs"
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white text-xs transition-all duration-200"
               onClick={() => navigate('/recycle-bin')}
             >
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />
@@ -175,7 +168,7 @@ export default function Dashboard() {
         </h2>
 
         {workspaces.length === 0 ? (
-          <div className="bg-white border border-dashed border-gray-300 rounded-xl p-10 text-center">
+          <div className="bg-white border border-dashed border-gray-300 rounded-xl p-8 sm:p-10 text-center animate-fade-in">
             <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-300" />
             <h3 className="text-sm font-medium text-gray-600">No workspaces yet</h3>
             <p className="text-xs text-gray-400 mt-1">
@@ -192,18 +185,19 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="flex flex-col bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden shadow-sm">
-            {workspaces.map(workspace => (
+            {workspaces.map((workspace, i) => (
               <div
                 key={workspace.id}
-                className="group flex items-center gap-4 p-4 hover:bg-gray-50 transition-all cursor-pointer relative"
+                className="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 hover:bg-gray-50 transition-all duration-200 cursor-pointer relative animate-fade-in-up"
+                style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
                 onClick={() => navigate(`/workspace/${workspace.bucket}`)}
               >
                 {/* Avatar */}
                 <div className="flex-shrink-0">
                   {workspace.client_logo ? (
-                    <img src={getApiUrl(workspace.client_logo)} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-100" />
+                    <img src={getApiUrl(workspace.client_logo)} alt="" className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border border-gray-100" />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-base sm:text-lg font-bold shadow-sm transition-transform duration-200 group-hover:scale-105">
                       {workspace.client_name.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -212,13 +206,12 @@ export default function Dashboard() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
-                    <h3 className="text-base font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
                       {workspace.client_name}
                     </h3>
                     <div className="flex items-center gap-2">
-                       {/* Context menu trigger */}
                        {canCreateWorkspace && (
-                        <div 
+                        <div
                           className="opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -231,10 +224,9 @@ export default function Dashboard() {
                            >
                              <MoreHorizontal className="h-4 w-4" />
                            </button>
-                           
-                           {/* Dropdown Menu */}
+
                            {contextMenu === workspace.id && (
-                             <div className="absolute right-4 top-10 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                             <div className="absolute right-3 sm:right-4 top-10 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1 overflow-hidden animate-scale-in">
                                <button
                                  onClick={() => { handleCreateInvitation(workspace.id); }}
                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 text-left"
@@ -262,21 +254,21 @@ export default function Dashboard() {
                            )}
                         </div>
                        )}
-                       
-                       <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100 font-mono">
+
+                       <span className="hidden sm:inline text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100 font-mono">
                          {workspace.bucket}
                        </span>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-3 text-sm text-gray-500 truncate">
+
+                  <div className="flex items-center gap-3 text-xs sm:text-sm text-gray-500 truncate">
                     <div className="flex items-center gap-1">
-                      <Video className="h-3.5 w-3.5" />
+                      <Video className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       <span>{workspace.video_count} videos</span>
                     </div>
                     <span>•</span>
                     <div className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5" />
+                      <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                       <span>{workspace.member_count} members</span>
                     </div>
                   </div>

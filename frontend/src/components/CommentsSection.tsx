@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { Comment } from "@/types";
-import { commentService } from "@/services/api.service";
+import { commentService, reviewService } from "@/services/api.service";
 import { Button } from "./ui/button";
 import {
   MessageCircle,
@@ -11,9 +11,19 @@ import {
   X,
   Paperclip,
   FileVideo,
+  Star,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { getApiUrl } from "@/lib/utils";
+
+interface ClientReview {
+  id: string;
+  video_id: string;
+  reviewer_name: string;
+  content: string;
+  created_at: string;
+  isReview: true;
+}
 
 interface CommentsSectionProps {
   videoId: string;
@@ -37,6 +47,7 @@ export default function CommentsSection({
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [includeTimestamp, setIncludeTimestamp] = useState(true);
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [clientReviews, setClientReviews] = useState<ClientReview[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -45,7 +56,26 @@ export default function CommentsSection({
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-  }, [comments.length]);
+  }, [comments.length, clientReviews.length]);
+
+  useEffect(() => {
+    loadClientReviews();
+  }, [videoId]);
+
+  const loadClientReviews = async () => {
+    try {
+      const reviews = await reviewService.getVideoReviews(videoId);
+      setClientReviews(reviews.map((r: any) => ({ ...r, isReview: true as const })));
+    } catch (error) {
+      // Reviews endpoint may not exist yet, silently fail
+    }
+  };
+
+  // Merge comments and reviews into a single timeline sorted by created_at
+  const mergedTimeline = [
+    ...comments.map(c => ({ ...c, isReview: false as const })),
+    ...clientReviews,
+  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +177,7 @@ export default function CommentsSection({
         className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
         style={{ minHeight: '300px' }}
       >
-        {comments.length === 0 ? (
+        {mergedTimeline.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <MessageCircle className="h-8 w-8 text-gray-400" />
@@ -158,93 +188,121 @@ export default function CommentsSection({
             </p>
           </div>
         ) : (
-          comments.map((comment) => (
-            <div
-              key={comment.id}
-              className={`group flex items-start gap-3 ${comment.user_id === currentUserId ? 'flex-row-reverse' : ''}`}
-            >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 shadow-sm ${
-                comment.user_id === currentUserId ? 'bg-blue-600' : 'bg-gray-400'
-              }`}>
-                {getInitials(comment.user_name)}
-              </div>
+          mergedTimeline.map((item) => {
+            if (item.isReview) {
+              // Client Review Message
+              const review = item as ClientReview;
+              return (
+                <div key={`review-${review.id}`} className="group flex items-start gap-3 animate-fade-in">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 shadow-sm bg-emerald-500">
+                    <Star className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="flex flex-col max-w-[85%] items-start">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[11px] font-bold text-emerald-700">{review.reviewer_name}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium border border-emerald-100">Client Review</span>
+                      <span className="text-[10px] text-gray-400">
+                        {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <div className="relative px-3 py-2 rounded-2xl rounded-tl-none text-sm bg-emerald-50 text-gray-800 border border-emerald-100">
+                      <p className="whitespace-pre-wrap leading-relaxed">{review.content}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
-              <div className={`flex flex-col max-w-[85%] ${comment.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-bold text-gray-900">
-                    {comment.user_id === currentUserId ? 'Me' : comment.user_name}
-                  </span>
-                  <span className="text-[10px] text-gray-400">
-                    {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                  </span>
+            // Regular comment
+            const comment = item as Comment & { isReview: false };
+            return (
+              <div
+                key={comment.id}
+                className={`group flex items-start gap-3 ${comment.user_id === currentUserId ? 'flex-row-reverse' : ''}`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 shadow-sm ${
+                  comment.user_id === currentUserId ? 'bg-blue-600' : 'bg-gray-400'
+                }`}>
+                  {getInitials(comment.user_name)}
                 </div>
 
-                <div className={`relative px-3 py-2 rounded-2xl text-sm ${
-                  comment.user_id === currentUserId 
-                    ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-100 shadow-lg' 
-                    : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                }`}>
-                  {comment.reply_to && (
-                    <div className={`text-[10px] mb-1.5 pb-1.5 border-b ${
-                      comment.user_id === currentUserId ? 'border-blue-400 text-blue-100' : 'border-gray-200 text-gray-500'
-                    }`}>
-                      <Reply className="h-2.5 w-2.5 inline mr-1" />
-                      Replying to <span className="font-bold">{comment.reply_user_name}</span>
-                    </div>
-                  )}
+                <div className={`flex flex-col max-w-[85%] ${comment.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-gray-900">
+                      {comment.user_id === currentUserId ? 'Me' : comment.user_name}
+                    </span>
+                    <span className="text-[10px] text-gray-400">
+                      {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
 
-                  <p className="whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                  <div className={`relative px-3 py-2 rounded-2xl text-sm ${
+                    comment.user_id === currentUserId
+                      ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-100 shadow-lg'
+                      : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                  }`}>
+                    {comment.reply_to && (
+                      <div className={`text-[10px] mb-1.5 pb-1.5 border-b ${
+                        comment.user_id === currentUserId ? 'border-blue-400 text-blue-100' : 'border-gray-200 text-gray-500'
+                      }`}>
+                        <Reply className="h-2.5 w-2.5 inline mr-1" />
+                        Replying to <span className="font-bold">{comment.reply_user_name}</span>
+                      </div>
+                    )}
 
-                  {comment.video_timestamp !== null && (
-                    <button
-                      onClick={() => onSeekTo(comment.video_timestamp!)}
-                      className={`mt-2 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-mono transition-colors ${
-                        comment.user_id === currentUserId
-                          ? 'bg-blue-500/50 hover:bg-blue-400 text-white border border-blue-400'
-                          : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 shadow-sm'
-                      }`}
-                    >
-                      <Clock className="h-3 w-3" />
-                      {formatTimestamp(comment.video_timestamp)}
-                    </button>
-                  )}
+                    <p className="whitespace-pre-wrap leading-relaxed">{comment.content}</p>
 
-                  {comment.attachment && (
-                    <div className="mt-2">
-                      <a
-                        href={getApiUrl(comment.attachment.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all border ${
+                    {comment.video_timestamp !== null && (
+                      <button
+                        onClick={() => onSeekTo(comment.video_timestamp!)}
+                        className={`mt-2 flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-mono transition-colors ${
                           comment.user_id === currentUserId
-                            ? 'bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400'
-                            : 'bg-white hover:bg-blue-50 text-blue-600 border-blue-100'
+                            ? 'bg-blue-500/50 hover:bg-blue-400 text-white border border-blue-400'
+                            : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 shadow-sm'
                         }`}
                       >
-                        <FileVideo className="h-4 w-4" />
-                        <span className="text-[11px] font-medium truncate max-w-[120px]">
-                          {comment.attachment.filename}
-                        </span>
-                      </a>
-                    </div>
-                  )}
-                </div>
+                        <Clock className="h-3 w-3" />
+                        {formatTimestamp(comment.video_timestamp)}
+                      </button>
+                    )}
 
-                <div className={`mt-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${
-                  comment.user_id === currentUserId ? 'flex-row-reverse' : ''
-                }`}>
-                  <button onClick={() => handleReply(comment)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
-                    <Reply className="h-3.5 w-3.5" />
-                  </button>
-                  {comment.user_id === currentUserId && (
-                    <button onClick={() => handleDelete(comment.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                      <Trash2 className="h-3.5 w-3.5" />
+                    {comment.attachment && (
+                      <div className="mt-2">
+                        <a
+                          href={getApiUrl(comment.attachment.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all border ${
+                            comment.user_id === currentUserId
+                              ? 'bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400'
+                              : 'bg-white hover:bg-blue-50 text-blue-600 border-blue-100'
+                          }`}
+                        >
+                          <FileVideo className="h-4 w-4" />
+                          <span className="text-[11px] font-medium truncate max-w-[120px]">
+                            {comment.attachment.filename}
+                          </span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={`mt-1 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity ${
+                    comment.user_id === currentUserId ? 'flex-row-reverse' : ''
+                  }`}>
+                    <button onClick={() => handleReply(comment)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
+                      <Reply className="h-3.5 w-3.5" />
                     </button>
-                  )}
+                    {comment.user_id === currentUserId && (
+                      <button onClick={() => handleDelete(comment.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

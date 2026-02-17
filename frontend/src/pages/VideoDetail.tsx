@@ -11,7 +11,7 @@ import TimestampPanel from '@/components/TimestampPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Upload, Trash2, Clock, Sparkles } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Upload, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare } from 'lucide-react';
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -51,14 +51,13 @@ export default function VideoDetail() {
   const [hlsPlayerControls, setHlsPlayerControls] = useState<{ seekTo: (time: number) => void } | null>(null);
   const [uploadingVersion, setUploadingVersion] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [showShareLinks, setShowShareLinks] = useState(false);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
-  // Confirmation dialog state
   const [confirmStatus, setConfirmStatus] = useState<{ open: boolean; newStatus: VideoStatus | null }>({
     open: false,
     newStatus: null,
   });
-
-  // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const userRole = localStorage.getItem('userRole');
@@ -172,7 +171,6 @@ export default function VideoDetail() {
     );
   };
 
-  // Replace video (instead of versioning)
   const handleReplaceVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !video || !currentBucket) return;
@@ -189,10 +187,9 @@ export default function VideoDetail() {
             setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
           }
         },
-        video.id // replaceVideoId
+        video.id
       );
 
-      // Navigate to the new video
       navigate(`/workspace/${currentBucket}/video/${newVideo.id}`);
     } catch (error) {
       console.error('Failed to replace video:', error);
@@ -203,7 +200,6 @@ export default function VideoDetail() {
     }
   };
 
-  // Delete video
   const handleDeleteVideo = async (password?: string) => {
     if (!id || !currentBucket) return;
     try {
@@ -214,11 +210,30 @@ export default function VideoDetail() {
     }
   };
 
-  // Download
   const handleDownload = () => {
     if (!video || !currentBucket) return;
     const url = videoService.getDownloadUrl(video.id, currentBucket);
     window.open(url, '_blank');
+  };
+
+  const getVideoShareUrl = () => {
+    if (!video) return '';
+    return `${window.location.origin}/v/${video.id}`;
+  };
+
+  const getReviewShareUrl = () => {
+    if (!video) return '';
+    return `${window.location.origin}/v/${video.id}/review`;
+  };
+
+  const handleCopyLink = async (url: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(type);
+      setTimeout(() => setCopiedLink(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
   };
 
   if (loading || !video || !currentBucket) {
@@ -239,21 +254,88 @@ export default function VideoDetail() {
   const isNew = isRecentUpload(video.uploaded_at || video.created_at);
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-0 animate-fade-in">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Button>
-          <div className="h-4 w-px bg-gray-200" />
-          <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">
+          <div className="h-4 w-px bg-gray-200 hidden sm:block" />
+          <h1 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">
             {video.filename}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Action buttons - scrollable on mobile */}
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+          {/* Share Links */}
+          <div className="relative flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowShareLinks(!showShareLinks)}
+              className="text-xs gap-1"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
+
+            {showShareLinks && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowShareLinks(false)} />
+                <div className="absolute right-0 sm:right-auto sm:left-0 top-9 bg-white border border-gray-200 rounded-xl shadow-xl z-40 w-72 sm:w-80 p-3 animate-scale-in">
+                  <p className="text-xs font-semibold text-gray-900 mb-2">Share Links</p>
+
+                  {/* Video Link */}
+                  <div className="bg-gray-50 rounded-lg p-2.5 mb-2">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Link2 className="h-3.5 w-3.5 text-blue-600" />
+                      <span className="text-[11px] font-medium text-gray-700">Video Link</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        readOnly
+                        value={getVideoShareUrl()}
+                        className="flex-1 text-[10px] bg-white border border-gray-200 rounded px-2 py-1.5 text-gray-600 font-mono truncate"
+                      />
+                      <button
+                        onClick={() => handleCopyLink(getVideoShareUrl(), 'video')}
+                        className="p-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+                      >
+                        {copiedLink === 'video' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-gray-400 mt-1">Client can watch the video directly</p>
+                  </div>
+
+                  {/* Review Link */}
+                  <div className="bg-gray-50 rounded-lg p-2.5">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="text-[11px] font-medium text-gray-700">Review Link</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        readOnly
+                        value={getReviewShareUrl()}
+                        className="flex-1 text-[10px] bg-white border border-gray-200 rounded px-2 py-1.5 text-gray-600 font-mono truncate"
+                      />
+                      <button
+                        onClick={() => handleCopyLink(getReviewShareUrl(), 'review')}
+                        className="p-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex-shrink-0"
+                      >
+                        {copiedLink === 'review' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-gray-400 mt-1">Client can review and give feedback</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Replace Video */}
           {canUpload && (
             <>
@@ -269,7 +351,7 @@ export default function VideoDetail() {
                 size="sm"
                 onClick={() => uploadRef.current?.click()}
                 disabled={uploadingVersion}
-                className="text-xs"
+                className="text-xs flex-shrink-0"
               >
                 {uploadingVersion ? (
                   <span className="flex items-center gap-1.5">
@@ -279,7 +361,8 @@ export default function VideoDetail() {
                 ) : (
                   <>
                     <Upload className="h-3.5 w-3.5 mr-1" />
-                    Upload New Version
+                    <span className="hidden sm:inline">Upload New Version</span>
+                    <span className="sm:hidden">New</span>
                   </>
                 )}
               </Button>
@@ -287,9 +370,9 @@ export default function VideoDetail() {
           )}
 
           {/* Download */}
-          <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-            <Download className="h-3.5 w-3.5 mr-1" />
-            Download
+          <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 flex-shrink-0">
+            <Download className="h-3.5 w-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">Download</span>
           </Button>
 
           {/* Delete */}
@@ -298,25 +381,25 @@ export default function VideoDetail() {
               variant="outline"
               size="sm"
               onClick={() => setConfirmDelete(true)}
-              className="text-xs text-red-600 border-red-200 hover:bg-red-50"
+              className="text-xs text-red-600 border-red-200 hover:bg-red-50 flex-shrink-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
 
           {/* Viewers */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button
               onClick={() => setShowViewers(!showViewers)}
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm text-gray-500 hover:text-gray-700 transition-colors"
             >
-              <Eye className="h-4 w-4" />
-              <span>{viewers.length} viewed</span>
+              <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>{viewers.length}</span>
             </button>
             {showViewers && viewers.length > 0 && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setShowViewers(false)} />
-                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-40 w-64 py-2 max-h-60 overflow-y-auto">
+                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-40 w-60 sm:w-64 py-2 max-h-60 overflow-y-auto animate-scale-in">
                   <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Viewed by
                   </div>
@@ -349,7 +432,7 @@ export default function VideoDetail() {
               onValueChange={handleStatusChangeRequest}
               disabled={updating}
             >
-              <SelectTrigger className={`w-[160px] h-8 text-xs font-medium border ${statusColors[video.status]}`}>
+              <SelectTrigger className={`w-[120px] sm:w-[160px] h-8 text-xs font-medium border ${statusColors[video.status]} flex-shrink-0`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -363,28 +446,28 @@ export default function VideoDetail() {
               </SelectContent>
             </Select>
           ) : (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${statusColors[video.status]}`}>
+            <span className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-md text-xs font-medium border ${statusColors[video.status]} flex-shrink-0`}>
               {video.status}
             </span>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Main Content Area - Left (8/12) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Video Player Section with Time Capsule */}
-          <div className="relative bg-gray-950 rounded-xl overflow-hidden shadow-2xl">
-            {/* Upload Time Capsule Badge - Top Right */}
-            <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+        <div className="lg:col-span-8 space-y-4 sm:space-y-6">
+          {/* Video Player Section */}
+          <div className="relative bg-gray-950 rounded-xl overflow-hidden shadow-2xl animate-fade-in-up">
+            {/* Upload Time Capsule Badge */}
+            <div className="absolute top-2 sm:top-3 right-2 sm:right-3 z-10 flex items-center gap-1.5 sm:gap-2">
               {isNew && (
-                <span className="flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-bold rounded-full shadow-lg animate-pulse">
-                  <Sparkles className="h-3 w-3" />
+                <span className="flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] sm:text-[10px] font-bold rounded-full shadow-lg animate-pulse">
+                  <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   NEW
                 </span>
               )}
-              <span className="flex items-center gap-1.5 px-2.5 py-1 bg-black/70 backdrop-blur-sm text-white text-[10px] font-medium rounded-full shadow-lg">
-                <Clock className="h-3 w-3 text-blue-400" />
+              <span className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 bg-black/70 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-medium rounded-full shadow-lg">
+                <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-blue-400" />
                 {formatDistanceToNow(new Date(video.uploaded_at || video.created_at), { addSuffix: true })}
               </span>
             </div>
@@ -408,13 +491,13 @@ export default function VideoDetail() {
           </div>
 
           {/* Video Metadata Panel */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-5 shadow-sm animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
               <div className="min-w-0">
-                <h1 className="text-xl font-bold text-gray-900 truncate mb-1">
+                <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate mb-1">
                   {video.filename}
                 </h1>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500">
                   <span>{formatBytes(video.size)}</span>
                   <span className="w-1 h-1 rounded-full bg-gray-300" />
                   <span>{formatDate(video.created_at)}</span>
@@ -445,10 +528,7 @@ export default function VideoDetail() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg border border-gray-100 mb-4">
-
-
-              {/* Replace Video Trigger */}
+            <div className="flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 bg-gray-50 rounded-lg border border-gray-100 mb-3 sm:mb-4">
               {canUpload && (
                 <Button
                   variant="outline"
@@ -473,7 +553,7 @@ export default function VideoDetail() {
             </div>
 
             <div className="flex items-center justify-between">
-              <div className="text-[10px] text-gray-300 font-mono uppercase tracking-wider">
+              <div className="text-[9px] sm:text-[10px] text-gray-300 font-mono uppercase tracking-wider truncate">
                 ID: {video.id}
               </div>
             </div>
@@ -482,16 +562,16 @@ export default function VideoDetail() {
 
         {/* Sidebar - Right (4/12) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col sticky top-6 max-h-[calc(100vh-80px)]">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col lg:sticky lg:top-20 max-h-[70vh] lg:max-h-[calc(100vh-100px)] animate-slide-in-right">
             {/* Tabs Header */}
             <div className="flex border-b border-gray-100">
-              <button className="flex-1 px-4 py-3 text-sm font-semibold text-gray-900 border-b-2 border-gray-900">
+              <button className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-gray-900 border-b-2 border-gray-900">
                 Markers & Comments
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              {/* Timestamp Panel Integration */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
+              {/* Timestamp Panel */}
               <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
                 <TimestampPanel
                   comments={timestampComments}
@@ -503,7 +583,7 @@ export default function VideoDetail() {
               </div>
 
               {/* Chat Thread */}
-              <div className="border-t border-gray-100 pt-6">
+              <div className="border-t border-gray-100 pt-4 sm:pt-6">
                 <CommentsSection
                   videoId={video.id}
                   comments={comments}

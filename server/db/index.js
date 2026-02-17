@@ -84,6 +84,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV7);
 
+    // Run v8 migrations (video reviews & share tokens)
+    const migrationsV8 = fs.readFileSync(
+      path.join(__dirname, "migrations_v8.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV8);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);
