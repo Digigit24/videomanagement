@@ -270,9 +270,11 @@ export const videoService = {
   },
 
   deleteVideo: async (videoId: string, bucket: string, password?: string) => {
-    await api.delete(`/video/${videoId}`, {
+    await api({
+      method: 'delete',
+      url: `/video/${videoId}`,
       params: { bucket },
-      data: { password },
+      data: password ? { password } : undefined,
     });
   },
 

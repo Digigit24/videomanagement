@@ -55,6 +55,13 @@ export default function VideoReview() {
     };
   }, [videoId]);
 
+  // Re-initialize player when nameSet becomes true (video element now exists)
+  useEffect(() => {
+    if (nameSet && video && videoRef.current) {
+      initPlayer(video);
+    }
+  }, [nameSet]);
+
   // Poll for new reviews every 5 seconds
   useEffect(() => {
     if (!videoId || !nameSet) return;
@@ -275,8 +282,8 @@ export default function VideoReview() {
         </div>
       </div>
 
-      {/* Video Player - takes 55% of the screen height */}
-      <div className="bg-black flex-shrink-0 relative" style={{ height: '55vh', minHeight: '200px' }}>
+      {/* Video Player - takes most of the screen */}
+      <div className="bg-black flex-shrink-0 relative" style={{ height: '65vh', minHeight: '250px' }}>
         <video
           ref={videoRef}
           className="w-full h-full object-contain"
@@ -298,13 +305,13 @@ export default function VideoReview() {
         )}
       </div>
 
-      {/* Feedback area - takes remaining space, compact chat-style */}
-      <div className="flex-1 flex flex-col min-h-0 bg-gray-50">
+      {/* Feedback area - compact, minimal height */}
+      <div className="flex-1 flex flex-col min-h-0 bg-gray-50" style={{ maxHeight: '35vh' }}>
         {/* Messages */}
         <div
           ref={messagesContainerRef}
           onScroll={checkNearBottom}
-          className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5"
+          className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5"
         >
           {reviews.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-4">

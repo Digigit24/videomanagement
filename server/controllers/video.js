@@ -318,7 +318,7 @@ export async function removeVideo(req, res) {
 
       const isValid = await verifyPassword(password, user.password);
       if (!isValid) {
-        return res.status(401).json({ error: "Invalid password" });
+        return res.status(403).json({ error: "Invalid password" });
       }
     }
 

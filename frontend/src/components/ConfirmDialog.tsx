@@ -9,6 +9,7 @@ interface ConfirmDialogProps {
   cancelText?: string;
   variant?: 'default' | 'danger';
   showPassword?: boolean;
+  error?: string;
   onConfirm: (password?: string) => void;
   onCancel: () => void;
 }
@@ -21,6 +22,7 @@ export default function ConfirmDialog({
   cancelText = 'Cancel',
   variant = 'default',
   showPassword = false,
+  error,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -65,6 +67,12 @@ export default function ConfirmDialog({
       >
         <h3 className="text-base font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-sm text-gray-500 mb-5 leading-relaxed">{message}</p>
+
+        {error && (
+          <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-xs text-red-600">{error}</p>
+          </div>
+        )}
 
         {showPassword && (
           <div className="mb-5 space-y-1.5">
