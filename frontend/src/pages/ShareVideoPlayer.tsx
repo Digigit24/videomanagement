@@ -59,6 +59,13 @@ export default function ShareVideoPlayer() {
       const hls = new Hls({
         startLevel: -1,
         capLevelToPlayerSize: true,
+        // Forward the share token to ALL HLS sub-requests (playlists & segments)
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          if (token && !url.includes('token=')) {
+            const separator = url.includes('?') ? '&' : '?';
+            xhr.open('GET', `${url}${separator}token=${token}`, true);
+          }
+        },
       });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);

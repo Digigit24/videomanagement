@@ -26,17 +26,25 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [password, setPassword] = useState('');
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
+  // Reset password only when dialog opens (not on every render)
   useEffect(() => {
     if (isOpen) {
       setPassword('');
-      const handleEsc = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onCancel();
-      };
-      document.addEventListener('keydown', handleEsc);
-      return () => document.removeEventListener('keydown', handleEsc);
     }
-  }, [isOpen, onCancel]);
+  }, [isOpen]);
+
+  // ESC key handler
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancelRef.current();
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

@@ -81,13 +81,53 @@ function AuthImage({ src, alt, className, style, onClick, onError }: {
 
   if (!blobUrl) {
     return (
-      <div className={className} style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6' }}>
+      <div className={className} style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', minHeight: '80px' }}>
         <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   return <img src={blobUrl} alt={alt} className={className} style={style} onClick={onClick} loading="lazy" />;
+}
+
+// Video component that loads via fetch with Authorization header (blob URL)
+function AuthVideo({ src, autoPlay, controls, playsInline, className, onEnded, muted, preload }: {
+  src: string; autoPlay?: boolean; controls?: boolean; playsInline?: boolean;
+  className?: string; onEnded?: () => void; muted?: boolean; preload?: string;
+}) {
+  const { blobUrl, loading, error } = useAuthBlobUrl(src);
+
+  if (loading) {
+    return (
+      <div className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827', minHeight: '100px' }}>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-6 h-6 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+          <span className="text-[10px] text-gray-400">Loading video...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !blobUrl) {
+    return (
+      <div className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827', minHeight: '100px' }}>
+        <span className="text-[10px] text-red-400">Failed to load video</span>
+      </div>
+    );
+  }
+
+  return (
+    <video
+      src={blobUrl}
+      autoPlay={autoPlay}
+      controls={controls}
+      playsInline={playsInline}
+      className={className}
+      onEnded={onEnded}
+      muted={muted}
+      preload={preload}
+    />
+  );
 }
 
 interface WorkspaceChatProps {
@@ -275,7 +315,7 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
       }
     } catch (error) {
       console.error("Failed to send message:", error);
-      alert("Failed to send message. Check file size (max 5GB) and network.");
+      alert("Failed to send message. Check file size (max 2GB) and network.");
     } finally {
       setSubmitting(false);
       setUploadProgress(0);
@@ -550,14 +590,15 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
       );
     }
 
-    // Video - play inline with controls like WhatsApp
+    // Video - play inline with controls like WhatsApp (uses fetch + blob URL for reliable auth)
     if (isVideoFile(resolvedType)) {
+      const cleanUrl = getCleanAttachmentUrl(att.url);
       return (
         <div key={att.id} className="mt-2 text-left">
           <div className="relative max-w-full sm:max-w-[300px] rounded-lg overflow-hidden bg-black aspect-video">
             {playingVideo === att.id ? (
-              <video
-                src={url}
+              <AuthVideo
+                src={cleanUrl}
                 controls
                 autoPlay
                 playsInline
@@ -569,13 +610,6 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
                 className="w-full h-full flex items-center justify-center cursor-pointer bg-gradient-to-br from-gray-800 to-gray-900 relative"
                 onClick={() => setPlayingVideo(att.id)}
               >
-                <video
-                  src={url}
-                  preload="metadata"
-                  className="w-full h-full object-contain opacity-60"
-                  muted
-                  playsInline
-                />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
                     <Play className="h-7 w-7 text-gray-900 ml-1" />
@@ -978,36 +1012,42 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
           )}
 
           {attachment && (
-            <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg mb-2">
-              {attachment.type.startsWith("image/") ? (
-                <img src={URL.createObjectURL(attachment)} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-              ) : attachment.type.startsWith("video/") ? (
-                <div className="w-12 h-12 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
-                  <Play className="h-5 w-5 text-white" />
-                </div>
-              ) : (
-                (() => {
-                  const resolvedType = detectContentType(attachment.name, attachment.type);
-                  const IconComp = getFileIcon(resolvedType);
-                  return <IconComp className="h-5 w-5 text-indigo-600 flex-shrink-0" />;
-                })()
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-indigo-900 truncate font-medium">{attachment.name}</p>
-                <p className="text-[10px] text-indigo-500">
-                  {getFileTypeLabel(detectContentType(attachment.name, attachment.type))} {"\u2022"} {formatFileSize(attachment.size)}
-                </p>
-              </div>
-              {submitting ? (
-                <div className="w-16">
-                  <div className="h-1 w-full bg-indigo-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg mb-2 overflow-hidden">
+              <div className="flex items-center gap-3 px-3 py-2">
+                {attachment.type.startsWith("image/") ? (
+                  <img src={URL.createObjectURL(attachment)} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                ) : attachment.type.startsWith("video/") ? (
+                  <div className="w-12 h-12 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
+                    <Play className="h-5 w-5 text-white" />
                   </div>
+                ) : (
+                  (() => {
+                    const resolvedType = detectContentType(attachment.name, attachment.type);
+                    const IconComp = getFileIcon(resolvedType);
+                    return <IconComp className="h-5 w-5 text-indigo-600 flex-shrink-0" />;
+                  })()
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-indigo-900 truncate font-medium">{attachment.name}</p>
+                  <p className="text-[10px] text-indigo-500">
+                    {getFileTypeLabel(detectContentType(attachment.name, attachment.type))} {"\u2022"} {formatFileSize(attachment.size)}
+                  </p>
                 </div>
-              ) : (
-                <button type="button" onClick={() => setAttachment(null)} className="text-indigo-400 hover:text-indigo-600 p-1">
-                  <X className="h-4 w-4" />
-                </button>
+                {submitting ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-indigo-700 tabular-nums">{uploadProgress}%</span>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setAttachment(null)} className="text-indigo-400 hover:text-indigo-600 p-1">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {/* WhatsApp-style progress bar */}
+              {submitting && (
+                <div className="h-1.5 w-full bg-indigo-200">
+                  <div className="h-full bg-indigo-600 transition-all duration-300 ease-out" style={{ width: `${uploadProgress}%` }} />
+                </div>
               )}
             </div>
           )}

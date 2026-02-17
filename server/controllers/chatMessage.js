@@ -17,7 +17,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-// Use disk storage with 5GB limit to avoid memory issues for large files
+// Use disk storage with 2GB limit for chat uploads
 const messageUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -30,7 +30,7 @@ const messageUpload = multer({
       cb(null, uniqueName);
     },
   }),
-  limits: { fileSize: 5 * 1024 * 1024 * 1024 }, // 5GB
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB
 }).single("attachment");
 
 export async function sendMessage(req, res) {
@@ -39,7 +39,7 @@ export async function sendMessage(req, res) {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res
           .status(400)
-          .json({ error: "File too large. Maximum size is 5GB." });
+          .json({ error: "File too large. Maximum size is 2GB." });
       }
       return res.status(400).json({ error: err.message });
     }
