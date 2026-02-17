@@ -61,11 +61,13 @@ export default function VideoDetail() {
 
   const userRole = localStorage.getItem('userRole');
   const isAdmin = userRole === 'admin';
-  const isVideoEditor = userRole === 'video_editor';
+  const isPM = userRole === 'project_manager';
   const isClient = userRole === 'client';
 
-  const canChangeStatus = isClient || isAdmin;
-  const canChangeMarkerStatus = isVideoEditor || isAdmin;
+  // Only admin, project_manager, client can change video status
+  const canChangeStatus = isAdmin || isPM || isClient;
+  // All org members (except client) can change marker/timestamp feedback status
+  const canChangeMarkerStatus = ['admin', 'video_editor', 'project_manager', 'social_media_manager', 'member'].includes(userRole || '');
 
   const canDelete = ['admin', 'video_editor', 'project_manager'].includes(userRole || '');
 
@@ -265,60 +267,60 @@ export default function VideoDetail() {
               variant="outline"
               size="sm"
               onClick={() => setShowShareLinks(!showShareLinks)}
-              className="text-xs gap-1"
+              className="text-xs gap-1 h-9 min-w-[40px]"
             >
-              <Link2 className="h-3.5 w-3.5" />
+              <Link2 className="h-4 w-4" />
               <span className="hidden sm:inline">Share</span>
             </Button>
 
             {showShareLinks && (
               <>
-                <div className="fixed inset-0 z-30" onClick={() => setShowShareLinks(false)} />
-                <div className="absolute right-0 sm:right-auto sm:left-0 top-9 bg-white border border-gray-200 rounded-xl shadow-xl z-40 w-72 sm:w-80 p-3 animate-scale-in">
-                  <p className="text-xs font-semibold text-gray-900 mb-2">Share Links</p>
+                <div className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent" onClick={() => setShowShareLinks(false)} />
+                <div className="fixed inset-x-3 bottom-3 sm:absolute sm:inset-auto sm:right-0 sm:top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-auto sm:w-80 p-4 animate-scale-in">
+                  <p className="text-sm font-semibold text-gray-900 mb-3">Share Links</p>
 
                   {/* Video Link */}
-                  <div className="bg-gray-50 rounded-lg p-2.5 mb-2">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Link2 className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="text-[11px] font-medium text-gray-700">Video Link</span>
+                  <div className="bg-gray-50 rounded-lg p-3 mb-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Link2 className="h-4 w-4 text-blue-600" />
+                      <span className="text-xs font-medium text-gray-700">Video Link</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <input
                         readOnly
                         value={getVideoShareUrl()}
-                        className="flex-1 text-[10px] bg-white border border-gray-200 rounded px-2 py-1.5 text-gray-600 font-mono truncate"
+                        className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono truncate"
                       />
                       <button
                         onClick={() => handleCopyLink(getVideoShareUrl(), 'video')}
-                        className="p-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+                        className="p-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors flex-shrink-0"
                       >
-                        {copiedLink === 'video' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copiedLink === 'video' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="text-[9px] text-gray-400 mt-1">Client can watch the video directly</p>
+                    <p className="text-[10px] text-gray-400 mt-1.5">Client can watch the video directly</p>
                   </div>
 
                   {/* Review Link */}
-                  <div className="bg-gray-50 rounded-lg p-2.5">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="text-[11px] font-medium text-gray-700">Review Link</span>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MessageSquare className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs font-medium text-gray-700">Review Link</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <input
                         readOnly
                         value={getReviewShareUrl()}
-                        className="flex-1 text-[10px] bg-white border border-gray-200 rounded px-2 py-1.5 text-gray-600 font-mono truncate"
+                        className="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-600 font-mono truncate"
                       />
                       <button
                         onClick={() => handleCopyLink(getReviewShareUrl(), 'review')}
-                        className="p-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex-shrink-0"
+                        className="p-2.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors flex-shrink-0"
                       >
-                        {copiedLink === 'review' ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copiedLink === 'review' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="text-[9px] text-gray-400 mt-1">Client can review and give feedback</p>
+                    <p className="text-[10px] text-gray-400 mt-1.5">Client can review and give feedback</p>
                   </div>
                 </div>
               </>
@@ -347,35 +349,39 @@ export default function VideoDetail() {
           <div className="relative flex-shrink-0">
             <button
               onClick={() => setShowViewers(!showViewers)}
-              className="flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1.5 h-9 px-2.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors active:bg-gray-200"
             >
-              <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>{viewers.length}</span>
+              <Eye className="h-4 w-4" />
+              <span className="font-medium">{viewers.length}</span>
             </button>
-            {showViewers && viewers.length > 0 && (
+            {showViewers && (
               <>
-                <div className="fixed inset-0 z-30" onClick={() => setShowViewers(false)} />
-                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-40 w-60 sm:w-64 py-2 max-h-60 overflow-y-auto animate-scale-in">
-                  <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Viewed by
+                <div className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent" onClick={() => setShowViewers(false)} />
+                <div className="fixed inset-x-3 bottom-3 sm:absolute sm:inset-auto sm:right-0 sm:top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-auto sm:w-72 max-h-[50vh] overflow-y-auto animate-scale-in">
+                  <div className="px-4 py-3 text-xs font-semibold text-gray-900 uppercase tracking-wider border-b border-gray-100 sticky top-0 bg-white">
+                    Viewed by ({viewers.length})
                   </div>
-                  {viewers.map((viewer) => (
-                    <div key={viewer.user_id} className="px-3 py-2 flex items-center gap-2.5 hover:bg-gray-50">
-                      {viewer.avatar_url ? (
-                        <img src={getApiUrl(viewer.avatar_url)} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                          {viewer.name?.charAt(0).toUpperCase() || '?'}
+                  {viewers.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-gray-400">No one has viewed yet</div>
+                  ) : (
+                    viewers.map((viewer) => (
+                      <div key={viewer.user_id} className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 border-b border-gray-50 last:border-0">
+                        {viewer.avatar_url ? (
+                          <img src={getApiUrl(viewer.avatar_url)} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {viewer.name?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">{viewer.name}</p>
+                          <p className="text-xs text-gray-400">
+                            {formatDistanceToNow(new Date(viewer.viewed_at), { addSuffix: true })}
+                          </p>
                         </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{viewer.name}</p>
-                        <p className="text-xs text-gray-400">
-                          {formatDistanceToNow(new Date(viewer.viewed_at), { addSuffix: true })}
-                        </p>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </>
             )}

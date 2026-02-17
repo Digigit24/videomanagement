@@ -17,3 +17,6 @@ CREATE INDEX IF NOT EXISTS idx_wvs_changed_at ON workspace_video_stats(changed_a
 
 -- Track when a Posted video was marked for auto-cleanup
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS posted_at TIMESTAMP WITH TIME ZONE;
+
+-- Thumbnail for video preview
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS thumbnail_key TEXT;

@@ -18,6 +18,7 @@ export interface Video {
   is_active_version: boolean;
   parent_video_id: string | null;
   posted_at: string | null;
+  thumbnail_key: string | null;
 }
 
 export type VideoStatus =

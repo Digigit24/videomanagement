@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Video, VideoStatus } from '@/types';
 import { formatBytes, formatDate } from '@/lib/utils';
+import { videoService } from '@/services/api.service';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { FileVideo, Search, User, Calendar } from 'lucide-react';
+import { FileVideo, Search, User, Calendar, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface VideoTableProps {
@@ -19,6 +20,45 @@ const statusColors: Record<VideoStatus, string> = {
   'Rejected': 'bg-red-100 text-red-800',
   'Posted': 'bg-violet-100 text-violet-800',
 };
+
+function VideoThumbnail({ video }: { video: Video }) {
+  const [error, setError] = useState(false);
+
+  if (video.thumbnail_key && !error) {
+    return (
+      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-900 mb-3">
+        <img
+          src={videoService.getThumbnailUrl(video.id)}
+          alt={video.filename}
+          className="w-full h-full object-cover"
+          onError={() => setError(true)}
+        />
+        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+            <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+          </div>
+        </div>
+        <span className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColors[video.status]}`}>
+          {video.status}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 mb-3 flex items-center justify-center">
+      <FileVideo className="h-10 w-10 text-gray-300" />
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+          <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+        </div>
+      </div>
+      <span className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColors[video.status]}`}>
+        {video.status}
+      </span>
+    </div>
+  );
+}
 
 export default function VideoTable({ videos }: VideoTableProps) {
   const [search, setSearch] = useState('');
@@ -60,7 +100,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
         </Select>
       </div>
 
-      {/* Video Chips Grid */}
+      {/* Video Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {filteredVideos.length === 0 ? (
           <div className="col-span-full text-center py-12">
@@ -72,36 +112,28 @@ export default function VideoTable({ videos }: VideoTableProps) {
             <div
               key={video.id}
               onClick={() => navigate(`/workspace/${video.bucket}/video/${video.id}`)}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer group"
+              className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group"
             >
-              {/* Video icon + filename */}
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-50 transition-colors">
-                  <FileVideo className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-medium text-gray-900 truncate">{video.filename}</h3>
-                  <p className="text-xs text-gray-400">{formatBytes(video.size)}</p>
-                </div>
-              </div>
+              <div className="p-3">
+                <VideoThumbnail video={video} />
 
-              {/* Meta row */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <Calendar className="h-3 w-3" />
-                  <span>{formatDate(video.created_at)}</span>
-                </div>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[video.status]}`}>
-                  {video.status}
-                </span>
-              </div>
+                <h3 className="text-sm font-medium text-gray-900 truncate mb-1">{video.filename}</h3>
 
-              {video.uploaded_by_name && (
-                <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-400">
-                  <User className="h-3 w-3" />
-                  <span>{video.uploaded_by_name}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <Calendar className="h-3 w-3" />
+                    <span>{formatDate(video.created_at)}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400">{formatBytes(video.size)}</span>
                 </div>
-              )}
+
+                {video.uploaded_by_name && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-400">
+                    <User className="h-3 w-3" />
+                    <span>{video.uploaded_by_name}</span>
+                  </div>
+                )}
+              </div>
             </div>
           ))
         )}

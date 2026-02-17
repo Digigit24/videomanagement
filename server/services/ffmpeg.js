@@ -50,6 +50,22 @@ export async function processVideoToHLS(
   try {
     fs.mkdirSync(tempDir, { recursive: true });
 
+    // Generate thumbnail first
+    try {
+      const thumbPath = path.join(tempDir, "thumbnail.jpg");
+      await generateThumbnail(inputPath, thumbPath);
+      const thumbKey = `${prefix}thumbnails/${videoId}.jpg`;
+      const thumbBuffer = fs.readFileSync(thumbPath);
+      await uploadToS3(bucket, thumbKey, thumbBuffer, "image/jpeg");
+      await getPool().query(
+        "UPDATE videos SET thumbnail_key = $1 WHERE id = $2",
+        [thumbKey, videoId],
+      );
+      console.log(`Thumbnail generated for video ${videoId}`);
+    } catch (thumbErr) {
+      console.error(`Thumbnail generation failed for ${videoId}:`, thumbErr.message);
+    }
+
     // Get video info to determine max resolution
     const videoInfo = await getVideoInfo(inputPath);
     const sourceHeight = videoInfo.height || 1080;
@@ -167,4 +183,19 @@ function generateMasterPlaylist(variants) {
   }
 
   return playlist;
+}
+
+function generateThumbnail(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .screenshots({
+        count: 1,
+        timemarks: ["00:00:01"],
+        folder: path.dirname(outputPath),
+        filename: path.basename(outputPath),
+        size: "640x360",
+      })
+      .on("end", resolve)
+      .on("error", reject);
+  });
 }

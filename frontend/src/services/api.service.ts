@@ -237,6 +237,11 @@ export const videoService = {
     return data.video as Video;
   },
 
+  getThumbnailUrl: (id: string) => {
+    const token = localStorage.getItem("token");
+    return `https://video.celiyo.com/api/video/${id}/thumbnail?token=${token}`;
+  },
+
   getStreamUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
     return `https://video.celiyo.com/api/stream/${id}?bucket=${bucket}&token=${token}`;
