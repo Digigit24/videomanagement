@@ -4,6 +4,7 @@ import { initDatabase } from "./db/index.js";
 import { seedAdmin } from "./services/user.js";
 import { startBackupCleanup } from "./controllers/video.js";
 import { processPermanentDeletions } from "./services/recycleBin.js";
+import { startPostedVideoCleanup } from "./services/postedCleanup.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -15,6 +16,9 @@ async function start() {
 
     // Start backup cleanup scheduler
     startBackupCleanup();
+
+    // Start posted video auto-cleanup (removes S3 files for Posted videos with no feedback after 5 days)
+    startPostedVideoCleanup();
 
     // Start recycle bin cleanup scheduler (every hour)
     setInterval(

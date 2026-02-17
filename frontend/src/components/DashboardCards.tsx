@@ -1,12 +1,13 @@
 import { Card, CardContent } from './ui/card';
 import { DashboardStats } from '@/types';
-import { FileVideo, Clock, Search, CheckCircle, AlertTriangle, XCircle, FileEdit } from 'lucide-react';
+import { FileVideo, Clock, Search, CheckCircle, AlertTriangle, XCircle, FileEdit, Send } from 'lucide-react';
 
 interface DashboardCardsProps {
   stats: DashboardStats;
+  totalEverPosted?: number;
 }
 
-export default function DashboardCards({ stats }: DashboardCardsProps) {
+export default function DashboardCards({ stats, totalEverPosted }: DashboardCardsProps) {
   const cards = [
     { title: 'Total', value: stats.total, icon: FileVideo, color: 'text-gray-600', bg: 'bg-gray-50' },
     { title: 'Draft', value: stats.draft, icon: FileEdit, color: 'text-slate-600', bg: 'bg-slate-50' },
@@ -15,10 +16,11 @@ export default function DashboardCards({ stats }: DashboardCardsProps) {
     { title: 'Approved', value: stats.approved, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { title: 'Changes Needed', value: stats.changesNeeded, icon: AlertTriangle, color: 'text-orange-600', bg: 'bg-orange-50' },
     { title: 'Rejected', value: stats.rejected, icon: XCircle, color: 'text-red-600', bg: 'bg-red-50' },
+    { title: 'Posted', value: stats.posted, icon: Send, color: 'text-violet-600', bg: 'bg-violet-50', subtitle: totalEverPosted !== undefined && totalEverPosted > stats.posted ? `${totalEverPosted} total` : undefined },
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3">
       {cards.map((card) => (
         <Card key={card.title} className={`border-gray-200 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${card.title === 'Total' ? 'col-span-2 sm:col-span-1' : ''}`}>
           <CardContent className="pt-3 pb-2.5 px-3 sm:pt-4 sm:pb-3 sm:px-4">
@@ -29,6 +31,9 @@ export default function DashboardCards({ stats }: DashboardCardsProps) {
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-bold text-gray-900">{card.value}</div>
+            {'subtitle' in card && card.subtitle && (
+              <div className="text-[9px] text-gray-400 font-medium mt-0.5">{card.subtitle}</div>
+            )}
           </CardContent>
         </Card>
       ))}

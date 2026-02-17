@@ -17,6 +17,7 @@ const statusColors: Record<VideoStatus, string> = {
   'Approved': 'bg-emerald-100 text-emerald-800',
   'Changes Needed': 'bg-orange-100 text-orange-800',
   'Rejected': 'bg-red-100 text-red-800',
+  'Posted': 'bg-violet-100 text-violet-800',
 };
 
 export default function VideoTable({ videos }: VideoTableProps) {
@@ -54,6 +55,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
             <SelectItem value="Approved">Approved</SelectItem>
             <SelectItem value="Changes Needed">Changes Needed</SelectItem>
             <SelectItem value="Rejected">Rejected</SelectItem>
+            <SelectItem value="Posted">Posted</SelectItem>
           </SelectContent>
         </Select>
       </div>

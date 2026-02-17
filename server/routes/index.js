@@ -67,6 +67,7 @@ import {
   addReview,
   listReviews,
 } from "../controllers/videoReview.js";
+import { getWorkspaceAnalytics } from "../services/workspaceStats.js";
 import {
   authenticate,
   authenticateStream,
@@ -152,6 +153,17 @@ router.get(
   listInvitations,
 );
 router.delete("/invitation/:id", authenticate, revokeInvitation);
+
+// Workspace analytics
+router.get("/workspace/:bucket/analytics", authenticate, async (req, res) => {
+  try {
+    const analytics = await getWorkspaceAnalytics(req.params.bucket);
+    res.json({ analytics });
+  } catch (error) {
+    console.error("Failed to get workspace analytics:", error);
+    res.status(500).json({ error: "Failed to get analytics" });
+  }
+});
 
 // Workspace
 router.post("/workspace/:id/delete", authenticate, removeWorkspace);

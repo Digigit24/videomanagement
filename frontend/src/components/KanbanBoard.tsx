@@ -23,7 +23,7 @@ interface KanbanBoardProps {
   onVideoUpdate: (videoId: string, newStatus: VideoStatus) => void;
 }
 
-const statusColumns: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected'];
+const statusColumns: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected', 'Posted'];
 
 const statusColors: Record<VideoStatus, string> = {
   'Draft': 'bg-slate-50 border-slate-200',
@@ -32,6 +32,7 @@ const statusColors: Record<VideoStatus, string> = {
   'Approved': 'bg-emerald-50 border-emerald-200',
   'Changes Needed': 'bg-orange-50 border-orange-200',
   'Rejected': 'bg-red-50 border-red-200',
+  'Posted': 'bg-violet-50 border-violet-200',
 };
 
 const statusDotColors: Record<VideoStatus, string> = {
@@ -41,6 +42,7 @@ const statusDotColors: Record<VideoStatus, string> = {
   'Approved': 'bg-emerald-400',
   'Changes Needed': 'bg-orange-400',
   'Rejected': 'bg-red-400',
+  'Posted': 'bg-violet-400',
 };
 
 export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps) {

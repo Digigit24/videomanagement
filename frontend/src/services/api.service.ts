@@ -6,6 +6,7 @@ import {
   User,
   VideoViewer,
   Workspace,
+  WorkspaceAnalytics,
   Invitation,
   UserRole,
   DeletedVideo,
@@ -186,6 +187,11 @@ export const workspaceService = {
       role,
     });
     return data;
+  },
+
+  getAnalytics: async (bucket: string) => {
+    const { data } = await api.get(`/workspace/${bucket}/analytics`);
+    return data.analytics as WorkspaceAnalytics;
   },
 };
 

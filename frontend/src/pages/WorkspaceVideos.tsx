@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { videoService, workspaceService } from '@/services/api.service';
-import { Video, VideoStatus, DashboardStats, Workspace } from '@/types';
+import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics } from '@/types';
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';
 import KanbanBoard from '@/components/KanbanBoard';
@@ -10,9 +10,9 @@ import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Send, TrendingUp, Calendar as CalendarIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { isToday, isThisWeek, isThisMonth, parseISO } from 'date-fns';
+import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
 
 export default function WorkspaceVideos() {
   const { bucket } = useParams<{ bucket: string }>();
@@ -22,9 +22,12 @@ export default function WorkspaceVideos() {
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showChat, setShowChat] = useState(false);
   const [showManageMembers, setShowManageMembers] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [analytics, setAnalytics] = useState<WorkspaceAnalytics | null>(null);
   const [view, setView] = useState<'list' | 'kanban'>(() => {
     return (localStorage.getItem('viewMode') as 'list' | 'kanban') || 'list';
   });
@@ -36,6 +39,7 @@ export default function WorkspaceVideos() {
     approved: 0,
     changesNeeded: 0,
     rejected: 0,
+    posted: 0,
   });
 
   const handleViewChange = (newView: 'list' | 'kanban') => {
@@ -48,12 +52,13 @@ export default function WorkspaceVideos() {
       localStorage.setItem('currentBucket', bucket);
       loadVideos();
       loadWorkspaceInfo();
+      loadAnalytics();
     }
   }, [bucket]);
 
   useEffect(() => {
     filterVideos();
-  }, [videos, dateFilter]);
+  }, [videos, dateFilter, statusFilter]);
 
   const loadVideos = async () => {
     if (!bucket) return;
@@ -79,19 +84,35 @@ export default function WorkspaceVideos() {
     }
   };
 
+  const loadAnalytics = async () => {
+    if (!bucket) return;
+    try {
+      const data = await workspaceService.getAnalytics(bucket);
+      setAnalytics(data);
+    } catch (error) {
+      // Analytics endpoint may fail if migration hasn't run yet
+    }
+  };
+
   const filterVideos = () => {
-    if (dateFilter === 'all') {
-      setFilteredVideos(videos);
-      return;
+    let filtered = videos;
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(video => video.status === statusFilter);
     }
 
-    const filtered = videos.filter(video => {
-      const date = parseISO(video.created_at);
-      if (dateFilter === 'today') return isToday(date);
-      if (dateFilter === 'week') return isThisWeek(date);
-      if (dateFilter === 'month') return isThisMonth(date);
-      return true;
-    });
+    // Date filter
+    if (dateFilter !== 'all') {
+      filtered = filtered.filter(video => {
+        const date = parseISO(video.created_at);
+        if (dateFilter === 'today') return isToday(date);
+        if (dateFilter === 'week') return isThisWeek(date);
+        if (dateFilter === 'month') return isThisMonth(date);
+        return true;
+      });
+    }
+
     setFilteredVideos(filtered);
   };
 
@@ -114,8 +135,11 @@ export default function WorkspaceVideos() {
       approved: videos.filter((v) => v.status === 'Approved').length,
       changesNeeded: videos.filter((v) => v.status === 'Changes Needed').length,
       rejected: videos.filter((v) => v.status === 'Rejected').length,
+      posted: videos.filter((v) => v.status === 'Posted').length,
     });
   };
+
+  const activeFilters = (dateFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0);
 
   if (loading) {
     return (
@@ -144,10 +168,29 @@ export default function WorkspaceVideos() {
 
         {/* Actions Row - scrollable on mobile */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[120px] sm:w-[140px] h-8 text-xs border-dashed bg-white flex-shrink-0">
+              <Filter className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Draft">Draft</SelectItem>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Under Review">Under Review</SelectItem>
+              <SelectItem value="Approved">Approved</SelectItem>
+              <SelectItem value="Changes Needed">Changes Needed</SelectItem>
+              <SelectItem value="Rejected">Rejected</SelectItem>
+              <SelectItem value="Posted">Posted</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Date Filter */}
           <Select value={dateFilter} onValueChange={setDateFilter}>
             <SelectTrigger className="w-[110px] sm:w-[130px] h-8 text-xs border-dashed bg-white flex-shrink-0">
-              <Filter className="w-3.5 h-3.5 mr-1.5 sm:mr-2 text-gray-500" />
-              <SelectValue placeholder="Filter Date" />
+              <CalendarIcon className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+              <SelectValue placeholder="Date" />
             </SelectTrigger>
             <SelectContent align="end">
               <SelectItem value="all">All Time</SelectItem>
@@ -156,6 +199,21 @@ export default function WorkspaceVideos() {
               <SelectItem value="month">This Month</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Clear filters button */}
+          {activeFilters > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setDateFilter('all'); setStatusFilter('all'); }}
+              className="h-8 text-xs text-gray-500 hover:text-gray-700 flex-shrink-0 gap-1"
+            >
+              <X className="h-3 w-3" />
+              Clear ({activeFilters})
+            </Button>
+          )}
+
+          <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
 
           <ViewSwitcher view={view} onViewChange={handleViewChange} />
 
@@ -175,7 +233,7 @@ export default function WorkspaceVideos() {
             <Button
               variant={showChat ? "default" : "outline"}
               size="sm"
-              onClick={() => setShowChat(!showChat)}
+              onClick={() => { setShowChat(!showChat); if (!showChat) setShowAnalytics(false); }}
               className="gap-1 sm:gap-1.5 flex-shrink-0 h-8 text-xs"
             >
               {showChat ? (
@@ -192,6 +250,25 @@ export default function WorkspaceVideos() {
             </Button>
           )}
 
+          <Button
+            variant={showAnalytics ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setShowAnalytics(!showAnalytics); if (!showAnalytics) setShowChat(false); }}
+            className="gap-1 sm:gap-1.5 flex-shrink-0 h-8 text-xs"
+          >
+            {showAnalytics ? (
+              <>
+                <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Close Analytics</span>
+              </>
+            ) : (
+              <>
+                <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Analytics</span>
+              </>
+            )}
+          </Button>
+
           <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-1 sm:gap-2 flex-shrink-0 h-8 text-xs">
             <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Upload
@@ -200,8 +277,141 @@ export default function WorkspaceVideos() {
       </div>
 
       <div className="animate-fade-in-up">
-        <DashboardCards stats={stats} />
+        <DashboardCards stats={stats} totalEverPosted={analytics?.historical.totalEverPosted} />
       </div>
+
+      {/* Analytics Panel */}
+      {showAnalytics && analytics && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm animate-fade-in-up space-y-5">
+          <div className="flex items-center gap-2 mb-1">
+            <BarChart3 className="h-4 w-4 text-blue-600" />
+            <h2 className="text-sm font-semibold text-gray-900">Workspace Analytics</h2>
+          </div>
+
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-violet-50 border border-violet-100 rounded-lg p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Send className="h-3.5 w-3.5 text-violet-600" />
+                <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">Total Posted</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">{analytics.historical.totalEverPosted}</div>
+              <p className="text-[10px] text-gray-400 mt-0.5">All time (includes deleted)</p>
+            </div>
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
+                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Active Videos</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">{analytics.current.total}</div>
+              <p className="text-[10px] text-gray-400 mt-0.5">Currently in workspace</p>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Approval Rate</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">
+                {analytics.current.total > 0 ? Math.round(((analytics.current.approved + analytics.current.posted) / analytics.current.total) * 100) : 0}%
+              </div>
+              <p className="text-[10px] text-gray-400 mt-0.5">Approved + Posted</p>
+            </div>
+            <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Needs Work</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">
+                {analytics.current.changesNeeded + analytics.current.rejected}
+              </div>
+              <p className="text-[10px] text-gray-400 mt-0.5">Changes Needed + Rejected</p>
+            </div>
+          </div>
+
+          {/* Monthly Activity Charts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Monthly Posted */}
+            <div className="border border-gray-100 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-gray-700 mb-3">Monthly Posted Videos</h3>
+              {analytics.monthlyPosted.length === 0 ? (
+                <p className="text-xs text-gray-400 py-4 text-center">No data yet</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {analytics.monthlyPosted.slice(0, 6).map((item) => {
+                    const maxCount = Math.max(...analytics.monthlyPosted.map(m => Number(m.count)));
+                    const pct = maxCount > 0 ? (Number(item.count) / maxCount) * 100 : 0;
+                    return (
+                      <div key={item.month} className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-500 w-14 flex-shrink-0 font-mono">
+                          {format(new Date(item.month), 'MMM yy')}
+                        </span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                          <div
+                            className="h-full bg-violet-400 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(pct, 4)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-700 w-6 text-right">{item.count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Monthly Uploaded */}
+            <div className="border border-gray-100 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-gray-700 mb-3">Monthly Uploaded Videos</h3>
+              {analytics.monthlyUploaded.length === 0 ? (
+                <p className="text-xs text-gray-400 py-4 text-center">No data yet</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {analytics.monthlyUploaded.slice(0, 6).map((item) => {
+                    const maxCount = Math.max(...analytics.monthlyUploaded.map(m => Number(m.count)));
+                    const pct = maxCount > 0 ? (Number(item.count) / maxCount) * 100 : 0;
+                    return (
+                      <div key={item.month} className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-500 w-14 flex-shrink-0 font-mono">
+                          {format(new Date(item.month), 'MMM yy')}
+                        </span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                          <div
+                            className="h-full bg-blue-400 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(pct, 4)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-700 w-6 text-right">{item.count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Status Activity */}
+          {analytics.recentActivity.length > 0 && (
+            <div className="border border-gray-100 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-gray-700 mb-3">Recent Activity</h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {analytics.recentActivity.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 text-xs">
+                    <StatusDot status={item.status_changed_to} />
+                    <span className="text-gray-700 truncate flex-1 font-medium">{item.video_filename}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium flex-shrink-0">
+                      {item.status_changed_to}
+                    </span>
+                    {item.changed_by_name && (
+                      <span className="text-gray-400 flex-shrink-0 hidden sm:inline">{item.changed_by_name}</span>
+                    )}
+                    <span className="text-gray-300 flex-shrink-0 text-[10px]">
+                      {format(new Date(item.changed_at), 'MMM d')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={`grid ${showChat ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'} gap-4`}>
         {/* Videos */}
@@ -254,4 +464,17 @@ export default function WorkspaceVideos() {
       )}
     </div>
   );
+}
+
+function StatusDot({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    'Draft': 'bg-slate-400',
+    'Pending': 'bg-amber-400',
+    'Under Review': 'bg-blue-400',
+    'Approved': 'bg-emerald-400',
+    'Changes Needed': 'bg-orange-400',
+    'Rejected': 'bg-red-400',
+    'Posted': 'bg-violet-400',
+  };
+  return <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors[status] || 'bg-gray-300'}`} />;
 }

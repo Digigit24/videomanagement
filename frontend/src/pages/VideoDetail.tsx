@@ -15,7 +15,7 @@ import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, 
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
 
-const statusOptions: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected'];
+const statusOptions: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected', 'Posted'];
 
 const statusColors: Record<VideoStatus, string> = {
   'Draft': 'bg-slate-100 text-slate-700 border-slate-200',
@@ -24,6 +24,7 @@ const statusColors: Record<VideoStatus, string> = {
   'Approved': 'bg-emerald-100 text-emerald-800 border-emerald-200',
   'Changes Needed': 'bg-orange-100 text-orange-800 border-orange-200',
   'Rejected': 'bg-red-100 text-red-800 border-red-200',
+  'Posted': 'bg-violet-100 text-violet-800 border-violet-200',
 };
 
 function isRecentUpload(dateStr: string | null): boolean {

@@ -17,6 +17,7 @@ export interface Video {
   version_number: number;
   is_active_version: boolean;
   parent_video_id: string | null;
+  posted_at: string | null;
 }
 
 export type VideoStatus =
@@ -25,7 +26,8 @@ export type VideoStatus =
   | "Under Review"
   | "Approved"
   | "Changes Needed"
-  | "Rejected";
+  | "Rejected"
+  | "Posted";
 
 export type UserRole =
   | "admin"
@@ -149,6 +151,23 @@ export interface DashboardStats {
   approved: number;
   changesNeeded: number;
   rejected: number;
+  posted: number;
+}
+
+export interface WorkspaceAnalytics {
+  current: DashboardStats;
+  historical: {
+    totalEverPosted: number;
+  };
+  monthlyPosted: { month: string; count: number }[];
+  monthlyUploaded: { month: string; count: number }[];
+  recentActivity: {
+    id: string;
+    video_filename: string;
+    status_changed_to: string;
+    changed_at: string;
+    changed_by_name: string | null;
+  }[];
 }
 
 export interface DeletedVideo {

@@ -91,6 +91,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV8);
 
+    // Run v9 migrations (Posted status, workspace analytics, auto-cleanup)
+    const migrationsV9 = fs.readFileSync(
+      path.join(__dirname, "migrations_v9.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV9);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

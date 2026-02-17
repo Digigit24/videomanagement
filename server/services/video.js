@@ -184,6 +184,7 @@ export async function updateVideoStatus(id, status, userId) {
       "Approved",
       "Changes Needed",
       "Rejected",
+      "Posted",
     ];
 
     if (!validStatuses.includes(status)) {
@@ -192,18 +193,37 @@ export async function updateVideoStatus(id, status, userId) {
 
     // Get current status
     const current = await pool().query(
-      "SELECT status, version_group_id FROM videos WHERE id = $1",
+      "SELECT status, version_group_id, bucket FROM videos WHERE id = $1",
       [id],
     );
+    if (current.rows.length === 0) return null;
+
     const oldStatus = current.rows[0]?.status;
+    const bucket = current.rows[0]?.bucket;
+
+    // If changing to "Posted", also set posted_at timestamp
+    const postedClause = status === "Posted" ? ", posted_at = CURRENT_TIMESTAMP" : "";
 
     const result = await pool().query(
-      "UPDATE videos SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *",
+      `UPDATE videos SET status = $1, updated_at = CURRENT_TIMESTAMP${postedClause} WHERE id = $2 RETURNING *`,
       [status, id],
     );
 
     if (result.rows.length === 0) {
       return null;
+    }
+
+    const video = result.rows[0];
+
+    // Record status change in workspace_video_stats for historical tracking
+    try {
+      await pool().query(
+        `INSERT INTO workspace_video_stats (workspace_bucket, video_id, video_filename, status_changed_to, changed_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [bucket, id, video.filename, status, userId],
+      );
+    } catch (statsErr) {
+      console.error("Error recording video stats:", statsErr);
     }
 
     // Log activity
@@ -214,7 +234,7 @@ export async function updateVideoStatus(id, status, userId) {
       });
     }
 
-    return result.rows[0];
+    return video;
   } catch (error) {
     console.error("Error updating video status:", error);
     throw error;
