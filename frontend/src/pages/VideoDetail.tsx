@@ -610,7 +610,7 @@ export default function VideoDetail() {
 
         {/* Sidebar - Right (4/12) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col lg:sticky lg:top-20 max-h-[70vh] lg:max-h-[calc(100vh-100px)] animate-slide-in-right">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col lg:sticky lg:top-20 h-[calc(100vh-140px)] lg:h-[calc(100vh-100px)] animate-slide-in-right overflow-hidden">
             {/* Tabs Header - prominent & recognizable */}
             <div className="flex border-b border-gray-200 bg-gray-50/50 rounded-t-xl">
               <button
@@ -639,20 +639,22 @@ export default function VideoDetail() {
 
             {/* Feedback Tab */}
             {sidebarTab === 'feedback' && (
-              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 sm:space-y-6">
-                {/* Timestamp Panel */}
-                <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
-                  <TimestampPanel
-                    comments={timestampComments}
-                    onSeekTo={handleSeekTo}
-                    onMarkerStatusUpdate={handleMarkerStatusUpdate}
-                    currentTime={currentTime}
-                    canEditStatus={canChangeMarkerStatus}
-                  />
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="p-3 sm:p-4 pb-0 flex-shrink-0 space-y-4 overflow-y-auto max-h-[40%] scrollbar-thin">
+                  {/* Timestamp Panel */}
+                  <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
+                    <TimestampPanel
+                      comments={timestampComments}
+                      onSeekTo={handleSeekTo}
+                      onMarkerStatusUpdate={handleMarkerStatusUpdate}
+                      currentTime={currentTime}
+                      canEditStatus={canChangeMarkerStatus}
+                    />
+                  </div>
                 </div>
 
                 {/* Comments Thread */}
-                <div className="border-t border-gray-100 pt-4 sm:pt-6">
+                <div className="flex-1 min-h-0 border-t border-gray-100 mt-4 relative">
                   <CommentsSection
                     videoId={video.id}
                     workspaceId={workspaceId}
@@ -662,6 +664,7 @@ export default function VideoDetail() {
                     onCommentAdded={handleCommentAdded}
                     onCommentDeleted={handleCommentDeleted}
                     onTypingStart={handleFeedbackTypingStart}
+                    className="h-full border-none shadow-none rounded-none"
                   />
                 </div>
               </div>
@@ -670,7 +673,7 @@ export default function VideoDetail() {
             {/* Chat Tab */}
             {sidebarTab === 'chat' && workspaceId && (
               <div className="flex-1 overflow-hidden">
-                <WorkspaceChat workspaceId={workspaceId} />
+                <WorkspaceChat workspaceId={workspaceId} className="h-full border-none shadow-none rounded-none" />
               </div>
             )}
             {sidebarTab === 'chat' && !workspaceId && (

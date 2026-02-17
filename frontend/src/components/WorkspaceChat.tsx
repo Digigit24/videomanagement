@@ -24,7 +24,7 @@ import {
   Camera,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { getApiUrl } from "@/lib/utils";
+import { getApiUrl, cn } from "@/lib/utils";
 
 // Fetches authenticated media via Authorization header and returns a blob URL
 function useAuthBlobUrl(url: string | null): { blobUrl: string | null; loading: boolean; error: boolean } {
@@ -132,6 +132,7 @@ function AuthVideo({ src, autoPlay, controls, playsInline, className, onEnded, m
 
 interface WorkspaceChatProps {
   workspaceId: string;
+  className?: string;
 }
 
 const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
@@ -178,7 +179,7 @@ function detectContentType(filename: string, contentType?: string): string {
   return map[ext] || contentType || "application/octet-stream";
 }
 
-export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
+export default function WorkspaceChat({ workspaceId, className }: WorkspaceChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -770,8 +771,13 @@ export default function WorkspaceChat({ workspaceId }: WorkspaceChatProps) {
     );
   };
 
-  return (
-    <div className="flex flex-col w-full h-[calc(100vh-80px)] lg:h-[calc(100vh-90px)] bg-[#f3f4f6] rounded-xl overflow-hidden shadow-sm border border-gray-200">
+const rootClasses = cn(
+  "flex flex-col w-full h-[calc(100vh-80px)] lg:h-[calc(100vh-90px)] bg-[#f3f4f6] rounded-xl overflow-hidden shadow-sm border border-gray-200",
+  className
+);
+
+return (
+  <div className={rootClasses}>
       {/* Image Lightbox */}
       {lightboxImage && (
         <div

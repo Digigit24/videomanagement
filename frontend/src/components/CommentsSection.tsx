@@ -15,7 +15,7 @@ import {
   AtSign,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { getApiUrl } from "@/lib/utils";
+import { getApiUrl, cn } from "@/lib/utils";
 
 interface ClientReview {
   id: string;
@@ -35,6 +35,7 @@ interface CommentsSectionProps {
   onCommentAdded: (comment: Comment) => void;
   onCommentDeleted: (commentId: string) => void;
   onTypingStart?: () => void;
+  className?: string;
 }
 
 export default function CommentsSection({
@@ -46,6 +47,7 @@ export default function CommentsSection({
   onCommentAdded,
   onCommentDeleted,
   onTypingStart,
+  className,
 }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -285,7 +287,7 @@ export default function CommentsSection({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl overflow-hidden">
+    <div className={cn("flex flex-col h-full bg-white rounded-xl overflow-hidden", className)}>
       {/* Header - Thread Group Identity */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
         <div className="flex items-center gap-2">
