@@ -34,6 +34,7 @@ interface CommentsSectionProps {
   onSeekTo: (time: number) => void;
   onCommentAdded: (comment: Comment) => void;
   onCommentDeleted: (commentId: string) => void;
+  onTypingStart?: () => void;
 }
 
 export default function CommentsSection({
@@ -44,6 +45,7 @@ export default function CommentsSection({
   onSeekTo,
   onCommentAdded,
   onCommentDeleted,
+  onTypingStart,
 }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -531,6 +533,7 @@ export default function CommentsSection({
               ref={inputRef}
               value={newComment}
               onChange={handleInputChange}
+              onFocus={() => onTypingStart?.()}
               placeholder={includeTimestamp ? "Add feedback at this timestamp..." : "Type a message... Use @ to mention"}
               disabled={submitting}
               className="flex-1 min-h-[36px] max-h-28 py-2 px-2 text-sm bg-transparent outline-none resize-none placeholder:text-gray-400 scrollbar-hide"
