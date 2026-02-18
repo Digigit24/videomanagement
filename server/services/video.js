@@ -79,7 +79,15 @@ export async function syncBucketVideos(bucket) {
   try {
     const storageVideos = await listStorageVideos(bucket);
 
-    for (const video of storageVideos) {
+    // Exclude temp-uploads, hls, and thumbnails directories from sync —
+    // those are managed by the upload/processing pipeline, not raw video files.
+    const filteredVideos = storageVideos.filter(
+      (v) => !v.object_key.includes("/temp-uploads/") &&
+             !v.object_key.includes("/hls/") &&
+             !v.object_key.includes("/thumbnails/")
+    );
+
+    for (const video of filteredVideos) {
       await pool().query(
         `INSERT INTO videos (bucket, filename, object_key, size, created_at)
          VALUES ($1, $2, $3, $4, $5)

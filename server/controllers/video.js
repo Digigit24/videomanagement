@@ -191,7 +191,7 @@ export async function uploadVideo(req, res) {
       // Step 4: Enqueue for HLS processing.
       // The queue processes videos sequentially (one at a time) to prevent CPU overload.
       // Each video tracks its queue position and processing progress.
-      processingQueue.enqueue(tempS3Key, video.id, req.bucket, originalname)
+      processingQueue.enqueue(video.id, tempS3Key, req.bucket, originalname)
         .catch((err) => {
           console.error(`Failed to enqueue video ${video.id}:`, err.message);
         });
