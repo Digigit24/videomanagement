@@ -497,8 +497,20 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
     } else {
       // Fallback for full streams
       res.setHeader("Accept-Ranges", "bytes");
-      if (videoRow.rows[0].size) {
+      if (stream.headers) {
+        if (stream.headers["content-type"])
+          res.setHeader("Content-Type", stream.headers["content-type"]);
+        if (stream.headers["content-length"])
+          res.setHeader("Content-Length", stream.headers["content-length"]);
+        if (stream.headers["content-range"])
+          res.setHeader("Content-Range", stream.headers["content-range"]);
+      }
+      if (!res.getHeader("Content-Length") && videoRow.rows[0].size) {
         res.setHeader("Content-Length", videoRow.rows[0].size);
+      }
+      // Ensure video content type if missing
+      if (!res.getHeader("Content-Type")) {
+        res.setHeader("Content-Type", "video/mp4");
       }
       stream.pipe(res);
     }
