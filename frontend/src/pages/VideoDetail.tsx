@@ -129,6 +129,20 @@ export default function VideoDetail() {
     return () => clearInterval(interval);
   }, [id]);
 
+  // Poll for processing status when video is not HLS-ready yet
+  useEffect(() => {
+    if (!id || !currentBucket || !video || video.hls_ready) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await videoService.getVideo(id, currentBucket);
+        if (data.hls_ready) {
+          setVideo(data);
+        }
+      } catch {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [id, currentBucket, video?.hls_ready]);
+
   const loadWorkspace = async () => {
     if (!currentBucket) return;
     try {
@@ -558,13 +572,15 @@ export default function VideoDetail() {
                 onPlayingChange={setIsVideoPlaying}
               />
             ) : (
-              <VideoPlayer
-                url={streamUrl}
-                downloadUrl={downloadUrl}
-                onProgress={handleProgress}
-                playerRef={playerRef}
-                onPlayingChange={setIsVideoPlaying}
-              />
+              <div className="w-full aspect-video bg-gray-950 rounded-lg flex items-center justify-center">
+                <div className="text-center px-6">
+                  <div className="w-10 h-10 border-3 border-gray-600 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
+                  <p className="text-gray-500 text-xs">
+                    Your video is being transcoded into multiple quality levels. This may take a few moments.
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 

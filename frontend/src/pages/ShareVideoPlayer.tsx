@@ -50,11 +50,19 @@ export default function ShareVideoPlayer() {
     }
   };
 
+  const [processing, setProcessing] = useState(false);
+
   const initPlayer = (videoData: any) => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
 
-    if (videoData.hls_ready && Hls.isSupported()) {
+    // If the video is still processing (no HLS chunks yet), show a processing state
+    if (!videoData.hls_ready) {
+      setProcessing(true);
+      return;
+    }
+
+    if (Hls.isSupported()) {
       const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
       const hls = new Hls({
         startLevel: -1,
@@ -85,14 +93,13 @@ export default function ShareVideoPlayer() {
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          // Fallback to direct stream
-          videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
+          setError('Failed to load video stream.');
         }
       });
-    } else if (videoEl.canPlayType('application/vnd.apple.mpegurl') && videoData.hls_ready) {
+    } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
       videoEl.src = publicVideoService.getHLSUrl(videoData.id, token);
     } else {
-      videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
+      setError('Your browser does not support HLS video playback.');
     }
   };
 
@@ -188,6 +195,20 @@ export default function ShareVideoPlayer() {
             {!token ? 'Access Denied' : 'Video Unavailable'}
           </h1>
           <p className="text-gray-400 text-sm max-w-md">{error || 'This video could not be loaded.'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (processing) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+        <div className="text-center animate-fade-in-up">
+          <div className="w-12 h-12 border-3 border-gray-600 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-white mb-2">Processing Video</h1>
+          <p className="text-gray-400 text-sm max-w-md">
+            This video is still being processed. Please check back shortly.
+          </p>
         </div>
       </div>
     );

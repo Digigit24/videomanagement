@@ -197,7 +197,10 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
               {success && (
                 <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
                   <CheckCircle2 className="h-5 w-5" />
-                  <span className="text-sm font-medium">Video uploaded successfully!</span>
+                  <div>
+                    <span className="text-sm font-medium">Video uploaded successfully!</span>
+                    <p className="text-xs text-green-500 mt-0.5">Processing will continue in the background.</p>
+                  </div>
                 </div>
               )}
             </div>

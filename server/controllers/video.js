@@ -1,5 +1,4 @@
 import multer from "multer";
-import fs from "fs";
 import {
   getVideos,
   getVideoById,
@@ -13,10 +12,8 @@ import {
 } from "../services/video.js";
 import {
   getVideoStream,
-  getVideoMetadata,
   resolveBucket,
 } from "../services/storage.js";
-import { uploadToS3 } from "../services/upload.js";
 import { processVideoToHLS } from "../services/ffmpeg.js";
 import { apiError } from "../utils/logger.js";
 import { notifyWorkspaceMembers } from "../services/notification.js";
@@ -141,14 +138,13 @@ export async function uploadVideo(req, res) {
       }
 
       const { originalname, path: filePath, size, mimetype } = req.file;
-      const { bucket: targetBucket, prefix } = resolveBucket(req.bucket);
+      const { prefix } = resolveBucket(req.bucket);
       const objectKey = `${prefix}${Date.now()}-${originalname}`;
       const replaceVideoId = req.body.replaceVideoId || null;
 
-      const fileStream = fs.createReadStream(filePath);
-
-      // Upload original to S3
-      await uploadToS3(targetBucket, objectKey, fileStream, mimetype);
+      // Video stays in temp folder — NO original upload to S3.
+      // FFmpeg will transcode it into HLS chunks which are then uploaded to ZATA.
+      // The temp file is only deleted after all chunks are successfully stored.
 
       // Create video record in database (replaces old video if replaceVideoId provided)
       const video = await createVideo({
@@ -179,25 +175,20 @@ export async function uploadVideo(req, res) {
         console.error("Notification error:", e);
       }
 
-      // Process HLS in background (don't await)
+      // Process HLS in background (don't await).
+      // The temp file is kept on disk so we can retry if anything goes wrong.
+      // processVideoToHLS handles: transcode → upload chunks to ZATA → cleanup temp.
       processVideoToHLS(filePath, video.id, req.bucket, originalname)
-        .catch((err) => {
-          console.error("Background HLS processing failed:", err.message);
+        .then(() => {
+          console.log(`Video ${video.id} fully processed and chunks stored in ZATA.`);
         })
-        .finally(() => {
-          // Cleanup the uploaded temp file after HLS processing is done
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          } catch (e) {
-            console.error("Cleanup error:", e);
-          }
+        .catch((err) => {
+          console.error(`Background HLS processing failed for video ${video.id}:`, err.message);
         });
 
       res.status(201).json({
         video,
-        message: "Video uploaded successfully. HLS processing started.",
+        message: "Video uploaded successfully. Processing started — chunks will be stored in ZATA.",
       });
     } catch (error) {
       apiError(req, error);
@@ -249,7 +240,8 @@ export async function restoreVideo(req, res) {
   }
 }
 
-// Download video
+// Download video — serves the highest quality HLS variant playlist
+// since the original file is not stored in S3 (only HLS chunks are).
 export async function downloadVideo(req, res) {
   try {
     const { id } = req.params;
@@ -259,17 +251,42 @@ export async function downloadVideo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    const stream = await getVideoStream(req.bucket, video.object_key);
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${video.filename}"`,
-    );
-    res.setHeader("Content-Type", "application/octet-stream");
-    if (video.size) {
-      res.setHeader("Content-Length", video.size);
+    if (!video.hls_ready || !video.hls_path) {
+      return res
+        .status(202)
+        .json({ error: "Video is still being processed. Please try again later." });
     }
 
+    // Serve the highest quality HLS variant as a download stream.
+    // Find the highest quality directory from the HLS path.
+    const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
+
+    // Determine the best available quality (try from highest to lowest)
+    const qualityOrder = ["4k", "1080p", "720p", "360p"];
+    let bestPlaylistKey = null;
+
+    for (const q of qualityOrder) {
+      try {
+        const testKey = `${hlsDir}/${q}/playlist.m3u8`;
+        await getVideoStream(req.bucket, testKey);
+        bestPlaylistKey = testKey;
+        break;
+      } catch (_) {
+        // Quality not available, try next
+      }
+    }
+
+    if (!bestPlaylistKey) {
+      return res.status(404).json({ error: "No downloadable quality found" });
+    }
+
+    // Stream the playlist (the player/client can use it to download segments)
+    const stream = await getVideoStream(req.bucket, bestPlaylistKey);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${video.filename.replace(/\.[^/.]+$/, "")}.m3u8"`,
+    );
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     stream.pipe(res);
   } catch (error) {
     apiError(req, error);
@@ -339,49 +356,27 @@ export async function streamVideo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    const ext = video.filename.toLowerCase().split(".").pop();
-    const contentTypes = {
-      mp4: "video/mp4",
-      mov: "video/quicktime",
-      webm: "video/webm",
-    };
+    // Since the original video is NOT stored in S3 (only HLS chunks are),
+    // direct streaming is only possible when HLS is ready.
+    // The frontend should use the HLS player; this endpoint exists as a fallback.
+    if (!video.hls_ready) {
+      return res
+        .status(202)
+        .json({ error: "Video is still being processed. Please use the HLS endpoint once ready." });
+    }
 
-    const contentType = contentTypes[ext] || "video/mp4";
-    const fileSize = video.size;
-
-    const range = req.headers.range;
-
-    if (range) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunkSize = end - start + 1;
-
-      res.writeHead(206, {
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-        "Accept-Ranges": "bytes",
-        "Content-Length": chunkSize,
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=3600",
-      });
-
-      const stream = await getVideoStream(
-        req.bucket,
-        video.object_key,
-        start,
-        end,
-      );
+    // Redirect the caller to use HLS streaming instead.
+    // For backward compatibility, try to stream the HLS master playlist.
+    const hlsMasterKey = video.hls_path;
+    if (hlsMasterKey) {
+      const stream = await getVideoStream(req.bucket, hlsMasterKey);
+      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+      res.setHeader("Cache-Control", "public, max-age=3600");
       stream.pipe(res);
     } else {
-      res.writeHead(200, {
-        "Content-Length": fileSize,
-        "Content-Type": contentType,
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=3600",
-      });
-
-      const stream = await getVideoStream(req.bucket, video.object_key);
-      stream.pipe(res);
+      return res
+        .status(404)
+        .json({ error: "Video stream not available" });
     }
   } catch (error) {
     apiError(req, error);

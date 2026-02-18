@@ -454,11 +454,11 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
 });
 
 // Public direct video stream for shared videos (requires share token)
+// Since originals are not stored in S3, this endpoint redirects to HLS.
 router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
-  const { getVideoStream, resolveBucket } =
-    await import("../services/storage.js");
+  const { getVideoStream } = await import("../services/storage.js");
   const pool = (await import("../db/index.js")).getPool();
 
   try {
@@ -474,46 +474,18 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    const range = req.headers.range;
-    const bucket = await resolveBucket(video.bucket);
-
-    // Get file size for range calculation
-    // Note: getVideoStream currently handles range internally but having size helps with headers
-    // For now we trust getVideoStream to return proper range streams.
-
-    const stream = await getVideoStream(
-      bucket,
-      videoRow.rows[0].object_key,
-      range,
-    );
-
-    if (stream.statusCode) {
-      res.writeHead(stream.statusCode, {
-        ...stream.headers,
-        "Accept-Ranges": "bytes",
-        // Ensure Content-Range and Content-Length are passed if available
-      });
-      stream.body.pipe(res);
-    } else {
-      // Fallback for full streams
-      res.setHeader("Accept-Ranges", "bytes");
-      if (stream.headers) {
-        if (stream.headers["content-type"])
-          res.setHeader("Content-Type", stream.headers["content-type"]);
-        if (stream.headers["content-length"])
-          res.setHeader("Content-Length", stream.headers["content-length"]);
-        if (stream.headers["content-range"])
-          res.setHeader("Content-Range", stream.headers["content-range"]);
-      }
-      if (!res.getHeader("Content-Length") && videoRow.rows[0].size) {
-        res.setHeader("Content-Length", videoRow.rows[0].size);
-      }
-      // Ensure video content type if missing
-      if (!res.getHeader("Content-Type")) {
-        res.setHeader("Content-Type", "video/mp4");
-      }
-      stream.pipe(res);
+    // Original video is not stored in S3 — only HLS chunks are.
+    if (!videoRow.rows[0].hls_ready || !videoRow.rows[0].hls_path) {
+      return res
+        .status(202)
+        .json({ error: "Video is still being processed. Please try again later." });
     }
+
+    // Serve the HLS master playlist as fallback for direct stream requests
+    const stream = await getVideoStream(video.bucket, videoRow.rows[0].hls_path);
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    stream.pipe(res);
   } catch (error) {
     res.status(500).json({ error: "Stream failed" });
   }
