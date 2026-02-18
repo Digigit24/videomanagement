@@ -247,7 +247,16 @@ export default function VideoDetail() {
       setConfirmDelete(false);
       navigate(`/workspace/${currentBucket}`);
     } catch (error: any) {
-      const msg = error?.response?.data?.error || 'Failed to delete video. Please try again.';
+      console.error('Delete error:', error);
+      const status = error?.response?.status;
+      let msg = error?.response?.data?.error || 'Failed to delete video.';
+      
+      if (status === 403) {
+        msg = 'Invalid admin password. Please try again.';
+      } else if (status === 400) {
+        msg = 'Admin password is required.';
+      }
+      
       setDeleteError(msg);
     }
   };
@@ -608,16 +617,6 @@ export default function VideoDetail() {
                   <Download className="h-3.5 w-3.5 mr-1" />
                   Download
                 </Button>
-                {canDelete && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setConfirmDelete(true)}
-                    className="text-gray-400 hover:text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -711,7 +710,7 @@ export default function VideoDetail() {
       <ConfirmDialog
         isOpen={confirmStatus.open}
         title="Change Video Status"
-        message={`Are you sure you want to change the status from "${video.status}" to "${confirmStatus.newStatus}"?`}
+        message={`Are you sure you want to change the status from "${video?.status}" to "${confirmStatus.newStatus}"?`}
         confirmText={`Change to ${confirmStatus.newStatus}`}
         onConfirm={handleStatusConfirm}
         onCancel={() => setConfirmStatus({ open: false, newStatus: null })}

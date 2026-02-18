@@ -41,7 +41,9 @@ export async function createVideo({
         );
 
         // Delete old video record
-        await pool().query("DELETE FROM videos WHERE id = $1", [replaceVideoId]);
+        await pool().query("DELETE FROM videos WHERE id = $1", [
+          replaceVideoId,
+        ]);
       }
     }
 
@@ -49,13 +51,7 @@ export async function createVideo({
       `INSERT INTO videos (bucket, filename, object_key, size, uploaded_by, uploaded_at, created_at, version_group_id, version_number, is_active_version, parent_video_id)
        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, gen_random_uuid(), 1, TRUE, NULL)
        RETURNING *`,
-      [
-        bucket,
-        filename,
-        objectKey,
-        size,
-        uploadedBy,
-      ],
+      [bucket, filename, objectKey, size, uploadedBy],
     );
 
     const video = result.rows[0];
@@ -224,7 +220,8 @@ export async function updateVideoStatus(id, status, userId) {
     const bucket = current.rows[0]?.bucket;
 
     // If changing to "Posted", also set posted_at timestamp
-    const postedClause = status === "Posted" ? ", posted_at = CURRENT_TIMESTAMP" : "";
+    const postedClause =
+      status === "Posted" ? ", posted_at = CURRENT_TIMESTAMP" : "";
 
     const result = await pool().query(
       `UPDATE videos SET status = $1, updated_at = CURRENT_TIMESTAMP${postedClause} WHERE id = $2 RETURNING *`,
@@ -376,8 +373,27 @@ export async function deleteVideo(videoId, userId) {
       ],
     );
 
+    // Delete related data first to avoid foreign key constraint errors
+    await pool().query("DELETE FROM video_share_tokens WHERE video_id = $1", [
+      videoId,
+    ]);
+    await pool().query("DELETE FROM video_viewers WHERE video_id = $1", [
+      videoId,
+    ]);
+    await pool().query("DELETE FROM comments WHERE video_id = $1", [videoId]);
+    // Note: workspace_video_stats is kept for historical tracking (usually doesn't have a FK blocking deletion)
+
     // Delete from videos
-    await pool().query("DELETE FROM videos WHERE id = $1", [videoId]);
+    const deleteResult = await pool().query(
+      "DELETE FROM videos WHERE id = $1",
+      [videoId],
+    );
+
+    if (deleteResult.rowCount === 0) {
+      console.warn(
+        `Video ${videoId} was not found in videos table during final deletion.`,
+      );
+    }
 
     // Log activity
     if (userId) {

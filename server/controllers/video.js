@@ -11,10 +11,7 @@ import {
   cleanupExpiredBackups,
   deleteVideo,
 } from "../services/video.js";
-import {
-  getVideoStream,
-  resolveBucket,
-} from "../services/storage.js";
+import { getVideoStream, resolveBucket } from "../services/storage.js";
 import { uploadFileToS3 } from "../services/upload.js";
 import { processVideoToHLS } from "../services/ffmpeg.js";
 import { apiError } from "../utils/logger.js";
@@ -77,7 +74,10 @@ export async function updateStatus(req, res) {
     if (!statusChangeRoles.includes(userRole)) {
       return res
         .status(403)
-        .json({ error: "Only admin, project manager, or client can change video status" });
+        .json({
+          error:
+            "Only admin, project manager, or client can change video status",
+        });
     }
 
     const video = await updateVideoStatus(id, status, req.user.id);
@@ -193,10 +193,15 @@ export async function uploadVideo(req, res) {
       // No video data persists on server disk.
       processVideoToHLS(tempS3Key, video.id, req.bucket, originalname)
         .then(() => {
-          console.log(`Video ${video.id} fully processed and chunks stored in ZATA.`);
+          console.log(
+            `Video ${video.id} fully processed and chunks stored in ZATA.`,
+          );
         })
         .catch((err) => {
-          console.error(`Background HLS processing failed for video ${video.id}:`, err.message);
+          console.error(
+            `Background HLS processing failed for video ${video.id}:`,
+            err.message,
+          );
         });
 
       res.status(201).json({
@@ -267,7 +272,9 @@ export async function downloadVideo(req, res) {
     if (!video.hls_ready || !video.hls_path) {
       return res
         .status(202)
-        .json({ error: "Video is still being processed. Please try again later." });
+        .json({
+          error: "Video is still being processed. Please try again later.",
+        });
     }
 
     // Serve the highest quality HLS variant as a download stream.
@@ -333,7 +340,10 @@ export async function removeVideo(req, res) {
     // Admin password verification for sensitive actions
     if (req.user.role === "admin") {
       const { password } = req.body;
+      console.log("Deletion requested by admin. Verification starting...");
+
       if (!password) {
+        console.log("Deletion failed: No password provided in request body.");
         return res
           .status(400)
           .json({ error: "Password is required to confirm deletion" });
@@ -343,16 +353,23 @@ export async function removeVideo(req, res) {
         await import("../services/user.js");
       const user = await getUserByEmail(req.user.email);
       if (!user) {
+        console.log(
+          `Deletion failed: Admin user not found with email ${req.user.email}`,
+        );
         return res.status(404).json({ error: "User not found" });
       }
 
       const isValid = await verifyPassword(password, user.password);
       if (!isValid) {
+        console.log("Deletion failed: Invalid admin password provided.");
         return res.status(403).json({ error: "Invalid password" });
       }
+      console.log("Admin password verified successfully.");
     }
 
+    console.log(`Deleting video ${id} from bucket ${req.bucket}...`);
     await deleteVideo(id, req.user.id);
+    console.log(`Video ${id} deleted successfully.`);
     res.json({ message: "Video moved to recently deleted" });
   } catch (error) {
     apiError(req, error);
@@ -375,7 +392,10 @@ export async function streamVideo(req, res) {
     if (!video.hls_ready) {
       return res
         .status(202)
-        .json({ error: "Video is still being processed. Please use the HLS endpoint once ready." });
+        .json({
+          error:
+            "Video is still being processed. Please use the HLS endpoint once ready.",
+        });
     }
 
     // Redirect the caller to use HLS streaming instead.
@@ -387,9 +407,7 @@ export async function streamVideo(req, res) {
       res.setHeader("Cache-Control", "public, max-age=3600");
       stream.pipe(res);
     } else {
-      return res
-        .status(404)
-        .json({ error: "Video stream not available" });
+      return res.status(404).json({ error: "Video stream not available" });
     }
   } catch (error) {
     apiError(req, error);
