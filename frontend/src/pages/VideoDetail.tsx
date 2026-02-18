@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService, commentService, workspaceService } from '@/services/api.service';
+import { APP_URL } from '@/lib/api';
 import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
 import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -246,12 +247,12 @@ export default function VideoDetail() {
 
   const getVideoShareUrl = () => {
     if (!video || !shareToken) return '';
-    return `${window.location.origin}/v/${video.id}?token=${shareToken}`;
+    return `${APP_URL}/v/${video.id}?token=${shareToken}`;
   };
 
   const getReviewShareUrl = () => {
     if (!video || !shareToken) return '';
-    return `${window.location.origin}/v/${video.id}/review?token=${shareToken}`;
+    return `${APP_URL}/v/${video.id}/review?token=${shareToken}`;
   };
 
   const [shareError, setShareError] = useState(false);
@@ -281,14 +282,14 @@ export default function VideoDetail() {
     }
     try {
       // Try modern clipboard API first
-      if (navigator.clipboard && window.isSecureContext) {
+      if (navigator.clipboard) {
         await navigator.clipboard.writeText(url);
         setCopiedLink(type);
         setTimeout(() => setCopiedLink(null), 2500);
         return;
       }
     } catch (e) {
-      // Clipboard API failed, try fallback
+      console.warn("Clipboard API failed", e);
     }
 
     try {
@@ -366,8 +367,8 @@ export default function VideoDetail() {
 
             {showShareLinks && (
               <>
-                <div className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent" onClick={() => setShowShareLinks(false)} />
-                <div className="fixed inset-x-3 bottom-3 sm:absolute sm:inset-auto sm:right-0 sm:top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-auto sm:w-96 p-4 animate-scale-in">
+                <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={() => setShowShareLinks(false)} />
+                <div className="fixed inset-x-3 bottom-3 sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-auto sm:w-96 p-4 animate-scale-in">
                   <p className="text-sm font-semibold text-gray-900 mb-3">Share Links</p>
 
                   {loadingShareToken ? (
@@ -645,45 +646,46 @@ export default function VideoDetail() {
             {/* Feedback Tab */}
             {sidebarTab === 'feedback' && (
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <div className="p-3 sm:p-4 pb-0 flex-shrink-0 space-y-4 overflow-y-auto max-h-[40%] scrollbar-thin">
-                  {/* Timestamp Panel */}
-                  <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
-                    <TimestampPanel
-                      comments={timestampComments}
-                      onSeekTo={handleSeekTo}
-                      onMarkerStatusUpdate={handleMarkerStatusUpdate}
-                      currentTime={currentTime}
-                      canEditStatus={canChangeMarkerStatus}
-                    />
-                  </div>
-                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-3 sm:p-4 space-y-4">
+                    {/* Timestamp Panel */}
+                    <div className="bg-gray-50/50 rounded-lg border border-gray-100 overflow-hidden">
+                      <TimestampPanel
+                        comments={timestampComments}
+                        onSeekTo={handleSeekTo}
+                        onMarkerStatusUpdate={handleMarkerStatusUpdate}
+                        currentTime={currentTime}
+                        canEditStatus={canChangeMarkerStatus}
+                      />
+                    </div>
 
-                {/* Comments Thread */}
-                <div className="flex-1 min-h-0 border-t border-gray-100 mt-4 relative">
-                  <CommentsSection
-                    videoId={video.id}
-                    workspaceId={workspaceId}
-                    comments={comments}
-                    currentTime={currentTime}
-                    onSeekTo={handleSeekTo}
-                    onCommentAdded={handleCommentAdded}
-                    onCommentDeleted={handleCommentDeleted}
-                    onTypingStart={handleFeedbackTypingStart}
-                    className="h-full border-none shadow-none rounded-none"
-                  />
+                    {/* Comments Thread */}
+                    <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+                      <CommentsSection
+                        videoId={video.id}
+                        comments={comments}
+                        currentTime={currentTime}
+                        onSeekTo={handleSeekTo}
+                        onCommentAdded={handleCommentAdded}
+                        onCommentDeleted={handleCommentDeleted}
+                        onTypingStart={handleFeedbackTypingStart}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Chat Tab */}
-            {sidebarTab === 'chat' && workspaceId && (
-              <div className="flex-1 overflow-hidden">
-                <WorkspaceChat workspaceId={workspaceId} className="h-full border-none shadow-none rounded-none" />
-              </div>
-            )}
-            {sidebarTab === 'chat' && !workspaceId && (
-              <div className="flex-1 flex items-center justify-center p-8">
-                <p className="text-xs text-gray-400">Loading workspace chat...</p>
+            {sidebarTab === 'chat' && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                {workspaceId ? (
+                  <WorkspaceChat workspaceId={workspaceId} className="h-full border-none shadow-none rounded-none" />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-xs text-gray-400">Loading workspace chat...</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

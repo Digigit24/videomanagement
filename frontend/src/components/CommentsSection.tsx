@@ -329,7 +329,7 @@ export default function CommentsSection({
       {/* Messages List */}
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 scroll-smooth"
+        className="flex-1 overflow-y-auto p-3 sm:p-4 pb-20 space-y-3 scroll-smooth"
         style={{ minHeight: '300px' }}
       >
         {mergedTimeline.length === 0 ? (
@@ -466,7 +466,7 @@ export default function CommentsSection({
       </div>
 
       {/* Input Area */}
-      <div className="p-3 bg-white border-t border-gray-100 relative">
+      <div className="p-3 bg-white border-t border-gray-100 z-10">
         {/* Mention Picker Dropdown */}
         {showMentions && filteredMembers.length > 0 && (
           <div className="absolute bottom-full left-2 right-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto z-50 ring-1 ring-black/5">

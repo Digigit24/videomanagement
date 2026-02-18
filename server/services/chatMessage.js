@@ -34,7 +34,12 @@ export async function createMessage(
   }
 }
 
-export async function getWorkspaceMessages(workspaceId, limit = 100, before = null, since = null) {
+export async function getWorkspaceMessages(
+  workspaceId,
+  limit = 100,
+  before = null,
+  since = null,
+) {
   try {
     let query = `SELECT m.*, u.name as user_name, u.email as user_email, u.avatar_url as user_avatar,
             rm.content as reply_content, rm.user_id as reply_user_id,
@@ -122,9 +127,18 @@ export async function createMessageAttachment(
 export async function deleteMessage(messageId, userId) {
   try {
     const result = await getPool().query(
-      "DELETE FROM chat_messages WHERE id = $1 AND user_id = $2 RETURNING *",
+      "UPDATE chat_messages SET deleted_at = NOW(), content = 'This message was deleted', mentions = '{}' WHERE id = $1 AND user_id = $2 RETURNING *",
       [messageId, userId],
     );
+
+    if (result.rows[0]) {
+      // Also delete attachments if any
+      await getPool().query(
+        "DELETE FROM chat_message_attachments WHERE message_id = $1",
+        [messageId],
+      );
+    }
+
     return result.rows[0] || null;
   } catch (error) {
     console.error("Error deleting message:", error);

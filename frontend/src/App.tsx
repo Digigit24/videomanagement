@@ -9,7 +9,7 @@ import VideoDetail from '@/pages/VideoDetail';
 import Users from '@/pages/Users';
 import JoinInvite from '@/pages/JoinInvite';
 import RecycleBin from '@/pages/RecycleBin';
-import ShareVideoPlayer from '@/pages/ShareVideoPlayer';
+
 import VideoReview from '@/pages/VideoReview';
 
 function AppContent() {
@@ -23,7 +23,7 @@ function AppContent() {
     return (
       <Routes>
         <Route path="/v/:videoId/review" element={<VideoReview />} />
-        <Route path="/v/:videoId" element={<ShareVideoPlayer />} />
+        <Route path="/v/:videoId" element={<VideoReview />} />
       </Routes>
     );
   }

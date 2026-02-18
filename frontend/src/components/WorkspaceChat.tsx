@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ChatMessage, WorkspaceMember } from "@/types";
 import { chatService, workspaceService } from "@/services/api.service";
+import ConfirmDialog from "./ConfirmDialog";
 import { Button } from "./ui/button";
 import {
   MessageCircle,
@@ -203,6 +204,7 @@ export default function WorkspaceChat({ workspaceId, className }: WorkspaceChatP
   const listRef = useRef<HTMLDivElement>(null);
   const lastMessageTimeRef = useRef<string | null>(null);
   const isNearBottomRef = useRef(true);
+  const [confirmDeleteMessageId, setConfirmDeleteMessageId] = useState<string | null>(null);
 
   const currentUserId = localStorage.getItem("userId");
 
@@ -323,10 +325,29 @@ export default function WorkspaceChat({ workspaceId, className }: WorkspaceChatP
     }
   };
 
-  const handleDelete = async (messageId: string) => {
+  const handleDelete = (messageId: string) => {
+    setConfirmDeleteMessageId(messageId);
+  };
+
+  const confirmDeleteMessage = async () => {
+    if (!confirmDeleteMessageId) return;
     try {
-      await chatService.deleteMessage(messageId);
-      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      await chatService.deleteMessage(confirmDeleteMessageId);
+      // Soft delete: Update the message in the list instead of removing it
+      setMessages((prev) => prev.map((m) => {
+        if (m.id === confirmDeleteMessageId) {
+          return {
+            ...m,
+            content: "This message was deleted",
+            deleted_at: new Date().toISOString(),
+            attachments: [],
+            reply_to: null, 
+            mentions: []
+          };
+        }
+        return m;
+      }));
+      setConfirmDeleteMessageId(null);
     } catch (error) {
       console.error("Failed to delete message:", error);
     }
@@ -897,8 +918,13 @@ return (
                         )}
 
                         {message.content && (
-                          <p className={`whitespace-pre-wrap leading-relaxed break-words ${isMe ? "text-white" : "text-gray-800"}`}>
-                            {renderContent(message.content, isMe)}
+                          <p className={`whitespace-pre-wrap leading-relaxed break-words ${isMe ? "text-white" : "text-gray-800"} ${message.deleted_at ? "italic text-gray-500 opacity-80" : ""}`}>
+                            {message.deleted_at ? (
+                              <span className="flex items-center gap-1.5">
+                                <span className="block h-3 w-3 rounded-full border border-current opacity-50 relative before:absolute before:inset-0 before:m-auto before:w-full before:h-px before:bg-current before:rotate-45" />
+                                This message was deleted
+                              </span>
+                            ) : renderContent(message.content, isMe)}
                           </p>
                         )}
 
@@ -914,16 +940,18 @@ return (
                       </div>
 
                       {/* Actions - visible on mobile via tap, hover on desktop */}
-                      <div className={`flex gap-2 mt-1 ${isMe ? 'mr-1' : 'ml-1'} sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}>
-                        <button onClick={() => handleReply(message)} className="text-[10px] text-gray-400 hover:text-blue-500 active:text-blue-600 transition-colors p-1">
-                          Reply
-                        </button>
-                        {isMe && (
-                          <button onClick={() => handleDelete(message.id)} className="text-[10px] text-gray-400 hover:text-red-500 active:text-red-600 transition-colors p-1">
-                            Delete
+                      {!message.deleted_at && (
+                        <div className={`flex gap-2 mt-1 ${isMe ? 'mr-1' : 'ml-1'} sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}>
+                          <button onClick={() => handleReply(message)} className="text-[10px] text-gray-400 hover:text-blue-500 active:text-blue-600 transition-colors p-1">
+                            Reply
                           </button>
-                        )}
-                      </div>
+                          {isMe && (
+                            <button onClick={() => handleDelete(message.id)} className="text-[10px] text-gray-400 hover:text-red-500 active:text-red-600 transition-colors p-1">
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1066,7 +1094,7 @@ return (
                 onChange={handleInputChange}
                 placeholder="Type a message... Use @ to mention"
                 disabled={submitting}
-                className="w-full max-h-32 min-h-[44px] py-3 px-4 text-sm bg-transparent outline-none resize-none placeholder:text-gray-500"
+                className="w-full max-h-32 min-h-[44px] py-3 px-4 text-sm bg-transparent outline-none resize-none placeholder:text-gray-500 scrollbar-hide"
                 rows={1}
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
@@ -1128,6 +1156,16 @@ return (
           </div>
         </form>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteMessageId}
+        title="Delete Message"
+        message="Are you sure you want to delete this message? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={confirmDeleteMessage}
+        onCancel={() => setConfirmDeleteMessageId(null)}
+      />
     </div>
   );
 }

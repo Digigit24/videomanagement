@@ -91,12 +91,18 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV8);
 
-    // Run v9 migrations (Posted status, workspace analytics, auto-cleanup)
     const migrationsV9 = fs.readFileSync(
       path.join(__dirname, "migrations_v9.sql"),
       "utf8",
     );
     await getPool().query(migrationsV9);
+
+    // Run v10 migrations (soft delete for chat messages)
+    const migrationsV10 = fs.readFileSync(
+      path.join(__dirname, "migrations_v10.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV10);
 
     console.log("✓ Database initialized successfully");
   } catch (error) {

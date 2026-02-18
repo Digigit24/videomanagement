@@ -86,6 +86,7 @@ export interface ChatMessage {
   mentions: string[];
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
   attachments: ChatAttachment[];
 }
 

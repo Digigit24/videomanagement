@@ -23,7 +23,7 @@ export default function WorkspaceVideos() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'videos' | 'chat' | 'analytics'>('chat');
+  const [activeTab, setActiveTab] = useState<'videos' | 'chat' | 'analytics'>('videos');
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [analytics, setAnalytics] = useState<WorkspaceAnalytics | null>(null);
@@ -506,7 +506,7 @@ export default function WorkspaceVideos() {
       {/* Chat Tab - Full Width */}
       {activeTab === 'chat' && workspace && (
         <div className="animate-fade-in">
-          <WorkspaceChat workspaceId={workspace.id} />
+          <WorkspaceChat workspaceId={workspace.id} className="h-[calc(100vh-240px)] lg:h-[calc(100vh-240px)] min-h-[400px]" />
         </div>
       )}
 
