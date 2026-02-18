@@ -1,4 +1,5 @@
 import multer from "multer";
+import fs from "fs";
 import {
   getVideos,
   getVideoById,
@@ -14,6 +15,7 @@ import {
   getVideoStream,
   resolveBucket,
 } from "../services/storage.js";
+import { uploadFileToS3 } from "../services/upload.js";
 import { processVideoToHLS } from "../services/ffmpeg.js";
 import { apiError } from "../utils/logger.js";
 import { notifyWorkspaceMembers } from "../services/notification.js";
@@ -138,15 +140,26 @@ export async function uploadVideo(req, res) {
       }
 
       const { originalname, path: filePath, size, mimetype } = req.file;
-      const { prefix } = resolveBucket(req.bucket);
+      const { bucket: resolvedBucket, prefix } = resolveBucket(req.bucket);
       const objectKey = `${prefix}${Date.now()}-${originalname}`;
       const replaceVideoId = req.body.replaceVideoId || null;
 
-      // Video stays in temp folder — NO original upload to S3.
-      // FFmpeg will transcode it into HLS chunks which are then uploaded to ZATA.
-      // The temp file is only deleted after all chunks are successfully stored.
+      // Step 1: Upload the original video to S3 immediately (as a temp file).
+      // This frees server disk space as fast as possible.
+      const tempS3Key = `${prefix}temp-uploads/${Date.now()}-${originalname}`;
+      console.log(`Uploading video to S3 temp: ${tempS3Key}`);
+      await uploadFileToS3(resolvedBucket, tempS3Key, filePath, mimetype);
+      console.log(`Video uploaded to S3 temp: ${tempS3Key}`);
 
-      // Create video record in database (replaces old video if replaceVideoId provided)
+      // Step 2: Delete local temp file immediately to free server disk space
+      try {
+        fs.unlinkSync(filePath);
+        console.log(`Local temp file deleted: ${filePath}`);
+      } catch (e) {
+        console.warn(`Failed to delete local temp: ${e.message}`);
+      }
+
+      // Step 3: Create video record in database
       const video = await createVideo({
         bucket: req.bucket,
         filename: originalname,
@@ -175,10 +188,10 @@ export async function uploadVideo(req, res) {
         console.error("Notification error:", e);
       }
 
-      // Process HLS in background (don't await).
-      // The temp file is kept on disk so we can retry if anything goes wrong.
-      // processVideoToHLS handles: transcode → upload chunks to ZATA → cleanup temp.
-      processVideoToHLS(filePath, video.id, req.bucket, originalname)
+      // Step 4: Process HLS in background (don't await).
+      // processVideoToHLS downloads from S3 → transcodes → uploads HLS chunks → deletes S3 temp.
+      // No video data persists on server disk.
+      processVideoToHLS(tempS3Key, video.id, req.bucket, originalname)
         .then(() => {
           console.log(`Video ${video.id} fully processed and chunks stored in ZATA.`);
         })
@@ -188,7 +201,7 @@ export async function uploadVideo(req, res) {
 
       res.status(201).json({
         video,
-        message: "Video uploaded successfully. Processing started — chunks will be stored in ZATA.",
+        message: "Video uploaded to storage. Processing started in background.",
       });
     } catch (error) {
       apiError(req, error);

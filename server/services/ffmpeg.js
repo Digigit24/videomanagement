@@ -1,10 +1,17 @@
-import ffmpeg from "fluent-ffmpeg";
+import ffmpegLib from "fluent-ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import fs from "fs";
 import path from "path";
 import os from "os";
 import { uploadToS3 } from "./upload.js";
 import { getPool } from "../db/index.js";
-import { resolveBucket } from "./storage.js";
+import { resolveBucket, downloadFromS3ToFile, deleteFromS3 } from "./storage.js";
+
+// Use node-module FFmpeg binaries instead of system-installed ones.
+// This avoids relying on the system FFmpeg which may crash under load.
+ffmpegLib.setFfmpegPath(ffmpegInstaller.path);
+ffmpegLib.setFfprobePath(ffprobeInstaller.path);
 
 const QUALITIES = [
   {
@@ -43,16 +50,18 @@ const MAX_TRANSCODE_RETRIES = 2;
  * Main entry point for video processing.
  *
  * Flow:
- *   1. Video sits in temp folder (inputPath)
+ *   1. Download the temp original from S3 to a local temp file
  *   2. FFmpeg transcodes to HLS chunks at applicable quality levels
+ *      (using -threads 1 -preset ultrafast to minimize CPU/RAM)
  *   3. All chunks are uploaded to ZATA S3 (with retry via uploadToS3)
  *   4. DB is updated with hls_ready = TRUE
- *   5. Only AFTER everything succeeds, the temp video file is deleted
+ *   5. Local temp files are cleaned up
+ *   6. S3 temp original is deleted
  *
- * If any step fails the temp file is preserved so the process can be retried.
+ * If processing fails, the S3 temp original is preserved for retry.
  */
 export async function processVideoToHLS(
-  inputPath,
+  tempS3Key,
   videoId,
   bucketName,
   originalFilename,
@@ -60,17 +69,22 @@ export async function processVideoToHLS(
   const { bucket, prefix } = resolveBucket(bucketName);
   const tempDir = path.join(os.tmpdir(), `hls-${videoId}`);
   const hlsBase = `${prefix}hls/${videoId}`;
+  const localInputPath = path.join(os.tmpdir(), `input-${videoId}-${originalFilename}`);
 
   try {
     fs.mkdirSync(tempDir, { recursive: true });
 
-    // --- Step 1: Generate thumbnail ---
+    // --- Step 1: Download temp original from S3 ---
+    console.log(`Downloading video ${videoId} from S3 for processing...`);
+    await downloadFromS3ToFile(bucket, tempS3Key, localInputPath);
+    console.log(`Downloaded video ${videoId} to local temp (${(fs.statSync(localInputPath).size / 1024 / 1024).toFixed(1)} MB)`);
+
+    // --- Step 2: Generate thumbnail ---
     try {
       const thumbPath = path.join(tempDir, "thumbnail.jpg");
-      await generateThumbnail(inputPath, thumbPath);
+      await generateThumbnail(localInputPath, thumbPath);
       const thumbKey = `${prefix}thumbnails/${videoId}.jpg`;
       const thumbBuffer = fs.readFileSync(thumbPath);
-      // uploadToS3 already has retry built in
       await uploadToS3(bucket, thumbKey, thumbBuffer, "image/jpeg");
       await getPool().query(
         "UPDATE videos SET thumbnail_key = $1 WHERE id = $2",
@@ -82,8 +96,8 @@ export async function processVideoToHLS(
       // Non-fatal — continue with HLS processing
     }
 
-    // --- Step 2: Probe source video resolution ---
-    const videoInfo = await getVideoInfo(inputPath);
+    // --- Step 3: Probe source video resolution ---
+    const videoInfo = await getVideoInfo(localInputPath);
     const sourceHeight = videoInfo.height || 1080;
 
     // Filter qualities to only include those <= source resolution
@@ -98,14 +112,14 @@ export async function processVideoToHLS(
       `Processing video ${videoId}: source=${sourceHeight}p, qualities=[${applicableQualities.map((q) => q.name).join(", ")}]`,
     );
 
-    // --- Step 3: Transcode each quality level & upload chunks ---
+    // --- Step 4: Transcode each quality level sequentially & upload chunks ---
     const variants = [];
     for (const quality of applicableQualities) {
       const outputDir = path.join(tempDir, quality.name);
       fs.mkdirSync(outputDir, { recursive: true });
 
-      // Transcode with retry
-      await transcodeWithRetry(inputPath, outputDir, quality, videoId);
+      // Transcode with retry (CPU-throttled: 1 thread, ultrafast preset)
+      await transcodeWithRetry(localInputPath, outputDir, quality, videoId);
 
       // Upload all segment files and playlist to ZATA (uploadToS3 retries internally)
       const files = fs.readdirSync(outputDir);
@@ -129,7 +143,7 @@ export async function processVideoToHLS(
       });
     }
 
-    // --- Step 4: Create & upload master playlist ---
+    // --- Step 5: Create & upload master playlist ---
     const masterPlaylist = generateMasterPlaylist(variants);
     const masterKey = `${hlsBase}/master.m3u8`;
     await uploadToS3(
@@ -139,7 +153,7 @@ export async function processVideoToHLS(
       "application/vnd.apple.mpegurl",
     );
 
-    // --- Step 5: Mark video as HLS-ready in DB ---
+    // --- Step 6: Mark video as HLS-ready in DB ---
     await getPool().query(
       "UPDATE videos SET hls_ready = TRUE, hls_path = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
       [masterKey, videoId],
@@ -147,21 +161,28 @@ export async function processVideoToHLS(
 
     console.log(`HLS processing complete for video ${videoId}`);
 
-    // --- Step 6: Cleanup temp files ONLY after full success ---
+    // --- Step 7: Cleanup local temp files ---
     cleanupTempDir(tempDir);
-    cleanupTempFile(inputPath);
+    cleanupTempFile(localInputPath);
+
+    // --- Step 8: Delete temp original from S3 (no longer needed) ---
+    try {
+      await deleteFromS3(bucket, tempS3Key);
+      console.log(`Deleted temp S3 original for video ${videoId}`);
+    } catch (e) {
+      console.warn(`Failed to delete temp S3 original for ${videoId}: ${e.message}`);
+    }
 
     return masterKey;
   } catch (error) {
     console.error(`HLS processing failed for video ${videoId}:`, error);
 
-    // Cleanup the HLS temp directory (partial output), but keep the original
-    // video in temp so it can be retried.
+    // Cleanup local temps but keep S3 temp original for retry
     cleanupTempDir(tempDir);
+    cleanupTempFile(localInputPath);
 
-    // Do NOT delete inputPath here — keeping it allows manual or automated retry.
     console.warn(
-      `Temp video file preserved at ${inputPath} for retry. Video ${videoId} is not HLS-ready.`,
+      `S3 temp original preserved at key ${tempS3Key} for retry. Video ${videoId} is not HLS-ready.`,
     );
 
     throw error;
@@ -200,7 +221,7 @@ async function transcodeWithRetry(inputPath, outputDir, quality, videoId) {
 
 function getVideoInfo(inputPath) {
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(inputPath, (err, metadata) => {
+    ffmpegLib.ffprobe(inputPath, (err, metadata) => {
       if (err) return reject(err);
       const videoStream = metadata.streams.find(
         (s) => s.codec_type === "video",
@@ -214,12 +235,19 @@ function getVideoInfo(inputPath) {
   });
 }
 
+/**
+ * Transcode to HLS with aggressive CPU throttling.
+ * -threads 1: Use only one CPU thread
+ * -preset ultrafast: Fastest encoding, minimal CPU usage (trades compression for speed)
+ */
 function transcodeToHLS(inputPath, outputDir, quality) {
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
+    ffmpegLib(inputPath)
       .outputOptions([
         `-vf scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2`,
         `-c:v libx264`,
+        `-preset ultrafast`,
+        `-threads 1`,
         `-b:v ${quality.bitrate}`,
         `-c:a aac`,
         `-b:a ${quality.audioBitrate}`,
@@ -248,7 +276,8 @@ function generateMasterPlaylist(variants) {
 
 function generateThumbnail(inputPath, outputPath) {
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
+    ffmpegLib(inputPath)
+      .outputOptions([`-threads 1`])
       .screenshots({
         count: 1,
         timemarks: ["00:00:01"],
@@ -275,7 +304,7 @@ function cleanupTempFile(filePath) {
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log(`Temp video file deleted: ${filePath}`);
+      console.log(`Temp file deleted: ${filePath}`);
     }
   } catch (e) {
     console.error("Cleanup temp file error:", e.message);
