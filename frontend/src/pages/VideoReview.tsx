@@ -105,10 +105,24 @@ export default function VideoReview() {
     const videoEl = videoRef.current;
     if (!videoEl) return;
 
+    // Reset player
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
+    const streamUrl = publicVideoService.getStreamUrl(videoData.id, token);
+
+    console.log("Initializing player with:", { hlsUrl, streamUrl, hlsReady: videoData.hls_ready });
+
     if (videoData.hls_ready && Hls.isSupported()) {
       const hls = new Hls({
         startLevel: -1,
-        // Forward the share token to ALL HLS sub-requests (playlists & segments)
+        enableWorker: true,
+        // Forward the share token to ALL HLS sub-requests
         xhrSetup: (xhr: XMLHttpRequest, url: string) => {
           if (token && !url.includes('token=')) {
             const separator = url.includes('?') ? '&' : '?';
@@ -117,19 +131,48 @@ export default function VideoReview() {
         },
       });
       hlsRef.current = hls;
-      hls.loadSource(publicVideoService.getHLSUrl(videoData.id, token));
+      
+      hls.loadSource(hlsUrl);
       hls.attachMedia(videoEl);
+      
       hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
+        console.warn("HLS Error:", data);
         if (data.fatal) {
-          // Fallback to direct stream
-          videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log("HLS Network Error, attempting fallback to stream...");
+              hls.destroy();
+              videoEl.src = streamUrl;
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log("HLS Media Error, attempting recovery...");
+              hls.recoverMediaError();
+              break;
+            default:
+              hls.destroy();
+              videoEl.src = streamUrl;
+              break;
+          }
         }
       });
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl') && videoData.hls_ready) {
-      videoEl.src = publicVideoService.getHLSUrl(videoData.id, token);
+      // Native HLS support (Safari)
+       videoEl.src = hlsUrl;
     } else {
-      videoEl.src = publicVideoService.getStreamUrl(videoData.id, token);
+      // Direct stream fallback
+      console.log("Using direct stream fallback");
+      videoEl.src = streamUrl;
     }
+
+    // Add error listener to video element itself
+    videoEl.onerror = (e) => {
+       console.error("Video Element Error:", videoEl.error, e);
+       // If HLS failed, we might have already tried stream, but if not, try stream
+       if (videoEl.src === hlsUrl && streamUrl) {
+          console.log("Video element error on HLS, trying direct stream...");
+          videoEl.src = streamUrl;
+       }
+    };
   };
 
   const loadReviews = async () => {

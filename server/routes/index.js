@@ -387,12 +387,10 @@ async function validateShareAccess(req, res, next) {
   const videoId = req.params.videoId || req.params.id;
 
   if (!token) {
-    return res
-      .status(403)
-      .json({
-        error:
-          "Share token is required. This video can only be accessed via a valid share link.",
-      });
+    return res.status(403).json({
+      error:
+        "Share token is required. This video can only be accessed via a valid share link.",
+    });
   }
 
   try {
@@ -478,6 +476,11 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
 
     const range = req.headers.range;
     const bucket = await resolveBucket(video.bucket);
+
+    // Get file size for range calculation
+    // Note: getVideoStream currently handles range internally but having size helps with headers
+    // For now we trust getVideoStream to return proper range streams.
+
     const stream = await getVideoStream(
       bucket,
       videoRow.rows[0].object_key,
@@ -485,9 +488,18 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
     );
 
     if (stream.statusCode) {
-      res.writeHead(stream.statusCode, stream.headers);
+      res.writeHead(stream.statusCode, {
+        ...stream.headers,
+        "Accept-Ranges": "bytes",
+        // Ensure Content-Range and Content-Length are passed if available
+      });
       stream.body.pipe(res);
     } else {
+      // Fallback for full streams
+      res.setHeader("Accept-Ranges", "bytes");
+      if (videoRow.rows[0].size) {
+        res.setHeader("Content-Length", videoRow.rows[0].size);
+      }
       stream.pipe(res);
     }
   } catch (error) {
