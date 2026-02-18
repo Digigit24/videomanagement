@@ -13,6 +13,7 @@ import {
   restoreVideo,
   downloadVideo,
   removeVideo,
+  getProcessingStatus,
 } from "../controllers/video.js";
 import {
   register,
@@ -186,6 +187,9 @@ router.patch("/video/:id/status", authenticate, updateStatus);
 router.post("/upload", authenticate, validateBucket, uploadVideo);
 router.get("/stream/:id", authenticateStream, validateBucket, streamVideo);
 router.delete("/video/:id", authenticate, validateBucket, removeVideo);
+
+// Video processing status (queue position, progress, step)
+router.get("/video/:id/processing", authenticate, getProcessingStatus);
 
 // Video versioning
 router.get(

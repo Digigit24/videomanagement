@@ -13,6 +13,7 @@ import {
   Notification,
   ChatMessage,
   WorkspaceMember,
+  ProcessingStatus,
 } from "@/types";
 
 export const authService = {
@@ -303,6 +304,11 @@ export const videoService = {
   getShareToken: async (videoId: string) => {
     const { data } = await api.post(`/video/${videoId}/share-token`);
     return data.token as string;
+  },
+
+  getProcessingStatus: async (videoId: string) => {
+    const { data } = await api.get(`/video/${videoId}/processing`);
+    return data as ProcessingStatus;
   },
 };
 

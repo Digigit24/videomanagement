@@ -36,6 +36,43 @@ function VideoThumbnail({ video }: { video: Video }) {
     }
   }, [hovering, video.thumbnail_key]);
 
+  const isProcessing = !video.hls_ready && video.processing_status && video.processing_status !== 'completed';
+  const processingOverlay = isProcessing ? (
+    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-[1]">
+      {video.processing_status === 'queued' ? (
+        <>
+          <div className="w-6 h-6 rounded-full bg-amber-500/30 flex items-center justify-center mb-1.5">
+            <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <span className="text-[10px] text-amber-300 font-medium">In Queue</span>
+        </>
+      ) : video.processing_status === 'failed' ? (
+        <>
+          <div className="w-6 h-6 rounded-full bg-red-500/30 flex items-center justify-center mb-1.5">
+            <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <span className="text-[10px] text-red-400 font-medium">Failed</span>
+        </>
+      ) : (
+        <>
+          <Loader2 className="h-5 w-5 text-blue-400 animate-spin mb-1.5" />
+          <span className="text-[10px] text-blue-300 font-medium">
+            {video.processing_progress > 0 ? `${video.processing_progress}%` : 'Processing'}
+          </span>
+          {video.processing_progress > 0 && (
+            <div className="w-16 bg-gray-700 rounded-full h-1 mt-1 overflow-hidden">
+              <div className="h-full bg-blue-400 rounded-full transition-all duration-500" style={{ width: `${video.processing_progress}%` }} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  ) : null;
+
   if (video.thumbnail_key && !error) {
     return (
       <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-900 mb-3">
@@ -45,11 +82,14 @@ function VideoThumbnail({ video }: { video: Video }) {
           className="w-full h-full object-cover"
           onError={() => setError(true)}
         />
-        <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-            <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+        {processingOverlay}
+        {!isProcessing && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+              <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+            </div>
           </div>
-        </div>
+        )}
         <span className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColors[video.status]}`}>
           {video.status}
         </span>
@@ -65,15 +105,18 @@ function VideoThumbnail({ video }: { video: Video }) {
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
     >
-      <video
-        ref={videoRef}
-        src={streamUrl}
-        muted
-        playsInline
-        preload="metadata"
-        className="w-full h-full object-cover"
-      />
-      {!hovering && (
+      {!isProcessing && (
+        <video
+          ref={videoRef}
+          src={streamUrl}
+          muted
+          playsInline
+          preload="metadata"
+          className="w-full h-full object-cover"
+        />
+      )}
+      {processingOverlay}
+      {!isProcessing && !hovering && (
         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
           <div className="flex flex-col items-center gap-1.5">
             <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">

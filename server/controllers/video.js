@@ -13,7 +13,7 @@ import {
 } from "../services/video.js";
 import { getVideoStream, resolveBucket } from "../services/storage.js";
 import { uploadFileToS3 } from "../services/upload.js";
-import { processVideoToHLS } from "../services/ffmpeg.js";
+import processingQueue from "../services/processingQueue.js";
 import { apiError } from "../utils/logger.js";
 import { notifyWorkspaceMembers } from "../services/notification.js";
 import { getWorkspaceByBucket } from "../services/workspace.js";
@@ -72,12 +72,9 @@ export async function updateStatus(req, res) {
     // Only admin, project_manager, and client can change video status
     const statusChangeRoles = ["admin", "project_manager", "client"];
     if (!statusChangeRoles.includes(userRole)) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Only admin, project manager, or client can change video status",
-        });
+      return res.status(403).json({
+        error: "Only admin, project manager, or client can change video status",
+      });
     }
 
     const video = await updateVideoStatus(id, status, req.user.id);
@@ -188,20 +185,13 @@ export async function uploadVideo(req, res) {
         console.error("Notification error:", e);
       }
 
-      // Step 4: Process HLS in background (don't await).
-      // processVideoToHLS downloads from S3 → transcodes → uploads HLS chunks → deletes S3 temp.
-      // No video data persists on server disk.
-      processVideoToHLS(tempS3Key, video.id, req.bucket, originalname)
-        .then(() => {
-          console.log(
-            `Video ${video.id} fully processed and chunks stored in ZATA.`,
-          );
-        })
+      // Step 4: Enqueue for HLS processing.
+      // The queue processes videos sequentially (one at a time) to prevent CPU overload.
+      // Each video tracks its queue position and processing progress.
+      processingQueue
+        .enqueue(tempS3Key, video.id, req.bucket, originalname)
         .catch((err) => {
-          console.error(
-            `Background HLS processing failed for video ${video.id}:`,
-            err.message,
-          );
+          console.error(`Failed to enqueue video ${video.id}:`, err.message);
         });
 
       res.status(201).json({
@@ -270,11 +260,9 @@ export async function downloadVideo(req, res) {
     }
 
     if (!video.hls_ready || !video.hls_path) {
-      return res
-        .status(202)
-        .json({
-          error: "Video is still being processed. Please try again later.",
-        });
+      return res.status(202).json({
+        error: "Video is still being processed. Please try again later.",
+      });
     }
 
     // Serve the highest quality HLS variant as a download stream.
@@ -390,12 +378,10 @@ export async function streamVideo(req, res) {
     // direct streaming is only possible when HLS is ready.
     // The frontend should use the HLS player; this endpoint exists as a fallback.
     if (!video.hls_ready) {
-      return res
-        .status(202)
-        .json({
-          error:
-            "Video is still being processed. Please use the HLS endpoint once ready.",
-        });
+      return res.status(202).json({
+        error:
+          "Video is still being processed. Please use the HLS endpoint once ready.",
+      });
     }
 
     // Redirect the caller to use HLS streaming instead.
@@ -444,6 +430,23 @@ export async function streamHLS(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to stream HLS content" });
+  }
+}
+
+// Get processing status for a video (queue position, progress, step)
+export async function getProcessingStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const info = await processingQueue.getProcessingInfo(id);
+
+    if (!info) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    res.json(info);
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to get processing status" });
   }
 }
 

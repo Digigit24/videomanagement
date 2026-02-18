@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService, commentService, workspaceService } from '@/services/api.service';
 import { APP_URL } from '@/lib/api';
-import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
+import { Video, VideoStatus, Comment, VideoViewer, ProcessingStatus } from '@/types';
 import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
@@ -27,6 +27,26 @@ const statusColors: Record<VideoStatus, string> = {
   'Rejected': 'bg-red-100 text-red-800 border-red-200',
   'Posted': 'bg-violet-100 text-violet-800 border-violet-200',
 };
+
+function formatProcessingStep(step: string | null): string {
+  if (!step) return 'Processing...';
+  const stepMap: Record<string, string> = {
+    downloading: 'Downloading from storage...',
+    generating_thumbnail: 'Generating thumbnail...',
+    transcoding_360p: 'Transcoding to 360p...',
+    transcoding_720p: 'Transcoding to 720p...',
+    transcoding_1080p: 'Transcoding to 1080p...',
+    transcoding_4k: 'Transcoding to 4K...',
+    uploading_360p: 'Uploading 360p chunks...',
+    uploading_720p: 'Uploading 720p chunks...',
+    uploading_1080p: 'Uploading 1080p chunks...',
+    uploading_4k: 'Uploading 4K chunks...',
+    finalizing: 'Finalizing...',
+    completed: 'Complete!',
+    error: 'Error occurred',
+  };
+  return stepMap[step] || `Processing (${step})...`;
+}
 
 function isRecentUpload(dateStr: string | null): boolean {
   if (!dateStr) return false;
@@ -55,6 +75,8 @@ export default function VideoDetail() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [loadingShareToken, setLoadingShareToken] = useState(false);
+
+  const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
 
   const [sidebarTab, setSidebarTab] = useState<'feedback' | 'chat'>('chat');
 
@@ -131,14 +153,23 @@ export default function VideoDetail() {
   // Poll for processing status when video is not HLS-ready yet
   useEffect(() => {
     if (!id || !currentBucket || !video || video.hls_ready) return;
+
+    // Fetch processing status immediately
+    videoService.getProcessingStatus(id).then(setProcessingStatus).catch(() => {});
+
     const interval = setInterval(async () => {
       try {
-        const data = await videoService.getVideo(id, currentBucket);
-        if (data.hls_ready) {
-          setVideo(data);
+        // Fetch both video data and processing status
+        const [videoData, procStatus] = await Promise.all([
+          videoService.getVideo(id, currentBucket),
+          videoService.getProcessingStatus(id),
+        ]);
+        setProcessingStatus(procStatus);
+        if (videoData.hls_ready) {
+          setVideo(videoData);
         }
       } catch {}
-    }, 5000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [id, currentBucket, video?.hls_ready]);
 
@@ -581,12 +612,76 @@ export default function VideoDetail() {
               />
             ) : (
               <div className="w-full aspect-video bg-gray-950 rounded-lg flex items-center justify-center">
-                <div className="text-center px-6">
-                  <div className="w-10 h-10 border-3 border-gray-600 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
-                  <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
-                  <p className="text-gray-500 text-xs">
-                    Your video is being transcoded into multiple quality levels. This may take a few moments.
-                  </p>
+                <div className="text-center px-6 w-full max-w-sm">
+                  {/* Processing Status */}
+                  {processingStatus?.processing_status === 'failed' ? (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                      <p className="text-red-400 text-sm font-medium mb-1">Processing Failed</p>
+                      <p className="text-gray-500 text-xs">An error occurred while transcoding this video.</p>
+                    </>
+                  ) : processingStatus?.processing_status === 'queued' ? (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <p className="text-amber-300 text-sm font-medium mb-1">In Queue</p>
+                      <p className="text-gray-400 text-xs mb-3">
+                        Position {processingStatus.queue_position} of {processingStatus.queue_total} in processing queue
+                      </p>
+                      <div className="flex items-center justify-center gap-1.5">
+                        {Array.from({ length: Math.min(processingStatus.queue_total, 5) }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`w-2 h-2 rounded-full ${
+                              i < processingStatus!.queue_position
+                                ? 'bg-gray-600'
+                                : i === processingStatus!.queue_position
+                                ? 'bg-amber-400 animate-pulse'
+                                : 'bg-gray-700'
+                            }`}
+                          />
+                        ))}
+                        {processingStatus.queue_total > 5 && (
+                          <span className="text-[10px] text-gray-500 ml-1">+{processingStatus.queue_total - 5}</span>
+                        )}
+                      </div>
+                    </>
+                  ) : processingStatus?.processing_status === 'processing' ? (
+                    <>
+                      <div className="w-12 h-12 border-3 border-gray-700 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-blue-300 text-sm font-medium mb-1">
+                        {formatProcessingStep(processingStatus.processing_step)}
+                      </p>
+                      <p className="text-gray-500 text-xs mb-3">
+                        {processingStatus.processing_progress}% complete
+                      </p>
+                      {/* Progress bar */}
+                      <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full transition-all duration-500"
+                          style={{ width: `${processingStatus.processing_progress}%` }}
+                        />
+                      </div>
+                      <p className="text-gray-600 text-[10px] mt-2">
+                        This runs in the background — you can close this page
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 border-3 border-gray-600 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
+                      <p className="text-gray-500 text-xs">
+                        Your video is being transcoded into multiple quality levels.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             )}
