@@ -23,7 +23,7 @@ import { getWorkspaceByBucket } from "../services/workspace.js";
 
 const upload = multer({
   storage: multer.diskStorage({}), // Uses system temp directory
-  limits: { fileSize: 20 * 1024 * 1024 * 1024 }, // 20GB
+  limits: { fileSize: 50 * 1024 * 1024 * 1024 }, // 50GB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["video/mp4", "video/quicktime", "video/webm"];
     if (allowedTypes.includes(file.mimetype)) {
