@@ -474,18 +474,49 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // Original video is not stored in S3 — only HLS chunks are.
-    if (!videoRow.rows[0].hls_ready || !videoRow.rows[0].hls_path) {
-      return res
-        .status(202)
-        .json({ error: "Video is still being processed. Please try again later." });
+    const range = req.headers.range;
+    const bucket = await resolveBucket(video.bucket);
+
+    // If HLS is ready, we can use it as primary, but usually /stream refers to the original
+    // For this app, let's allow streaming the original if it exists, otherwise HLS playlist
+    const useHLS = videoRow.rows[0].hls_ready && videoRow.rows[0].hls_path;
+    const objectKey = useHLS
+      ? videoRow.rows[0].hls_path
+      : videoRow.rows[0].object_key;
+
+    if (!objectKey) {
+      return res.status(404).json({ error: "Video content not found" });
     }
 
-    // Serve the HLS master playlist as fallback for direct stream requests
-    const stream = await getVideoStream(video.bucket, videoRow.rows[0].hls_path);
-    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-    res.setHeader("Cache-Control", "public, max-age=3600");
-    stream.pipe(res);
+    const stream = await getVideoStream(bucket, objectKey, range);
+
+    if (useHLS) {
+      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    } else {
+      res.setHeader("Accept-Ranges", "bytes");
+      if (stream.headers) {
+        if (stream.headers["content-type"])
+          res.setHeader("Content-Type", stream.headers["content-type"]);
+        if (stream.headers["content-length"])
+          res.setHeader("Content-Length", stream.headers["content-length"]);
+        if (stream.headers["content-range"])
+          res.setHeader("Content-Range", stream.headers["content-range"]);
+      }
+      if (!res.getHeader("Content-Length") && videoRow.rows[0].size) {
+        res.setHeader("Content-Length", videoRow.rows[0].size);
+      }
+      if (!res.getHeader("Content-Type")) {
+        res.setHeader("Content-Type", "video/mp4");
+      }
+    }
+
+    if (stream.statusCode) {
+      res.writeHead(stream.statusCode, res.getHeaders());
+      stream.body.pipe(res);
+    } else {
+      stream.pipe(res);
+    }
   } catch (error) {
     res.status(500).json({ error: "Stream failed" });
   }
