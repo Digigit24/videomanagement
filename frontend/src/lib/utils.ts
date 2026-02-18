@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { API_BASE_URL } from "./api";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -24,11 +25,22 @@ export function formatDate(date: string): string {
 export function getApiUrl(path: string): string {
   if (!path) return "";
   if (path.startsWith("http")) return path;
+
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
 
-  // Ensure we don't double up on /api if the path already has it
-  const finalPath = cleanPath.startsWith("/api")
-    ? cleanPath
-    : `/api${cleanPath}`;
-  return `https://video.celiyo.com${finalPath}`;
+  // API_BASE_URL usually includes /api (e.g. http://localhost:5000/api)
+  // If cleanPath starts with /api (e.g. /api/logo/...), we should strip /api from base
+
+  if (cleanPath.startsWith("/api")) {
+    const baseUrl = API_BASE_URL.replace(/\/api\/?$/, "");
+    return `${baseUrl}${cleanPath}`;
+  }
+
+  // If cleanPath does NOT start with /api, we append it to API_BASE_URL
+  // API_BASE_URL is expected to have /api at the end, so we just concatenate
+  // But if API_BASE_URL doesn't have /api (e.g. user config), we might need to handle.
+  // Ideally API_BASE_URL should be consistent.
+  // Let's assume API_BASE_URL *points to the API root*.
+
+  return `${API_BASE_URL}${cleanPath}`;
 }

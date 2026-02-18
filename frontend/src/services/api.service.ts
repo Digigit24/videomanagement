@@ -1,4 +1,4 @@
-import api from "@/lib/api";
+import api, { API_BASE_URL } from "@/lib/api";
 import {
   Video,
   VideoStatus,
@@ -239,27 +239,31 @@ export const videoService = {
 
   pollVideos: async (bucket: string) => {
     const { data } = await api.get("/videos/poll", { params: { bucket } });
-    return data as { count: number; lastUpdated: string | null; lastCreated: string | null };
+    return data as {
+      count: number;
+      lastUpdated: string | null;
+      lastCreated: string | null;
+    };
   },
 
   getThumbnailUrl: (id: string) => {
     const token = localStorage.getItem("token");
-    return `https://video.celiyo.com/api/video/${id}/thumbnail?token=${token}`;
+    return `${API_BASE_URL}/video/${id}/thumbnail?token=${token}`;
   },
 
   getStreamUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
-    return `https://video.celiyo.com/api/stream/${id}?bucket=${bucket}&token=${token}`;
+    return `${API_BASE_URL}/stream/${id}?bucket=${bucket}&token=${token}`;
   },
 
   getHLSUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
-    return `https://video.celiyo.com/api/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
+    return `${API_BASE_URL}/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
   },
 
   getDownloadUrl: (id: string, bucket: string) => {
     const token = localStorage.getItem("token");
-    return `https://video.celiyo.com/api/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
+    return `${API_BASE_URL}/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
   },
 
   getVersionHistory: async (videoId: string, bucket: string) => {
@@ -271,7 +275,7 @@ export const videoService = {
 
   deleteVideo: async (videoId: string, bucket: string, password?: string) => {
     await api({
-      method: 'delete',
+      method: "delete",
       url: `/video/${videoId}`,
       params: { bucket },
       data: password ? { password } : undefined,
@@ -346,7 +350,12 @@ export const commentService = {
 };
 
 export const chatService = {
-  getMessages: async (workspaceId: string, limit?: number, before?: string, since?: string) => {
+  getMessages: async (
+    workspaceId: string,
+    limit?: number,
+    before?: string,
+    since?: string,
+  ) => {
     const params: any = {};
     if (limit) params.limit = limit;
     if (before) params.before = before;
@@ -384,7 +393,9 @@ export const chatService = {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (progressEvent: any) => {
           if (onProgress && progressEvent.total) {
-            onProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+            onProgress(
+              Math.round((progressEvent.loaded * 100) / progressEvent.total),
+            );
           }
         },
       },
@@ -427,19 +438,21 @@ export const publicVideoService = {
   },
 
   getStreamUrl: (videoId: string, token?: string) => {
-    const base = `https://video.celiyo.com/api/public/stream/${videoId}`;
+    const base = `${API_BASE_URL}/public/stream/${videoId}`;
     return token ? `${base}?token=${token}` : base;
   },
 
   getHLSUrl: (videoId: string, token?: string) => {
-    const base = `https://video.celiyo.com/api/public/hls/${videoId}/master.m3u8`;
+    const base = `${API_BASE_URL}/public/hls/${videoId}/master.m3u8`;
     return token ? `${base}?token=${token}` : base;
   },
 
   getReviews: async (videoId: string, token?: string) => {
     const params: any = {};
     if (token) params.token = token;
-    const { data } = await api.get(`/public/video/${videoId}/reviews`, { params });
+    const { data } = await api.get(`/public/video/${videoId}/reviews`, {
+      params,
+    });
     return data.reviews;
   },
 
@@ -452,11 +465,15 @@ export const publicVideoService = {
   ) => {
     const params: any = {};
     if (token) params.token = token;
-    const { data } = await api.post(`/public/video/${videoId}/reviews`, {
-      reviewerName,
-      content,
-      replyTo,
-    }, { params });
+    const { data } = await api.post(
+      `/public/video/${videoId}/reviews`,
+      {
+        reviewerName,
+        content,
+        replyTo,
+      },
+      { params },
+    );
     return data.review;
   },
 };

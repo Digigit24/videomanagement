@@ -219,7 +219,7 @@ export default function ShareVideoPlayer() {
       >
         <video
           ref={videoRef}
-          className="w-full h-full max-h-[calc(100vh-100px)] object-contain"
+          className="w-full h-full object-contain"
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}

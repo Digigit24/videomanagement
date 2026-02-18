@@ -206,13 +206,16 @@ export default function VideoTable({ videos }: VideoTableProps) {
 
                 <h3 className="text-sm font-medium text-gray-900 truncate mb-1">{video.filename}</h3>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
-                    <Calendar className="h-3 w-3" />
-                    <span>{formatDate(video.created_at)}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <Calendar className="h-3 w-3" />
+                      <span>{formatDate(video.created_at)}</span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] text-gray-400">{formatBytes(video.size)}</span>
+                      <span className="text-[9px] text-gray-300 font-mono" title={video.id}>ID: {video.id.slice(0, 8)}...</span>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-gray-400">{formatBytes(video.size)}</span>
-                </div>
 
                 <div className="flex items-center justify-between mt-1.5">
                   {video.uploaded_by_name ? (
