@@ -19,6 +19,18 @@ export interface Video {
   parent_video_id: string | null;
   posted_at: string | null;
   thumbnail_key: string | null;
+  processing_status: 'queued' | 'processing' | 'completed' | 'failed' | null;
+  processing_progress: number;
+  processing_step: string | null;
+}
+
+export interface ProcessingStatus {
+  processing_status: 'queued' | 'processing' | 'completed' | 'failed' | null;
+  processing_progress: number;
+  processing_step: string | null;
+  hls_ready: boolean;
+  queue_position: number;
+  queue_total: number;
 }
 
 export type VideoStatus =

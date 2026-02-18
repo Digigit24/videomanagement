@@ -9,7 +9,6 @@ import { getPool } from "../db/index.js";
 import { resolveBucket, downloadFromS3ToFile, deleteFromS3 } from "./storage.js";
 
 // Use node-module FFmpeg binaries instead of system-installed ones.
-// This avoids relying on the system FFmpeg which may crash under load.
 ffmpegLib.setFfmpegPath(ffmpegInstaller.path);
 ffmpegLib.setFfprobePath(ffprobeInstaller.path);
 
@@ -46,26 +45,35 @@ const QUALITIES = [
 
 const MAX_TRANSCODE_RETRIES = 2;
 
+// Progress distribution:
+// Download: 0-10%, Thumbnail: 10-15%, Transcoding: 15-90%, Finalize: 90-100%
+const PROGRESS_DOWNLOAD = { start: 0, end: 10 };
+const PROGRESS_THUMBNAIL = { start: 10, end: 15 };
+const PROGRESS_TRANSCODE = { start: 15, end: 90 };
+const PROGRESS_FINALIZE = { start: 90, end: 100 };
+
 /**
  * Main entry point for video processing.
  *
- * Flow:
- *   1. Download the temp original from S3 to a local temp file
- *   2. FFmpeg transcodes to HLS chunks at applicable quality levels
- *      (using -threads 1 -preset ultrafast to minimize CPU/RAM)
- *   3. All chunks are uploaded to ZATA S3 (with retry via uploadToS3)
- *   4. DB is updated with hls_ready = TRUE
- *   5. Local temp files are cleaned up
- *   6. S3 temp original is deleted
- *
- * If processing fails, the S3 temp original is preserved for retry.
+ * @param {string} tempS3Key - The S3 key where the temp original is stored
+ * @param {string} videoId - The video record ID
+ * @param {string} bucketName - The bucket/workspace name
+ * @param {string} originalFilename - Original filename
+ * @param {Function} onProgress - Callback: (step, progressPercent) => void
  */
 export async function processVideoToHLS(
   tempS3Key,
   videoId,
   bucketName,
   originalFilename,
+  onProgress,
 ) {
+  const report = (step, progress) => {
+    if (typeof onProgress === "function") {
+      onProgress(step, Math.round(progress));
+    }
+  };
+
   const { bucket, prefix } = resolveBucket(bucketName);
   const tempDir = path.join(os.tmpdir(), `hls-${videoId}`);
   const hlsBase = `${prefix}hls/${videoId}`;
@@ -75,11 +83,15 @@ export async function processVideoToHLS(
     fs.mkdirSync(tempDir, { recursive: true });
 
     // --- Step 1: Download temp original from S3 ---
+    report("downloading", PROGRESS_DOWNLOAD.start);
     console.log(`Downloading video ${videoId} from S3 for processing...`);
     await downloadFromS3ToFile(bucket, tempS3Key, localInputPath);
-    console.log(`Downloaded video ${videoId} to local temp (${(fs.statSync(localInputPath).size / 1024 / 1024).toFixed(1)} MB)`);
+    const fileSizeMB = (fs.statSync(localInputPath).size / 1024 / 1024).toFixed(1);
+    console.log(`Downloaded video ${videoId} to local temp (${fileSizeMB} MB)`);
+    report("downloading", PROGRESS_DOWNLOAD.end);
 
     // --- Step 2: Generate thumbnail ---
+    report("generating_thumbnail", PROGRESS_THUMBNAIL.start);
     try {
       const thumbPath = path.join(tempDir, "thumbnail.jpg");
       await generateThumbnail(localInputPath, thumbPath);
@@ -93,37 +105,59 @@ export async function processVideoToHLS(
       console.log(`Thumbnail generated for video ${videoId}`);
     } catch (thumbErr) {
       console.error(`Thumbnail generation failed for ${videoId}:`, thumbErr.message);
-      // Non-fatal — continue with HLS processing
     }
+    report("generating_thumbnail", PROGRESS_THUMBNAIL.end);
 
     // --- Step 3: Probe source video resolution ---
     const videoInfo = await getVideoInfo(localInputPath);
     const sourceHeight = videoInfo.height || 1080;
+    const duration = videoInfo.duration || 0;
 
-    // Filter qualities to only include those <= source resolution
     const applicableQualities = QUALITIES.filter(
       (q) => q.height <= sourceHeight,
     );
     if (applicableQualities.length === 0) {
-      applicableQualities.push(QUALITIES[0]); // At minimum do 360p
+      applicableQualities.push(QUALITIES[0]);
     }
 
     console.log(
-      `Processing video ${videoId}: source=${sourceHeight}p, qualities=[${applicableQualities.map((q) => q.name).join(", ")}]`,
+      `Processing video ${videoId}: source=${sourceHeight}p, duration=${Math.round(duration)}s, qualities=[${applicableQualities.map((q) => q.name).join(", ")}]`,
     );
 
     // --- Step 4: Transcode each quality level sequentially & upload chunks ---
+    const numQualities = applicableQualities.length;
+    const transcodeRange = PROGRESS_TRANSCODE.end - PROGRESS_TRANSCODE.start;
+    const perQualityRange = transcodeRange / numQualities;
+
     const variants = [];
-    for (const quality of applicableQualities) {
+    for (let qi = 0; qi < applicableQualities.length; qi++) {
+      const quality = applicableQualities[qi];
       const outputDir = path.join(tempDir, quality.name);
       fs.mkdirSync(outputDir, { recursive: true });
 
-      // Transcode with retry (CPU-throttled: 1 thread, ultrafast preset)
-      await transcodeWithRetry(localInputPath, outputDir, quality, videoId);
+      const qualityBaseProgress = PROGRESS_TRANSCODE.start + qi * perQualityRange;
+      const stepName = `transcoding_${quality.name}`;
 
-      // Upload all segment files and playlist to ZATA (uploadToS3 retries internally)
+      report(stepName, qualityBaseProgress);
+
+      // Transcode with retry + progress reporting
+      await transcodeWithRetry(
+        localInputPath, outputDir, quality, videoId, duration,
+        (ffmpegPercent) => {
+          // Map FFmpeg's 0-100% to this quality's portion of overall progress
+          const qualityProgress = qualityBaseProgress + (ffmpegPercent / 100) * perQualityRange * 0.8;
+          report(stepName, qualityProgress);
+        },
+      );
+
+      // Upload all segment files
+      const uploadStepName = `uploading_${quality.name}`;
+      const uploadBaseProgress = qualityBaseProgress + perQualityRange * 0.8;
+      report(uploadStepName, uploadBaseProgress);
+
       const files = fs.readdirSync(outputDir);
-      for (const file of files) {
+      for (let fi = 0; fi < files.length; fi++) {
+        const file = files[fi];
         const filePath = path.join(outputDir, file);
         const objectKey = `${hlsBase}/${quality.name}/${file}`;
         const contentType = file.endsWith(".m3u8")
@@ -133,6 +167,7 @@ export async function processVideoToHLS(
         await uploadToS3(bucket, objectKey, fileBuffer, contentType);
       }
 
+      report(uploadStepName, qualityBaseProgress + perQualityRange);
       console.log(`Quality ${quality.name} uploaded for video ${videoId}`);
 
       variants.push({
@@ -144,6 +179,7 @@ export async function processVideoToHLS(
     }
 
     // --- Step 5: Create & upload master playlist ---
+    report("finalizing", PROGRESS_FINALIZE.start);
     const masterPlaylist = generateMasterPlaylist(variants);
     const masterKey = `${hlsBase}/master.m3u8`;
     await uploadToS3(
@@ -160,12 +196,13 @@ export async function processVideoToHLS(
     );
 
     console.log(`HLS processing complete for video ${videoId}`);
+    report("finalizing", 95);
 
     // --- Step 7: Cleanup local temp files ---
     cleanupTempDir(tempDir);
     cleanupTempFile(localInputPath);
 
-    // --- Step 8: Delete temp original from S3 (no longer needed) ---
+    // --- Step 8: Delete temp original from S3 ---
     try {
       await deleteFromS3(bucket, tempS3Key);
       console.log(`Deleted temp S3 original for video ${videoId}`);
@@ -173,18 +210,15 @@ export async function processVideoToHLS(
       console.warn(`Failed to delete temp S3 original for ${videoId}: ${e.message}`);
     }
 
+    report("completed", 100);
     return masterKey;
   } catch (error) {
     console.error(`HLS processing failed for video ${videoId}:`, error);
-
-    // Cleanup local temps but keep S3 temp original for retry
     cleanupTempDir(tempDir);
     cleanupTempFile(localInputPath);
-
     console.warn(
       `S3 temp original preserved at key ${tempS3Key} for retry. Video ${videoId} is not HLS-ready.`,
     );
-
     throw error;
   }
 }
@@ -192,11 +226,11 @@ export async function processVideoToHLS(
 /**
  * Transcode a single quality level with retry.
  */
-async function transcodeWithRetry(inputPath, outputDir, quality, videoId) {
+async function transcodeWithRetry(inputPath, outputDir, quality, videoId, duration, onFFmpegProgress) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_TRANSCODE_RETRIES + 1; attempt++) {
     try {
-      await transcodeToHLS(inputPath, outputDir, quality);
+      await transcodeToHLS(inputPath, outputDir, quality, duration, onFFmpegProgress);
       return;
     } catch (error) {
       lastError = error;
@@ -205,7 +239,6 @@ async function transcodeWithRetry(inputPath, outputDir, quality, videoId) {
         console.warn(
           `[Retry] FFmpeg transcode ${quality.name} for video ${videoId} failed (attempt ${attempt}), retrying in ${delay}ms: ${error.message}`,
         );
-        // Clean partial output before retrying
         try {
           const files = fs.readdirSync(outputDir);
           for (const f of files) {
@@ -236,13 +269,13 @@ function getVideoInfo(inputPath) {
 }
 
 /**
- * Transcode to HLS with aggressive CPU throttling.
- * -threads 1: Use only one CPU thread
- * -preset ultrafast: Fastest encoding, minimal CPU usage (trades compression for speed)
+ * Transcode to HLS with CPU throttling and progress reporting.
  */
-function transcodeToHLS(inputPath, outputDir, quality) {
+function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
+  let lastReportedPercent = 0;
+
   return new Promise((resolve, reject) => {
-    ffmpegLib(inputPath)
+    const cmd = ffmpegLib(inputPath)
       .outputOptions([
         `-vf scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2`,
         `-c:v libx264`,
@@ -257,9 +290,31 @@ function transcodeToHLS(inputPath, outputDir, quality) {
         `-f hls`,
       ])
       .output(path.join(outputDir, "playlist.m3u8"))
+      .on("progress", (progress) => {
+        if (typeof onProgress !== "function") return;
+
+        let percent = 0;
+        if (progress.percent) {
+          percent = Math.min(100, Math.max(0, progress.percent));
+        } else if (duration > 0 && progress.timemark) {
+          // Parse timemark (HH:MM:SS.ms) to seconds
+          const parts = progress.timemark.split(":");
+          if (parts.length === 3) {
+            const secs = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+            percent = Math.min(100, (secs / duration) * 100);
+          }
+        }
+
+        // Throttle: only report if progress changed by 2%+
+        if (percent - lastReportedPercent >= 2) {
+          lastReportedPercent = percent;
+          onProgress(percent);
+        }
+      })
       .on("end", resolve)
-      .on("error", reject)
-      .run();
+      .on("error", reject);
+
+    cmd.run();
   });
 }
 

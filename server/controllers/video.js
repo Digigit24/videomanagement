@@ -16,7 +16,7 @@ import {
   resolveBucket,
 } from "../services/storage.js";
 import { uploadFileToS3 } from "../services/upload.js";
-import { processVideoToHLS } from "../services/ffmpeg.js";
+import processingQueue from "../services/processingQueue.js";
 import { apiError } from "../utils/logger.js";
 import { notifyWorkspaceMembers } from "../services/notification.js";
 import { getWorkspaceByBucket } from "../services/workspace.js";
@@ -188,15 +188,12 @@ export async function uploadVideo(req, res) {
         console.error("Notification error:", e);
       }
 
-      // Step 4: Process HLS in background (don't await).
-      // processVideoToHLS downloads from S3 → transcodes → uploads HLS chunks → deletes S3 temp.
-      // No video data persists on server disk.
-      processVideoToHLS(tempS3Key, video.id, req.bucket, originalname)
-        .then(() => {
-          console.log(`Video ${video.id} fully processed and chunks stored in ZATA.`);
-        })
+      // Step 4: Enqueue for HLS processing.
+      // The queue processes videos sequentially (one at a time) to prevent CPU overload.
+      // Each video tracks its queue position and processing progress.
+      processingQueue.enqueue(tempS3Key, video.id, req.bucket, originalname)
         .catch((err) => {
-          console.error(`Background HLS processing failed for video ${video.id}:`, err.message);
+          console.error(`Failed to enqueue video ${video.id}:`, err.message);
         });
 
       res.status(201).json({
@@ -426,6 +423,23 @@ export async function streamHLS(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to stream HLS content" });
+  }
+}
+
+// Get processing status for a video (queue position, progress, step)
+export async function getProcessingStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const info = await processingQueue.getProcessingInfo(id);
+
+    if (!info) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    res.json(info);
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to get processing status" });
   }
 }
 
