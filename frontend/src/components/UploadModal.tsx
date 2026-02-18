@@ -33,8 +33,8 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
     if (!validTypes.includes(file.type)) {
       return `${file.name}: Invalid file type. Only MP4, MOV, and WebM are allowed.`;
     }
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      return `${file.name}: File size must be less than 5GB.`;
+    if (file.size > 50 * 1024 * 1024 * 1024) {
+      return `${file.name}: File size must be less than 50GB.`;
     }
     return null;
   };
@@ -211,7 +211,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
               Drag and drop videos here, or click to browse
             </p>
             <p className="text-xs text-gray-400">
-              MP4, MOV, or WebM · Max 5GB each · Multiple files supported
+              MP4, MOV, or WebM · Max 50GB each · Multiple files supported
             </p>
             <input
               ref={fileInputRef}

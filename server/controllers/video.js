@@ -20,7 +20,7 @@ import { getWorkspaceByBucket } from "../services/workspace.js";
 
 const upload = multer({
   storage: multer.diskStorage({}), // Uses system temp directory
-  limits: { fileSize: 20 * 1024 * 1024 * 1024 }, // 20GB
+  limits: { fileSize: 50 * 1024 * 1024 * 1024 }, // 50GB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["video/mp4", "video/quicktime", "video/webm"];
     if (allowedTypes.includes(file.mimetype)) {
@@ -189,7 +189,7 @@ export async function uploadVideo(req, res) {
       // The queue processes videos sequentially (one at a time) to prevent CPU overload.
       // Each video tracks its queue position and processing progress.
       processingQueue
-        .enqueue(tempS3Key, video.id, req.bucket, originalname)
+        .enqueue(video.id, tempS3Key, req.bucket, originalname)
         .catch((err) => {
           console.error(`Failed to enqueue video ${video.id}:`, err.message);
         });
