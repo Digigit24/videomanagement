@@ -5,7 +5,6 @@ import { videoService, commentService, workspaceService } from '@/services/api.s
 import { APP_URL } from '@/lib/api';
 import { Video, VideoStatus, Comment, VideoViewer } from '@/types';
 import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
-import VideoPlayer from '@/components/VideoPlayer';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
 import TimestampPanel from '@/components/TimestampPanel';
