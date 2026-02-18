@@ -331,7 +331,7 @@ export default function VideoReview() {
 
       <div className="flex-1 flex flex-col md:flex-row min-h-0 relative">
         {/* Video Player Section */}
-        <div className="w-full md:flex-1 bg-black relative flex items-center justify-center overflow-hidden h-[35vh] sm:h-[45vh] md:h-full">
+        <div className="w-full md:flex-1 bg-black relative flex items-center justify-center overflow-hidden h-[40vh] sm:h-[50vh] md:h-full flex-shrink-0">
           <video
             ref={videoRef}
             className="w-full h-full object-contain"
