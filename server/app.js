@@ -7,10 +7,16 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: "*", // Allow all origins
+    origin: [
+      "https://videomanagement.celiyo.com",
+      "https://video.celiyo.com",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5000",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "Range", "x-share-token"],
   }),
 );
 app.use(express.json());
