@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, X, FileVideo, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, X, FileVideo, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { videoService } from '@/services/api.service';
 import { useBucket } from '@/hooks/useBucket';
@@ -11,15 +11,19 @@ interface UploadModalProps {
   bucket?: string;
 }
 
+interface FileUploadItem {
+  file: File;
+  status: 'pending' | 'uploading' | 'completed' | 'error';
+  progress: number;
+  error?: string;
+}
+
 export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket }: UploadModalProps) {
   const { currentBucket: hookBucket } = useBucket();
   const currentBucket = bucket || hookBucket;
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<FileUploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -27,22 +31,52 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
   const validateFile = (file: File): string | null => {
     const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
     if (!validTypes.includes(file.type)) {
-      return 'Invalid file type. Only MP4, MOV, and WebM are allowed.';
+      return `${file.name}: Invalid file type. Only MP4, MOV, and WebM are allowed.`;
     }
     if (file.size > 5 * 1024 * 1024 * 1024) {
-      return 'File size must be less than 5GB.';
+      return `${file.name}: File size must be less than 5GB.`;
     }
     return null;
   };
 
-  const handleFileSelect = (selectedFile: File) => {
-    const error = validateFile(selectedFile);
-    if (error) {
-      setError(error);
-      return;
+  const addFiles = (newFiles: FileList | File[]) => {
+    const fileArray = Array.from(newFiles);
+    const errors: string[] = [];
+    const validItems: FileUploadItem[] = [];
+
+    for (const file of fileArray) {
+      const error = validateFile(file);
+      if (error) {
+        errors.push(error);
+      } else {
+        // Avoid duplicate filenames
+        const alreadyAdded = files.some(f => f.file.name === file.name && f.file.size === file.size);
+        if (!alreadyAdded) {
+          validItems.push({ file, status: 'pending', progress: 0 });
+        }
+      }
     }
-    setFile(selectedFile);
-    setError(null);
+
+    if (validItems.length > 0) {
+      setFiles(prev => [...prev, ...validItems]);
+    }
+
+    // Show first validation error if any
+    if (errors.length > 0) {
+      setFiles(prev => [
+        ...prev,
+        ...errors.map(err => ({
+          file: new File([], 'invalid'),
+          status: 'error' as const,
+          progress: 0,
+          error: err,
+        })),
+      ].filter(f => f.file.name !== 'invalid'));
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -57,52 +91,68 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      handleFileSelect(droppedFile);
+    if (e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      handleFileSelect(selectedFile);
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(e.target.files);
+    }
+    // Reset input so the same files can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   const handleUpload = async () => {
-    if (!file || !currentBucket) return;
+    if (files.length === 0 || !currentBucket) return;
 
     setUploading(true);
-    setProgress(0);
-    setError(null);
 
-    try {
-      await videoService.uploadVideo(file, currentBucket, (progressEvent) => {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
-        setProgress(percentCompleted);
-      });
+    // Upload each file sequentially (to avoid overwhelming the server)
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].status === 'completed' || files[i].status === 'error') continue;
 
-      setSuccess(true);
-      setProgress(100);
+      setFiles(prev => prev.map((f, idx) =>
+        idx === i ? { ...f, status: 'uploading', progress: 0 } : f
+      ));
 
-      // Wait a bit to show success, then close and refresh
+      try {
+        await videoService.uploadVideo(files[i].file, currentBucket, (progressEvent) => {
+          const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+          setFiles(prev => prev.map((f, idx) =>
+            idx === i ? { ...f, progress: percent } : f
+          ));
+        });
+
+        setFiles(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'completed', progress: 100 } : f
+        ));
+      } catch (err: any) {
+        setFiles(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'error', error: err.response?.data?.error || 'Upload failed' } : f
+        ));
+      }
+    }
+
+    setUploading(false);
+
+    // Wait a bit then close if all succeeded
+    const allDone = files.every(f => f.status === 'completed' || f.status === 'error');
+    if (allDone) {
       setTimeout(() => {
         onUploadComplete();
         handleClose();
       }, 1500);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Upload failed. Please try again.');
-      setUploading(false);
     }
   };
 
   const handleClose = () => {
-    setFile(null);
-    setProgress(0);
-    setError(null);
-    setSuccess(false);
+    if (uploading) return;
+    setFiles([]);
+    setIsDragging(false);
     setUploading(false);
     onClose();
   };
@@ -115,101 +165,143 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  const completedCount = files.filter(f => f.status === 'completed').length;
+  const errorCount = files.filter(f => f.status === 'error').length;
+  const pendingFiles = files.filter(f => f.status === 'pending' || f.status === 'uploading');
+  const allCompleted = files.length > 0 && completedCount === files.length;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold">Upload Video</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Upload Videos</h2>
+            {files.length > 0 && (
+              <p className="text-sm text-gray-500 mt-0.5">
+                {files.length} file{files.length !== 1 ? 's' : ''} selected
+                {completedCount > 0 && ` · ${completedCount} completed`}
+                {errorCount > 0 && ` · ${errorCount} failed`}
+              </p>
+            )}
+          </div>
           <button
             onClick={handleClose}
             disabled={uploading}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-6">
-          {!file ? (
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                isDragging
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600 mb-2">
-                Drag and drop your video here, or click to browse
-              </p>
-              <p className="text-sm text-gray-400">
-                MP4, MOV, or WebM • Max 5GB
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/mp4,video/quicktime,video/webm"
-                onChange={handleFileInputChange}
-                className="hidden"
-              />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                <FileVideo className="h-8 w-8 text-blue-600 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{file.name}</p>
-                  <p className="text-sm text-gray-500">{formatFileSize(file.size)}</p>
-                </div>
-                {!uploading && (
-                  <button
-                    onClick={() => setFile(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                )}
-              </div>
+        <div className="p-6 overflow-y-auto flex-1">
+          {/* Drop zone - always visible to allow adding more files */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+              isDragging
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-300 hover:border-gray-400'
+            } ${uploading ? 'pointer-events-none opacity-50' : ''}`}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+          >
+            <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400" />
+            <p className="text-gray-600 mb-1 text-sm">
+              Drag and drop videos here, or click to browse
+            </p>
+            <p className="text-xs text-gray-400">
+              MP4, MOV, or WebM · Max 5GB each · Multiple files supported
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,video/quicktime,video/webm"
+              onChange={handleFileInputChange}
+              className="hidden"
+              multiple
+            />
+          </div>
 
-              {uploading && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {success ? 'Upload complete!' : 'Uploading...'}
-                    </span>
-                    <span className="text-sm font-medium text-gray-700">{progress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${
-                        success ? 'bg-green-500' : 'bg-blue-600'
-                      }`}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+          {/* File list */}
+          {files.length > 0 && (
+            <div className="mt-4 space-y-3">
+              {files.map((item, index) => (
+                <div
+                  key={`${item.file.name}-${index}`}
+                  className={`flex items-start gap-3 p-3 rounded-lg border ${
+                    item.status === 'completed'
+                      ? 'bg-green-50 border-green-200'
+                      : item.status === 'error'
+                      ? 'bg-red-50 border-red-200'
+                      : item.status === 'uploading'
+                      ? 'bg-blue-50 border-blue-200'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <FileVideo className={`h-6 w-6 flex-shrink-0 mt-0.5 ${
+                    item.status === 'completed' ? 'text-green-600' :
+                    item.status === 'error' ? 'text-red-500' :
+                    item.status === 'uploading' ? 'text-blue-600' :
+                    'text-gray-500'
+                  }`} />
 
-              {success && (
-                <div className="flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <div>
-                    <span className="text-sm font-medium">Video uploaded successfully!</span>
-                    <p className="text-xs text-green-500 mt-0.5">Processing will continue in the background.</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 text-sm truncate">{item.file.name}</p>
+                    <p className="text-xs text-gray-500">{formatFileSize(item.file.size)}</p>
+
+                    {item.status === 'uploading' && (
+                      <div className="mt-1.5">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 transition-all duration-300"
+                            style={{ width: `${item.progress}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-blue-600 mt-0.5">{item.progress}%</p>
+                      </div>
+                    )}
+
+                    {item.status === 'completed' && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        <span className="text-xs text-green-600 font-medium">Uploaded — processing in background</span>
+                      </div>
+                    )}
+
+                    {item.status === 'error' && item.error && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                        <span className="text-xs text-red-500">{item.error}</span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Remove button (only when not uploading) */}
+                  {!uploading && item.status !== 'uploading' && (
+                    <button
+                      onClick={() => removeFile(index)}
+                      className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {item.status === 'uploading' && (
+                    <Loader2 className="h-4 w-4 text-blue-600 animate-spin flex-shrink-0" />
+                  )}
                 </div>
-              )}
+              ))}
             </div>
           )}
 
-          {error && (
-            <div className="mt-4 flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <span className="text-sm">{error}</span>
+          {allCompleted && (
+            <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
+              <CheckCircle2 className="h-5 w-5" />
+              <div>
+                <span className="text-sm font-medium">All videos uploaded successfully!</span>
+                <p className="text-xs text-green-500 mt-0.5">Processing will continue in the background.</p>
+              </div>
             </div>
           )}
 
@@ -229,9 +321,18 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!file || uploading || success}
+            disabled={pendingFiles.length === 0 || uploading || allCompleted}
           >
-            {uploading ? 'Uploading...' : 'Upload Video'}
+            {uploading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading {completedCount + 1}/{files.length}...
+              </span>
+            ) : files.length > 1 ? (
+              `Upload ${pendingFiles.length} Videos`
+            ) : (
+              'Upload Video'
+            )}
           </Button>
         </div>
       </div>

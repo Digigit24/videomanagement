@@ -2,7 +2,10 @@ import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
+import fs from "fs";
+import { pipeline } from "stream/promises";
 
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm"];
 
@@ -136,6 +139,33 @@ export async function getVideoMetadata(bucketName, objectKey) {
     console.error("Error getting video metadata:", error);
     throw new Error("Failed to get video metadata");
   }
+}
+
+/**
+ * Download an S3 object to a local file.
+ * Used by FFmpeg processing to get the temp original from S3.
+ */
+export async function downloadFromS3ToFile(bucketName, objectKey, destPath) {
+  const { bucket } = resolveBucket(bucketName);
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+  });
+  const response = await getS3Client().send(command);
+  await pipeline(response.Body, fs.createWriteStream(destPath));
+}
+
+/**
+ * Delete an object from S3.
+ * Used to clean up temp originals after HLS processing completes.
+ */
+export async function deleteFromS3(bucketName, objectKey) {
+  const { bucket } = resolveBucket(bucketName);
+  const command = new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+  });
+  await getS3Client().send(command);
 }
 
 export { getS3Client };
