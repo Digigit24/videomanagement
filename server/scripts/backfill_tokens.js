@@ -25,7 +25,8 @@ if (process.env.DATABASE_URL) {
   console.log("DATABASE_URL length:", process.env.DATABASE_URL.length);
 }
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "https://videomanagement.celiyo.com";
 
 async function main() {
   console.log("Starting video token backfill...");

@@ -10,7 +10,7 @@ import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Send, TrendingUp, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';

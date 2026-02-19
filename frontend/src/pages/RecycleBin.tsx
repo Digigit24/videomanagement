@@ -10,7 +10,6 @@ export default function RecycleBin() {
   const [deletedWorkspaces, setDeletedWorkspaces] = useState<Workspace[]>([]);
   const [deletedUsers, setDeletedUsers] = useState<User[]>([]);
   const [deletedVideos, setDeletedVideos] = useState<DeletedVideo[]>([]);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -29,7 +28,7 @@ export default function RecycleBin() {
 
       // Load deleted videos from all workspaces
       const ws = await workspaceService.getWorkspaces();
-      setWorkspaces(ws);
+      
       const allDeleted: DeletedVideo[] = [];
       for (const w of ws) {
         try {

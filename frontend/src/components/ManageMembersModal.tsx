@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { workspaceService, userService, permissionService } from '@/services/api.service';
 import { User, WorkspaceMember, WorkspacePermissions } from '@/types';
-import { X, Users, Plus, Trash2, Search, Shield, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Users, Plus, Trash2, Search, Shield, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 

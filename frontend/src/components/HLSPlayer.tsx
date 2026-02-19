@@ -66,7 +66,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       const hls = new Hls({
         enableWorker: true,
         startLevel: -1, // auto
-        xhrSetup: function(xhr, url) {
+        xhrSetup: function(xhr) {
           const token = localStorage.getItem('token');
           if (token) {
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
