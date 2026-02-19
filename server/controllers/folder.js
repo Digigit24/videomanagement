@@ -74,9 +74,9 @@ export async function removeFolder(req, res) {
       return res.status(404).json({ error: "Folder not found" });
     }
 
-    // Only admin, project_manager can delete folders
-    const allowedRoles = ["admin", "project_manager", "social_media_manager"];
-    if (!allowedRoles.includes(req.user.role)) {
+    // Check permission
+    const canDelete = await checkPermission(folder.workspace_id, req.user.id, "can_delete_folder");
+    if (!canDelete) {
       return res.status(403).json({ error: "You do not have permission to delete folders" });
     }
 

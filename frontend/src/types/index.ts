@@ -265,5 +265,6 @@ export interface WorkspacePermissions {
   can_add_member: boolean;
   can_remove_member: boolean;
   can_create_folder: boolean;
+  can_delete_folder: boolean;
   can_manage_permissions: boolean;
 }

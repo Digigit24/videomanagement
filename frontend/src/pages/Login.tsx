@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '@/services/api.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,12 +79,9 @@ export default function Login({ onLogin }: LoginProps) {
               {loading ? 'Signing in...' : 'Sign in'}
             </Button>
 
-            <div className="text-center text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-blue-600 hover:underline">
-                Sign up
-              </Link>
-            </div>
+            <p className="text-center text-xs text-gray-400">
+              Contact your admin to get an account
+            </p>
           </form>
         </CardContent>
       </Card>

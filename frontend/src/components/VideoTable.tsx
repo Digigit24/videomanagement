@@ -25,18 +25,20 @@ function VideoThumbnail({ video }: { video: Video }) {
   const [error, setError] = useState(false);
   const [hovering, setHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isPhoto = (video.media_type || 'video') === 'photo';
 
   // On hover, play video preview for videos without thumbnails
   useEffect(() => {
+    if (isPhoto) return;
     if (hovering && videoRef.current && !video.thumbnail_key) {
       videoRef.current.play().catch(() => {});
     } else if (!hovering && videoRef.current) {
       videoRef.current.pause();
       if (videoRef.current.currentTime > 0) videoRef.current.currentTime = 0;
     }
-  }, [hovering, video.thumbnail_key]);
+  }, [hovering, video.thumbnail_key, isPhoto]);
 
-  const isProcessing = !video.hls_ready && video.processing_status && video.processing_status !== 'completed';
+  const isProcessing = !isPhoto && !video.hls_ready && video.processing_status && video.processing_status !== 'completed';
   const processingOverlay = isProcessing ? (
     <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-[1]">
       {video.processing_status === 'queued' ? (
@@ -72,6 +74,23 @@ function VideoThumbnail({ video }: { video: Video }) {
       )}
     </div>
   ) : null;
+
+  // Photos: show the actual image
+  if (isPhoto) {
+    return (
+      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-3">
+        <img
+          src={videoService.getPhotoUrl(video.id)}
+          alt={video.filename}
+          className="w-full h-full object-cover"
+          onError={() => setError(true)}
+        />
+        <span className={`absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColors[video.status]}`}>
+          {video.status}
+        </span>
+      </div>
+    );
+  }
 
   if (video.thumbnail_key && !error) {
     return (
@@ -207,7 +226,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-300" />
           <Input
-            placeholder="Search videos..."
+            placeholder="Search media..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 h-9 text-sm border-gray-200"
@@ -235,7 +254,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
         {filteredVideos.length === 0 ? (
           <div className="col-span-full text-center py-12">
             <FileVideo className="h-10 w-10 mx-auto mb-2 text-gray-200" />
-            <p className="text-sm text-gray-400">No videos found</p>
+            <p className="text-sm text-gray-400">No media found</p>
           </div>
         ) : (
           filteredVideos.map((video) => (

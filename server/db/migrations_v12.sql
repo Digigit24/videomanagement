@@ -38,11 +38,16 @@ CREATE TABLE IF NOT EXISTS workspace_permissions (
   can_add_member BOOLEAN DEFAULT FALSE,
   can_remove_member BOOLEAN DEFAULT FALSE,
   can_create_folder BOOLEAN DEFAULT FALSE,
+  can_delete_folder BOOLEAN DEFAULT FALSE,
   can_manage_permissions BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(workspace_id, user_id)
 );
+
+-- Add can_delete_folder column if table already exists
+ALTER TABLE workspace_permissions ADD COLUMN IF NOT EXISTS can_delete_folder BOOLEAN DEFAULT FALSE;
+
 CREATE INDEX IF NOT EXISTS idx_workspace_permissions_workspace ON workspace_permissions(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_workspace_permissions_user ON workspace_permissions(user_id);
 

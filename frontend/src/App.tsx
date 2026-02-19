@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/Header';
 import Login from '@/pages/Login';
-import Register from '@/pages/Register';
+// Registration removed - only admin can create members
 import Dashboard from '@/pages/Dashboard';
 import WorkspaceVideos from '@/pages/WorkspaceVideos';
 import VideoDetail from '@/pages/VideoDetail';
@@ -43,7 +43,6 @@ function AppContent() {
     return (
       <Routes>
         <Route path="/login" element={<Login onLogin={login} />} />
-        <Route path="/register" element={<Register onRegister={login} />} />
         <Route path="/invite/:code" element={<JoinInvite onLogin={login} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -54,7 +53,7 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user.email} onLogout={logout} />
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <Routes>
+        <Routes key={location.pathname}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/workspace/:bucket" element={<WorkspaceVideos />} />
           <Route path="/workspace/:bucket/video/:id" element={<VideoDetail />} />

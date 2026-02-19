@@ -10,6 +10,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: true,
     can_remove_member: true,
     can_create_folder: true,
+    can_delete_folder: true,
     can_manage_permissions: true,
   },
   project_manager: {
@@ -20,6 +21,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: true,
     can_remove_member: true,
     can_create_folder: true,
+    can_delete_folder: true,
     can_manage_permissions: true,
   },
   social_media_manager: {
@@ -30,6 +32,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: true,
     can_remove_member: false,
     can_create_folder: true,
+    can_delete_folder: true,
     can_manage_permissions: true,
   },
   video_editor: {
@@ -40,6 +43,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: false,
     can_remove_member: false,
     can_create_folder: true,
+    can_delete_folder: false,
     can_manage_permissions: false,
   },
   videographer: {
@@ -50,6 +54,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: false,
     can_remove_member: false,
     can_create_folder: true,
+    can_delete_folder: false,
     can_manage_permissions: false,
   },
   photo_editor: {
@@ -60,6 +65,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: false,
     can_remove_member: false,
     can_create_folder: true,
+    can_delete_folder: false,
     can_manage_permissions: false,
   },
   client: {
@@ -70,6 +76,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: false,
     can_remove_member: false,
     can_create_folder: false,
+    can_delete_folder: false,
     can_manage_permissions: false,
   },
   member: {
@@ -80,6 +87,7 @@ const DEFAULT_PERMISSIONS = {
     can_add_member: false,
     can_remove_member: false,
     can_create_folder: false,
+    can_delete_folder: false,
     can_manage_permissions: false,
   },
 };
@@ -113,8 +121,8 @@ export async function getWorkspacePermissions(workspaceId, userId) {
 // Set permissions for a user in a workspace
 export async function setWorkspacePermissions(workspaceId, userId, permissions) {
   const result = await getPool().query(
-    `INSERT INTO workspace_permissions (workspace_id, user_id, can_upload, can_delete, can_change_status, can_change_video_status, can_add_member, can_remove_member, can_create_folder, can_manage_permissions)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO workspace_permissions (workspace_id, user_id, can_upload, can_delete, can_change_status, can_change_video_status, can_add_member, can_remove_member, can_create_folder, can_delete_folder, can_manage_permissions)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (workspace_id, user_id) DO UPDATE SET
        can_upload = $3,
        can_delete = $4,
@@ -123,7 +131,8 @@ export async function setWorkspacePermissions(workspaceId, userId, permissions) 
        can_add_member = $7,
        can_remove_member = $8,
        can_create_folder = $9,
-       can_manage_permissions = $10,
+       can_delete_folder = $10,
+       can_manage_permissions = $11,
        updated_at = CURRENT_TIMESTAMP
      RETURNING *`,
     [
@@ -136,6 +145,7 @@ export async function setWorkspacePermissions(workspaceId, userId, permissions) 
       permissions.can_add_member ?? false,
       permissions.can_remove_member ?? false,
       permissions.can_create_folder ?? false,
+      permissions.can_delete_folder ?? false,
       permissions.can_manage_permissions ?? false,
     ],
   );

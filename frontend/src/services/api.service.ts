@@ -323,7 +323,7 @@ export const videoService = {
 
   getPhotoUrl: (id: string) => {
     const token = localStorage.getItem("token");
-    return `${API_BASE_URL}/video/${id}/thumbnail?token=${token}`;
+    return `${API_BASE_URL}/photo/${id}?token=${token}`;
   },
 
   getVersionHistory: async (videoId: string, bucket: string) => {

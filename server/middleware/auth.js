@@ -26,6 +26,21 @@ export function authenticate(req, res, next) {
   }
 }
 
+export function optionalAuthenticate(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = decoded;
+    }
+  } catch (error) {
+    // Token invalid or missing - continue without auth
+    req.user = null;
+  }
+  next();
+}
+
 export function authenticateStream(req, res, next) {
   try {
     // For streaming, accept token from query param (since video players can't send headers)

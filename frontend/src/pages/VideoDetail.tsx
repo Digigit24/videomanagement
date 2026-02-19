@@ -150,9 +150,9 @@ export default function VideoDetail() {
     return () => clearInterval(interval);
   }, [id]);
 
-  // Poll for processing status when video is not HLS-ready yet
+  // Poll for processing status when video is not HLS-ready yet (skip for photos)
   useEffect(() => {
-    if (!id || !currentBucket || !video || video.hls_ready) return;
+    if (!id || !currentBucket || !video || video.hls_ready || video.media_type === 'photo') return;
 
     // Fetch processing status immediately
     videoService.getProcessingStatus(id).then(setProcessingStatus).catch(() => {});

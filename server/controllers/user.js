@@ -36,6 +36,21 @@ export async function register(req, res) {
         .json({ error: "Email, password, and name are required" });
     }
 
+    // Only admin can create new users (unless it's the very first user)
+    const pool = getPool();
+    const userCount = await pool.query("SELECT COUNT(*) as cnt FROM users WHERE deleted_at IS NULL");
+    const totalUsers = parseInt(userCount.rows[0].cnt);
+
+    if (totalUsers > 0) {
+      // Require authentication - check if request is from an admin
+      if (!req.user) {
+        return res.status(403).json({ error: "Only admins can create new members" });
+      }
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can create new members" });
+      }
+    }
+
     const user = await createUser(
       email,
       password,

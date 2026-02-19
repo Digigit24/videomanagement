@@ -86,6 +86,7 @@ import { getWorkspaceAnalytics } from "../services/workspaceStats.js";
 import {
   authenticate,
   authenticateStream,
+  optionalAuthenticate,
   validateBucket,
 } from "../middleware/auth.js";
 
@@ -93,7 +94,7 @@ const router = express.Router();
 
 // Auth
 router.post("/login", login);
-router.post("/register", register);
+router.post("/register", optionalAuthenticate, register);
 
 // Users
 router.get("/users", authenticate, getUsers);
@@ -200,6 +201,39 @@ router.get("/video/:id", authenticate, validateBucket, getVideo);
 router.patch("/video/:id/status", authenticate, updateStatus);
 router.post("/upload", authenticate, validateBucket, uploadVideo);
 router.get("/stream/:id", authenticateStream, validateBucket, streamVideo);
+
+// Photo streaming endpoint - serves original image file
+router.get("/photo/:id", authenticateStream, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const result = await pool.query(
+      "SELECT object_key, bucket, filename, media_type FROM videos WHERE id = $1",
+      [id],
+    );
+    if (!result.rows[0] || result.rows[0].media_type !== "photo") {
+      return res.status(404).json({ error: "Photo not found" });
+    }
+    const { getObjectStream, resolveBucket: resolve } =
+      await import("../services/storage.js");
+    const { bucket } = resolve(result.rows[0].bucket);
+    const objectKey = result.rows[0].object_key;
+    const stream = await getObjectStream(bucket, objectKey);
+
+    const ext = result.rows[0].filename.split(".").pop()?.toLowerCase() || "jpg";
+    const contentTypes = {
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+      gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+      tiff: "image/tiff", svg: "image/svg+xml",
+    };
+    res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    stream.pipe(res);
+  } catch (error) {
+    res.status(404).json({ error: "Photo not found" });
+  }
+});
+
 router.delete("/video/:id", authenticate, validateBucket, removeVideo);
 
 // Video processing status (queue position, progress, step)
@@ -266,12 +300,12 @@ router.get(
   },
 );
 
-// Video thumbnail
+// Video thumbnail / Photo display
 router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
   try {
     const pool = (await import("../db/index.js")).getPool();
     const result = await pool.query(
-      "SELECT thumbnail_key, bucket FROM videos WHERE id = $1",
+      "SELECT thumbnail_key, bucket, media_type, filename FROM videos WHERE id = $1",
       [req.params.id],
     );
     if (!result.rows[0]?.thumbnail_key) {
@@ -281,7 +315,20 @@ router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
       await import("../services/storage.js");
     const { bucket } = resolve(result.rows[0].bucket);
     const stream = await getObjectStream(bucket, result.rows[0].thumbnail_key);
-    res.setHeader("Content-Type", "image/jpeg");
+
+    // Detect content type based on file extension for photos
+    const isPhoto = result.rows[0].media_type === "photo";
+    if (isPhoto) {
+      const ext = (result.rows[0].filename || result.rows[0].thumbnail_key).split(".").pop()?.toLowerCase();
+      const contentTypes = {
+        jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+        gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+        tiff: "image/tiff", svg: "image/svg+xml",
+      };
+      res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
+    } else {
+      res.setHeader("Content-Type", "image/jpeg");
+    }
     res.setHeader("Cache-Control", "public, max-age=86400");
     stream.pipe(res);
   } catch (error) {

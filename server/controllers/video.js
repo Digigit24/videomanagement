@@ -303,8 +303,8 @@ export async function restoreVideo(req, res) {
   }
 }
 
-// Download video — serves the highest quality HLS variant playlist
-// since the original file is not stored in S3 (only HLS chunks are).
+// Download video or photo — photos serve the original file directly,
+// videos serve the highest quality HLS variant playlist.
 export async function downloadVideo(req, res) {
   try {
     const { id } = req.params;
@@ -314,17 +314,38 @@ export async function downloadVideo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
+    // Photos: serve the original file directly from S3
+    if (video.media_type === "photo") {
+      const { getObjectStream, resolveBucket: resolve } = await import("../services/storage.js");
+      const { bucket: physicalBucket } = resolve(video.bucket);
+      const objectKey = video.object_key;
+
+      try {
+        const stream = await getObjectStream(physicalBucket, objectKey);
+        const ext = video.filename.split(".").pop()?.toLowerCase() || "jpg";
+        const contentTypes = {
+          jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+          gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+          tiff: "image/tiff", svg: "image/svg+xml",
+        };
+        res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
+        res.setHeader("Content-Disposition", `attachment; filename="${video.filename}"`);
+        stream.pipe(res);
+      } catch (streamErr) {
+        console.error("Photo download error:", streamErr);
+        return res.status(404).json({ error: "Photo file not found" });
+      }
+      return;
+    }
+
+    // Videos: serve HLS
     if (!video.hls_ready || !video.hls_path) {
       return res.status(202).json({
         error: "Video is still being processed. Please try again later.",
       });
     }
 
-    // Serve the highest quality HLS variant as a download stream.
-    // Find the highest quality directory from the HLS path.
     const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
-
-    // Determine the best available quality (try from highest to lowest)
     const qualityOrder = ["4k", "1080p", "720p", "360p"];
     let bestPlaylistKey = null;
 
@@ -343,7 +364,6 @@ export async function downloadVideo(req, res) {
       return res.status(404).json({ error: "No downloadable quality found" });
     }
 
-    // Stream the playlist (the player/client can use it to download segments)
     const stream = await getVideoStream(req.bucket, bestPlaylistKey);
     res.setHeader(
       "Content-Disposition",
@@ -353,7 +373,7 @@ export async function downloadVideo(req, res) {
     stream.pipe(res);
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: "Failed to download video" });
+    res.status(500).json({ error: "Failed to download" });
   }
 }
 

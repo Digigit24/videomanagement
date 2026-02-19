@@ -177,7 +177,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b">
           <div>
-            <h2 className="text-xl font-semibold">Upload Videos</h2>
+            <h2 className="text-xl font-semibold">Upload Media</h2>
             {files.length > 0 && (
               <p className="text-sm text-gray-500 mt-0.5">
                 {files.length} file{files.length !== 1 ? 's' : ''} selected
@@ -267,7 +267,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                     {item.status === 'completed' && (
                       <div className="flex items-center gap-1 mt-1">
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        <span className="text-xs text-green-600 font-medium">Uploaded — processing in background</span>
+                        <span className="text-xs text-green-600 font-medium">Uploaded successfully</span>
                       </div>
                     )}
 
@@ -301,8 +301,8 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
             <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
               <CheckCircle2 className="h-5 w-5" />
               <div>
-                <span className="text-sm font-medium">All videos uploaded successfully!</span>
-                <p className="text-xs text-green-500 mt-0.5">Processing will continue in the background.</p>
+                <span className="text-sm font-medium">All files uploaded successfully!</span>
+                <p className="text-xs text-green-500 mt-0.5">Videos will be processed in the background. Photos are ready immediately.</p>
               </div>
             </div>
           )}
@@ -331,9 +331,9 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                 Uploading {completedCount + 1}/{files.length}...
               </span>
             ) : files.length > 1 ? (
-              `Upload ${pendingFiles.length} Videos`
+              `Upload ${pendingFiles.length} Files`
             ) : (
-              'Upload Video'
+              'Upload'
             )}
           </Button>
         </div>

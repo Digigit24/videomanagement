@@ -40,6 +40,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   can_add_member: 'Add Members',
   can_remove_member: 'Remove Members',
   can_create_folder: 'Create Folders',
+  can_delete_folder: 'Delete Folders',
   can_manage_permissions: 'Manage Permissions',
 };
 
