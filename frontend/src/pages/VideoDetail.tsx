@@ -622,7 +622,11 @@ export default function VideoDetail() {
                         </svg>
                       </div>
                       <p className="text-red-400 text-sm font-medium mb-1">Processing Failed</p>
-                      <p className="text-gray-500 text-xs">An error occurred while transcoding this video.</p>
+                      <p className="text-gray-500 text-xs">
+                        {processingStatus.processing_step && processingStatus.processing_step.startsWith('error:')
+                          ? processingStatus.processing_step.replace('error: ', '')
+                          : 'An error occurred while transcoding this video.'}
+                      </p>
                     </>
                   ) : processingStatus?.processing_status === 'queued' ? (
                     <>

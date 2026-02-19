@@ -428,19 +428,21 @@ router.post("/public/video/:videoId/reviews", validateShareAccess, addReview);
 router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const hlsPath = req.params[0];
-  const { getObjectStream, MAIN_BUCKET } =
+  const { getObjectStream } =
     await import("../services/storage.js");
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
 
   try {
     const video = await getVideoPublicInfo(id);
-    if (!video || !video.hls_ready) {
+    if (!video || !video.hls_ready || !video.hls_path) {
       return res.status(404).json({ error: "HLS not available" });
     }
 
-    const objectKey = `hls/${id}/${hlsPath}`;
+    // Derive the HLS directory from the DB's hls_path (includes workspace prefix)
+    const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
+    const objectKey = `${hlsDir}/${hlsPath}`;
     const stream = await getObjectStream(
-      MAIN_BUCKET || video.bucket,
+      video.bucket,
       objectKey,
     );
 
@@ -462,7 +464,7 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
 router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
-  const { getVideoStream } = await import("../services/storage.js");
+  const { getVideoStream, resolveBucket: resolve } = await import("../services/storage.js");
   const pool = (await import("../db/index.js")).getPool();
 
   try {
@@ -479,7 +481,6 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
     }
 
     const range = req.headers.range;
-    const bucket = await resolveBucket(video.bucket);
 
     // If HLS is ready, we can use it as primary, but usually /stream refers to the original
     // For this app, let's allow streaming the original if it exists, otherwise HLS playlist
@@ -492,7 +493,8 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
       return res.status(404).json({ error: "Video content not found" });
     }
 
-    const stream = await getVideoStream(bucket, objectKey, range);
+    // getVideoStream resolves the bucket internally, pass the workspace bucket
+    const stream = await getVideoStream(video.bucket, objectKey, range);
 
     if (useHLS) {
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl");

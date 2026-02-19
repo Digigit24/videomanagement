@@ -9,8 +9,13 @@ import { getPool } from "../db/index.js";
 import { resolveBucket, downloadFromS3ToFile, deleteFromS3 } from "./storage.js";
 
 // Use node-module FFmpeg binaries instead of system-installed ones.
+// This avoids needing a system ffmpeg install, keeps RAM/storage low,
+// and ensures a consistent version across environments.
 ffmpegLib.setFfmpegPath(ffmpegInstaller.path);
 ffmpegLib.setFfprobePath(ffprobeInstaller.path);
+
+console.log(`[FFmpeg] Binary path: ${ffmpegInstaller.path}`);
+console.log(`[FFmpeg] FFprobe path: ${ffprobeInstaller.path}`);
 
 const QUALITIES = [
   {
@@ -57,8 +62,8 @@ const PROGRESS_FINALIZE = { start: 90, end: 100 };
  *
  * @param {string} tempS3Key - The S3 key where the temp original is stored
  * @param {string} videoId - The video record ID
- * @param {string} bucketName - The bucket/workspace name
- * @param {string} originalFilename - Original filename
+ * @param {string} bucketName - The bucket/workspace name (raw, not resolved)
+ * @param {string} originalFilename - Sanitized filename (safe for filesystem/S3)
  * @param {Function} onProgress - Callback: (step, progressPercent) => void
  */
 export async function processVideoToHLS(
@@ -77,17 +82,33 @@ export async function processVideoToHLS(
   const { bucket, prefix } = resolveBucket(bucketName);
   const tempDir = path.join(os.tmpdir(), `hls-${videoId}`);
   const hlsBase = `${prefix}hls/${videoId}`;
-  const localInputPath = path.join(os.tmpdir(), `input-${videoId}-${originalFilename}`);
+  // Use videoId in the local path (not filename) to avoid path issues
+  const localInputPath = path.join(os.tmpdir(), `input-${videoId}${path.extname(originalFilename)}`);
+
+  console.log(`[FFmpeg] Processing video ${videoId}`);
+  console.log(`[FFmpeg]   bucketName=${bucketName}, resolvedBucket=${bucket}, prefix="${prefix}"`);
+  console.log(`[FFmpeg]   tempS3Key=${tempS3Key}`);
+  console.log(`[FFmpeg]   localInputPath=${localInputPath}`);
+  console.log(`[FFmpeg]   hlsBase=${hlsBase}`);
 
   try {
     fs.mkdirSync(tempDir, { recursive: true });
 
     // --- Step 1: Download temp original from S3 ---
     report("downloading", PROGRESS_DOWNLOAD.start);
-    console.log(`Downloading video ${videoId} from S3 for processing...`);
+    console.log(`[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${tempS3Key}`);
     await downloadFromS3ToFile(bucket, tempS3Key, localInputPath);
-    const fileSizeMB = (fs.statSync(localInputPath).size / 1024 / 1024).toFixed(1);
-    console.log(`Downloaded video ${videoId} to local temp (${fileSizeMB} MB)`);
+
+    // Verify the downloaded file exists and has content
+    if (!fs.existsSync(localInputPath)) {
+      throw new Error(`Downloaded file not found at ${localInputPath}`);
+    }
+    const fileSize = fs.statSync(localInputPath).size;
+    if (fileSize === 0) {
+      throw new Error(`Downloaded file is empty (0 bytes) at ${localInputPath}`);
+    }
+    const fileSizeMB = (fileSize / 1024 / 1024).toFixed(1);
+    console.log(`[FFmpeg] Step 1 complete: Downloaded ${fileSizeMB} MB to ${localInputPath}`);
     report("downloading", PROGRESS_DOWNLOAD.end);
 
     // --- Step 2: Generate thumbnail ---
@@ -102,26 +123,30 @@ export async function processVideoToHLS(
         "UPDATE videos SET thumbnail_key = $1 WHERE id = $2",
         [thumbKey, videoId],
       );
-      console.log(`Thumbnail generated for video ${videoId}`);
+      console.log(`[FFmpeg] Step 2 complete: Thumbnail generated for video ${videoId}`);
     } catch (thumbErr) {
-      console.error(`Thumbnail generation failed for ${videoId}:`, thumbErr.message);
+      // Non-fatal: continue processing even if thumbnail fails
+      console.error(`[FFmpeg] Step 2 warning: Thumbnail generation failed for ${videoId}:`, thumbErr.message);
     }
     report("generating_thumbnail", PROGRESS_THUMBNAIL.end);
 
     // --- Step 3: Probe source video resolution ---
+    console.log(`[FFmpeg] Step 3: Probing video info...`);
     const videoInfo = await getVideoInfo(localInputPath);
     const sourceHeight = videoInfo.height || 1080;
     const duration = videoInfo.duration || 0;
 
+    // Pick quality levels that don't exceed the source resolution
     const applicableQualities = QUALITIES.filter(
       (q) => q.height <= sourceHeight,
     );
     if (applicableQualities.length === 0) {
+      // Always produce at least 360p
       applicableQualities.push(QUALITIES[0]);
     }
 
     console.log(
-      `Processing video ${videoId}: source=${sourceHeight}p, duration=${Math.round(duration)}s, qualities=[${applicableQualities.map((q) => q.name).join(", ")}]`,
+      `[FFmpeg] Step 3 complete: source=${sourceHeight}p, duration=${Math.round(duration)}s, qualities=[${applicableQualities.map((q) => q.name).join(", ")}]`,
     );
 
     // --- Step 4: Transcode each quality level sequentially & upload chunks ---
@@ -139,6 +164,7 @@ export async function processVideoToHLS(
       const stepName = `transcoding_${quality.name}`;
 
       report(stepName, qualityBaseProgress);
+      console.log(`[FFmpeg] Step 4.${qi + 1}: Transcoding ${quality.name}...`);
 
       // Transcode with retry + progress reporting
       await transcodeWithRetry(
@@ -156,6 +182,8 @@ export async function processVideoToHLS(
       report(uploadStepName, uploadBaseProgress);
 
       const files = fs.readdirSync(outputDir);
+      console.log(`[FFmpeg] Uploading ${files.length} ${quality.name} files to S3...`);
+
       for (let fi = 0; fi < files.length; fi++) {
         const file = files[fi];
         const filePath = path.join(outputDir, file);
@@ -165,10 +193,14 @@ export async function processVideoToHLS(
           : "video/MP2T";
         const fileBuffer = fs.readFileSync(filePath);
         await uploadToS3(bucket, objectKey, fileBuffer, contentType);
+
+        // Report upload progress per file
+        const uploadProgress = uploadBaseProgress + ((fi + 1) / files.length) * (perQualityRange * 0.2);
+        report(uploadStepName, uploadProgress);
       }
 
       report(uploadStepName, qualityBaseProgress + perQualityRange);
-      console.log(`Quality ${quality.name} uploaded for video ${videoId}`);
+      console.log(`[FFmpeg] Step 4.${qi + 1} complete: ${quality.name} (${files.length} files) uploaded`);
 
       variants.push({
         name: quality.name,
@@ -180,6 +212,7 @@ export async function processVideoToHLS(
 
     // --- Step 5: Create & upload master playlist ---
     report("finalizing", PROGRESS_FINALIZE.start);
+    console.log(`[FFmpeg] Step 5: Creating master playlist...`);
     const masterPlaylist = generateMasterPlaylist(variants);
     const masterKey = `${hlsBase}/master.m3u8`;
     await uploadToS3(
@@ -195,7 +228,7 @@ export async function processVideoToHLS(
       [masterKey, videoId],
     );
 
-    console.log(`HLS processing complete for video ${videoId}`);
+    console.log(`[FFmpeg] Step 6 complete: HLS ready for video ${videoId}, masterKey=${masterKey}`);
     report("finalizing", 95);
 
     // --- Step 7: Cleanup local temp files ---
@@ -205,20 +238,21 @@ export async function processVideoToHLS(
     // --- Step 8: Delete temp original from S3 ---
     try {
       await deleteFromS3(bucket, tempS3Key);
-      console.log(`Deleted temp S3 original for video ${videoId}`);
+      console.log(`[FFmpeg] Step 8 complete: Deleted temp S3 file ${tempS3Key}`);
     } catch (e) {
-      console.warn(`Failed to delete temp S3 original for ${videoId}: ${e.message}`);
+      console.warn(`[FFmpeg] Step 8 warning: Failed to delete temp S3 file ${tempS3Key}: ${e.message}`);
     }
 
     report("completed", 100);
+    console.log(`[FFmpeg] Processing complete for video ${videoId}`);
     return masterKey;
   } catch (error) {
-    console.error(`HLS processing failed for video ${videoId}:`, error);
+    console.error(`[FFmpeg] FAILED processing video ${videoId}:`, error.message);
+    console.error(`[FFmpeg]   S3 key was: ${tempS3Key}`);
+    console.error(`[FFmpeg]   Bucket was: ${bucket}`);
+    console.error(`[FFmpeg]   Full error:`, error);
     cleanupTempDir(tempDir);
     cleanupTempFile(localInputPath);
-    console.warn(
-      `S3 temp original preserved at key ${tempS3Key} for retry. Video ${videoId} is not HLS-ready.`,
-    );
     throw error;
   }
 }
@@ -237,14 +271,14 @@ async function transcodeWithRetry(inputPath, outputDir, quality, videoId, durati
       if (attempt <= MAX_TRANSCODE_RETRIES) {
         const delay = 3000 * attempt;
         console.warn(
-          `[Retry] FFmpeg transcode ${quality.name} for video ${videoId} failed (attempt ${attempt}), retrying in ${delay}ms: ${error.message}`,
+          `[FFmpeg] Retry: ${quality.name} for video ${videoId} failed (attempt ${attempt}/${MAX_TRANSCODE_RETRIES + 1}), retrying in ${delay}ms: ${error.message}`,
         );
         try {
           const files = fs.readdirSync(outputDir);
           for (const f of files) {
             fs.unlinkSync(path.join(outputDir, f));
           }
-        } catch (_) { /* ignore */ }
+        } catch (_) { /* ignore cleanup errors */ }
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -290,6 +324,9 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
         `-f hls`,
       ])
       .output(path.join(outputDir, "playlist.m3u8"))
+      .on("start", (commandLine) => {
+        console.log(`[FFmpeg] Command: ${commandLine.substring(0, 200)}...`);
+      })
       .on("progress", (progress) => {
         if (typeof onProgress !== "function") return;
 
@@ -311,8 +348,14 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
           onProgress(percent);
         }
       })
-      .on("end", resolve)
-      .on("error", reject);
+      .on("end", () => {
+        console.log(`[FFmpeg] Transcode ${quality.name} finished`);
+        resolve();
+      })
+      .on("error", (err) => {
+        console.error(`[FFmpeg] Transcode ${quality.name} error: ${err.message}`);
+        reject(err);
+      });
 
     cmd.run();
   });
@@ -351,7 +394,7 @@ function cleanupTempDir(dirPath) {
       fs.rmSync(dirPath, { recursive: true, force: true });
     }
   } catch (e) {
-    console.error("Cleanup temp dir error:", e.message);
+    console.error("[FFmpeg] Cleanup temp dir error:", e.message);
   }
 }
 
@@ -359,9 +402,8 @@ function cleanupTempFile(filePath) {
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      console.log(`Temp file deleted: ${filePath}`);
     }
   } catch (e) {
-    console.error("Cleanup temp file error:", e.message);
+    console.error("[FFmpeg] Cleanup temp file error:", e.message);
   }
 }

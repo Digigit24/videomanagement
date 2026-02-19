@@ -147,12 +147,18 @@ export async function getVideoMetadata(bucketName, objectKey) {
  */
 export async function downloadFromS3ToFile(bucketName, objectKey, destPath) {
   const { bucket } = resolveBucket(bucketName);
-  const command = new GetObjectCommand({
-    Bucket: bucket,
-    Key: objectKey,
-  });
-  const response = await getS3Client().send(command);
-  await pipeline(response.Body, fs.createWriteStream(destPath));
+  try {
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+    });
+    const response = await getS3Client().send(command);
+    await pipeline(response.Body, fs.createWriteStream(destPath));
+  } catch (error) {
+    console.error(`[S3] downloadFromS3ToFile FAILED: Bucket=${bucket}, Key=${objectKey}, Dest=${destPath}`);
+    console.error(`[S3]   Error code: ${error.Code || error.name}, Message: ${error.message}`);
+    throw error;
+  }
 }
 
 /**
