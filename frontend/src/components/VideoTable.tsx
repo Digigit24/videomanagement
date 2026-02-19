@@ -247,7 +247,12 @@ export default function VideoTable({ videos }: VideoTableProps) {
               <div className="p-3">
                 <VideoThumbnail video={video} />
 
-                <h3 className="text-sm font-medium text-gray-900 truncate mb-1">{video.filename}</h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-medium text-gray-900 truncate flex-1">{video.filename}</h3>
+                  {(video.media_type || 'video') === 'photo' && (
+                    <span className="text-[9px] px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded font-bold uppercase flex-shrink-0">Photo</span>
+                  )}
+                </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs text-gray-400">

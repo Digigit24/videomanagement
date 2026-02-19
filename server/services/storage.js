@@ -3,6 +3,7 @@ import {
   ListObjectsV2Command,
   GetObjectCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { pipeline } from "stream/promises";
@@ -186,6 +187,31 @@ export async function deleteFromS3(bucketName, objectKey) {
   const command = new DeleteObjectCommand({
     Bucket: bucket,
     Key: objectKey,
+  });
+  await getS3Client().send(command);
+}
+
+/**
+ * Copy an S3 object from one key to another.
+ * Used for photo uploads to move from temp to final location.
+ */
+export async function copyS3Object(srcBucket, srcKey, destBucket, destKey) {
+  const command = new CopyObjectCommand({
+    Bucket: destBucket,
+    CopySource: `${srcBucket}/${srcKey}`,
+    Key: destKey,
+  });
+  await getS3Client().send(command);
+}
+
+/**
+ * Delete an S3 object by bucket and key (no prefix resolution).
+ * Used when bucket is already resolved.
+ */
+export async function deleteS3Object(bucket, key) {
+  const command = new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: key,
   });
   await getS3Client().send(command);
 }

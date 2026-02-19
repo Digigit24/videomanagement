@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { videoService, workspaceService } from '@/services/api.service';
-import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics } from '@/types';
+import { videoService, workspaceService, folderService } from '@/services/api.service';
+import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics, Folder } from '@/types';
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';
 import KanbanBoard from '@/components/KanbanBoard';
@@ -10,8 +10,9 @@ import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Send, TrendingUp, Calendar as CalendarIcon, FileVideo as FileVideoIcon } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Send, TrendingUp, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
 
 export default function WorkspaceVideos() {
@@ -27,6 +28,13 @@ export default function WorkspaceVideos() {
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [analytics, setAnalytics] = useState<WorkspaceAnalytics | null>(null);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('all');
+  const userRole = localStorage.getItem('userRole') || 'member';
+  const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
   const [view, setView] = useState<'list' | 'kanban'>(() => {
     return (localStorage.getItem('viewMode') as 'list' | 'kanban') || 'list';
   });
@@ -56,6 +64,7 @@ export default function WorkspaceVideos() {
       loadVideos();
       loadWorkspaceInfo();
       loadAnalytics();
+      loadFolders();
     }
   }, [bucket]);
 
@@ -68,7 +77,7 @@ export default function WorkspaceVideos() {
 
   useEffect(() => {
     filterVideos();
-  }, [videos, dateFilter, statusFilter]);
+  }, [videos, dateFilter, statusFilter, selectedFolder, mediaTypeFilter]);
 
   const loadVideos = async () => {
     if (!bucket) return;
@@ -134,6 +143,50 @@ export default function WorkspaceVideos() {
     }
   };
 
+  const loadFolders = async () => {
+    if (!workspace?.id) {
+      // Try to load workspace first
+      try {
+        const workspaces = await workspaceService.getWorkspaces();
+        const ws = workspaces.find(w => w.bucket === bucket);
+        if (ws) {
+          const f = await folderService.getFolders(ws.id);
+          setFolders(f);
+        }
+      } catch {}
+      return;
+    }
+    try {
+      const f = await folderService.getFolders(workspace.id);
+      setFolders(f);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !workspace?.id) return;
+    try {
+      await folderService.createFolder(workspace.id, newFolderName.trim());
+      setNewFolderName('');
+      setShowNewFolder(false);
+      loadFolders();
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!confirm('Delete this folder? Media inside will be moved out of the folder.')) return;
+    try {
+      await folderService.deleteFolder(folderId);
+      if (selectedFolder === folderId) setSelectedFolder(null);
+      loadFolders();
+    } catch (error) {
+      console.error('Failed to delete folder:', error);
+    }
+  };
+
   const loadAnalytics = async () => {
     if (!bucket) return;
     try {
@@ -146,6 +199,16 @@ export default function WorkspaceVideos() {
 
   const filterVideos = () => {
     let filtered = videos;
+
+    // Folder filter
+    if (selectedFolder) {
+      filtered = filtered.filter(video => video.folder_id === selectedFolder);
+    }
+
+    // Media type filter
+    if (mediaTypeFilter !== 'all') {
+      filtered = filtered.filter(video => (video.media_type || 'video') === mediaTypeFilter);
+    }
 
     // Status filter
     if (statusFilter !== 'all') {
@@ -228,7 +291,7 @@ export default function WorkspaceVideos() {
               }`}
             >
               <FileVideoIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Videos
+              Media
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === 'videos' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
                 {videos.length}
               </span>
@@ -330,6 +393,101 @@ export default function WorkspaceVideos() {
           </Button>
         </div>
       </div>
+
+      {/* Folder Panel - show above content */}
+      {activeTab === 'videos' && (
+        <div className="animate-fade-in">
+          {/* Folder bar */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <button
+              onClick={() => setSelectedFolder(null)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
+                !selectedFolder ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              All Media
+            </button>
+            {folders.map(folder => (
+              <div key={folder.id} className="flex items-center gap-0.5 flex-shrink-0">
+                <button
+                  onClick={() => setSelectedFolder(folder.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    selectedFolder === folder.id ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  {folder.name}
+                  <span className="text-[10px] opacity-60">({folder.media_count})</span>
+                </button>
+                {(['admin', 'project_manager', 'social_media_manager'].includes(userRole)) && (
+                  <button
+                    onClick={() => handleDeleteFolder(folder.id)}
+                    className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Delete folder"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {canCreateFolder && (
+              showNewFolder ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Input
+                    value={newFolderName}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    placeholder="Folder name"
+                    className="h-7 w-32 text-xs"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setShowNewFolder(false); }}
+                  />
+                  <Button size="sm" className="h-7 text-xs px-2" onClick={handleCreateFolder}>Add</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs px-1" onClick={() => setShowNewFolder(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowNewFolder(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all flex-shrink-0 border border-blue-200"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  New Folder
+                </button>
+              )
+            )}
+
+            <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
+
+            {/* Media type filter */}
+            <button
+              onClick={() => setMediaTypeFilter('all')}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-semibold transition-all flex-shrink-0 ${
+                mediaTypeFilter === 'all' ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setMediaTypeFilter('video')}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-semibold transition-all flex-shrink-0 ${
+                mediaTypeFilter === 'video' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <FileVideoIcon className="h-3 w-3" /> Videos
+            </button>
+            <button
+              onClick={() => setMediaTypeFilter('photo')}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-semibold transition-all flex-shrink-0 ${
+                mediaTypeFilter === 'photo' ? 'bg-pink-100 text-pink-700' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Image className="h-3 w-3" /> Photos
+            </button>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'videos' && (
         <div className="animate-fade-in-up">
@@ -522,6 +680,7 @@ export default function WorkspaceVideos() {
         onClose={() => setUploadModalOpen(false)}
         onUploadComplete={loadVideos}
         bucket={bucket}
+        folderId={selectedFolder}
       />
 
       {showManageMembers && workspace && (

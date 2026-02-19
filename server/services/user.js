@@ -8,12 +8,16 @@ export const VALID_ROLES = [
   "member",
   "project_manager",
   "social_media_manager",
+  "videographer",
+  "photo_editor",
 ];
 export const ORG_ROLES = [
   "admin",
   "video_editor",
   "project_manager",
   "social_media_manager",
+  "videographer",
+  "photo_editor",
 ];
 
 export async function createUser(

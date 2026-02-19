@@ -26,7 +26,7 @@ export default function Dashboard() {
   const userName = localStorage.getItem('userName') || 'User';
   const isAdmin = userRole === 'admin';
   const canCreateWorkspace = ['admin', 'project_manager', 'social_media_manager'].includes(userRole);
-  const isOrgRole = ['admin', 'video_editor', 'project_manager', 'social_media_manager'].includes(userRole);
+  const isOrgRole = ['admin', 'video_editor', 'project_manager', 'social_media_manager', 'videographer', 'photo_editor'].includes(userRole);
 
   useEffect(() => {
     loadWorkspaces();

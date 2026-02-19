@@ -285,8 +285,13 @@ export async function removeMember(req, res) {
 
     const { id, userId } = req.params;
 
-    // Log activity before removal
+    // Prevent removing admin users from workspaces
     const removedUser = await getUserById(userId);
+    if (removedUser && removedUser.role === "admin") {
+      return res.status(403).json({ error: "Admin users cannot be removed from workspaces" });
+    }
+
+    // Log activity before removal
     await logActivity(req.user.id, "member_removed", "workspace", id, {
       removedUserId: userId,
       removedUserName: removedUser?.name || removedUser?.email,

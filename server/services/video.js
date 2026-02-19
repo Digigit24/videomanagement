@@ -9,6 +9,8 @@ export async function createVideo({
   size,
   uploadedBy,
   replaceVideoId = null,
+  folderId = null,
+  mediaType = "video",
 }) {
   try {
     // If replacing an existing video, delete the old one first
@@ -48,10 +50,10 @@ export async function createVideo({
     }
 
     const result = await pool().query(
-      `INSERT INTO videos (bucket, filename, object_key, size, uploaded_by, uploaded_at, created_at, version_group_id, version_number, is_active_version, parent_video_id)
-       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, gen_random_uuid(), 1, TRUE, NULL)
+      `INSERT INTO videos (bucket, filename, object_key, size, uploaded_by, uploaded_at, created_at, version_group_id, version_number, is_active_version, parent_video_id, folder_id, media_type)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, gen_random_uuid(), 1, TRUE, NULL, $6, $7)
        RETURNING *`,
-      [bucket, filename, objectKey, size, uploadedBy],
+      [bucket, filename, objectKey, size, uploadedBy, folderId, mediaType],
     );
 
     const video = result.rows[0];
@@ -354,6 +356,30 @@ export async function cleanupExpiredBackups() {
     return result.rows.length;
   } catch (error) {
     console.error("Error cleaning up expired backups:", error);
+  }
+}
+
+// Permanently delete a video from the deleted_videos backup
+export async function permanentlyDeleteVideo(deletedVideoId) {
+  try {
+    const deleted = await pool().query(
+      "SELECT * FROM deleted_videos WHERE id = $1",
+      [deletedVideoId],
+    );
+
+    if (deleted.rows.length === 0) {
+      throw new Error("Deleted video not found");
+    }
+
+    // Remove from deleted_videos
+    await pool().query("DELETE FROM deleted_videos WHERE id = $1", [
+      deletedVideoId,
+    ]);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error permanently deleting video:", error);
+    throw error;
   }
 }
 

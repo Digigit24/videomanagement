@@ -22,6 +22,8 @@ export interface Video {
   processing_status: 'queued' | 'processing' | 'completed' | 'failed' | null;
   processing_progress: number;
   processing_step: string | null;
+  folder_id: string | null;
+  media_type: 'video' | 'photo';
 }
 
 export interface ProcessingStatus {
@@ -48,7 +50,9 @@ export type UserRole =
   | "client"
   | "member"
   | "project_manager"
-  | "social_media_manager";
+  | "social_media_manager"
+  | "videographer"
+  | "photo_editor";
 
 export interface User {
   id?: string;
@@ -233,4 +237,33 @@ export interface VideoReview {
   reply_content?: string;
   reply_reviewer_name?: string;
   created_at: string;
+}
+
+export interface Folder {
+  id: string;
+  workspace_id: string;
+  name: string;
+  created_by: string;
+  created_by_name: string | null;
+  media_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspacePermissions {
+  id?: string;
+  workspace_id: string;
+  user_id: string;
+  user_role?: UserRole;
+  user_name?: string;
+  user_email?: string;
+  avatar_url?: string | null;
+  can_upload: boolean;
+  can_delete: boolean;
+  can_change_status: boolean;
+  can_change_video_status: boolean;
+  can_add_member: boolean;
+  can_remove_member: boolean;
+  can_create_folder: boolean;
+  can_manage_permissions: boolean;
 }

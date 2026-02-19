@@ -111,6 +111,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV11);
 
+    // Run v12 migrations (folders, photo creatives, per-workspace permissions, new roles)
+    const migrationsV12 = fs.readFileSync(
+      path.join(__dirname, "migrations_v12.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV12);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

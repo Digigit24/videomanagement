@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { LogOut, Users, Home, Menu, X } from 'lucide-react';
+import { LogOut, Users, Home, Menu, X, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
 
 interface HeaderProps {
@@ -10,8 +10,9 @@ interface HeaderProps {
 }
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'video_editor', 'project_manager', 'social_media_manager', 'client', 'member'] },
+  { path: '/', label: 'Dashboard', icon: Home, roles: ['admin', 'video_editor', 'project_manager', 'social_media_manager', 'client', 'member', 'videographer', 'photo_editor'] },
   { path: '/users', label: 'Team', icon: Users, roles: ['admin'] },
+  { path: '/recycle-bin', label: 'Recycle Bin', icon: Trash2, roles: ['admin'] },
 ];
 
 export default function Header({ user, onLogout }: HeaderProps) {
@@ -19,6 +20,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
   const userRole = localStorage.getItem('userRole') || 'member';
   const userAvatar = localStorage.getItem('userAvatar');
   const location = useLocation();
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const ROLE_LABELS: Record<string, string> = {
@@ -28,6 +30,8 @@ export default function Header({ user, onLogout }: HeaderProps) {
     member: 'Member',
     project_manager: 'Project Manager',
     social_media_manager: 'Social Media',
+    videographer: 'Videographer',
+    photo_editor: 'Photo Editor',
   };
 
   const ROLE_COLORS: Record<string, string> = {
@@ -37,6 +41,8 @@ export default function Header({ user, onLogout }: HeaderProps) {
     member: 'bg-gray-100 text-gray-600',
     project_manager: 'bg-amber-100 text-amber-700',
     social_media_manager: 'bg-teal-100 text-teal-700',
+    videographer: 'bg-indigo-100 text-indigo-700',
+    photo_editor: 'bg-pink-100 text-pink-700',
   };
 
   const visibleNavItems = NAV_ITEMS.filter(item => item.roles.includes(userRole));
@@ -47,9 +53,9 @@ export default function Header({ user, onLogout }: HeaderProps) {
         <div className="flex justify-between items-center h-14">
           {/* Left: Logo + Nav */}
           <div className="flex items-center gap-1">
-            <Link to="/" className="text-base font-bold text-gray-900 hover:text-gray-700 tracking-tight mr-2 sm:mr-4 transition-colors">
+            <button onClick={() => navigate('/')} className="text-base font-bold text-gray-900 hover:text-gray-700 tracking-tight mr-2 sm:mr-4 transition-colors cursor-pointer">
               ReviewFlow
-            </Link>
+            </button>
 
             {/* Desktop Navigation */}
             <nav className="hidden sm:flex items-center gap-0.5">

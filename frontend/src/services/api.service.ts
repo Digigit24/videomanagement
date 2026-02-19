@@ -14,6 +14,8 @@ import {
   ChatMessage,
   WorkspaceMember,
   ProcessingStatus,
+  Folder,
+  WorkspacePermissions,
 } from "@/types";
 
 export const authService = {
@@ -196,6 +198,54 @@ export const workspaceService = {
   },
 };
 
+export const folderService = {
+  getFolders: async (workspaceId: string) => {
+    const { data } = await api.get(`/workspace/${workspaceId}/folders`);
+    return data.folders as Folder[];
+  },
+
+  createFolder: async (workspaceId: string, name: string) => {
+    const { data } = await api.post(`/workspace/${workspaceId}/folders`, { name });
+    return data.folder as Folder;
+  },
+
+  updateFolder: async (folderId: string, name: string) => {
+    const { data } = await api.patch(`/folder/${folderId}`, { name });
+    return data.folder as Folder;
+  },
+
+  deleteFolder: async (folderId: string) => {
+    await api.delete(`/folder/${folderId}`);
+  },
+};
+
+export const permissionService = {
+  getMyPermissions: async (workspaceId: string) => {
+    const { data } = await api.get(`/workspace/${workspaceId}/permissions/me`);
+    return data.permissions as WorkspacePermissions;
+  },
+
+  getUserPermissions: async (workspaceId: string, userId: string) => {
+    const { data } = await api.get(`/workspace/${workspaceId}/permissions/${userId}`);
+    return data.permissions as WorkspacePermissions;
+  },
+
+  getAllPermissions: async (workspaceId: string) => {
+    const { data } = await api.get(`/workspace/${workspaceId}/permissions`);
+    return data.permissions as WorkspacePermissions[];
+  },
+
+  updatePermissions: async (workspaceId: string, userId: string, permissions: Partial<WorkspacePermissions>) => {
+    const { data } = await api.put(`/workspace/${workspaceId}/permissions/${userId}`, { permissions });
+    return data.permissions as WorkspacePermissions;
+  },
+
+  getRoleDefaults: async (role: string) => {
+    const { data } = await api.get(`/role-defaults/${role}`);
+    return data.permissions as Partial<WorkspacePermissions>;
+  },
+};
+
 export const bucketService = {
   getBuckets: async () => {
     const { data } = await api.get("/buckets");
@@ -224,11 +274,15 @@ export const videoService = {
     bucket: string,
     onProgress?: (progressEvent: any) => void,
     replaceVideoId?: string,
+    folderId?: string,
   ) => {
     const formData = new FormData();
     formData.append("video", file);
     if (replaceVideoId) {
       formData.append("replaceVideoId", replaceVideoId);
+    }
+    if (folderId) {
+      formData.append("folderId", folderId);
     }
     const { data } = await api.post("/upload", formData, {
       params: { bucket },
@@ -267,6 +321,11 @@ export const videoService = {
     return `${API_BASE_URL}/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
   },
 
+  getPhotoUrl: (id: string) => {
+    const token = localStorage.getItem("token");
+    return `${API_BASE_URL}/video/${id}/thumbnail?token=${token}`;
+  },
+
   getVersionHistory: async (videoId: string, bucket: string) => {
     const { data } = await api.get(`/video/${videoId}/versions`, {
       params: { bucket },
@@ -290,6 +349,10 @@ export const videoService = {
 
   restoreVideo: async (deletedVideoId: string) => {
     await api.post(`/deleted-video/${deletedVideoId}/restore`);
+  },
+
+  permanentDeleteVideo: async (deletedVideoId: string) => {
+    await api.delete(`/deleted-video/${deletedVideoId}/permanent`);
   },
 
   recordView: async (videoId: string) => {

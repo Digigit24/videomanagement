@@ -9,6 +9,7 @@ interface UploadModalProps {
   onClose: () => void;
   onUploadComplete: () => void;
   bucket?: string;
+  folderId?: string | null;
 }
 
 interface FileUploadItem {
@@ -18,7 +19,7 @@ interface FileUploadItem {
   error?: string;
 }
 
-export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket }: UploadModalProps) {
+export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket, folderId }: UploadModalProps) {
   const { currentBucket: hookBucket } = useBucket();
   const currentBucket = bucket || hookBucket;
   const [files, setFiles] = useState<FileUploadItem[]>([]);
@@ -29,9 +30,10 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
   if (!isOpen) return null;
 
   const validateFile = (file: File): string | null => {
-    const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
-    if (!validTypes.includes(file.type)) {
-      return `${file.name}: Invalid file type. Only MP4, MOV, and WebM are allowed.`;
+    const validVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska', 'video/x-flv', 'video/x-ms-wmv', 'video/3gpp'];
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/svg+xml'];
+    if (!validVideoTypes.includes(file.type) && !validImageTypes.includes(file.type)) {
+      return `${file.name}: Invalid file type. Supported: MP4, MOV, WebM, AVI, MKV, JPG, PNG, GIF, WebP, BMP, TIFF, SVG`;
     }
     if (file.size > 50 * 1024 * 1024 * 1024) {
       return `${file.name}: File size must be less than 50GB.`;
@@ -125,7 +127,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
           setFiles(prev => prev.map((f, idx) =>
             idx === i ? { ...f, progress: percent } : f
           ));
-        });
+        }, undefined, folderId || undefined);
 
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'completed', progress: 100 } : f
@@ -208,15 +210,15 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket 
           >
             <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400" />
             <p className="text-gray-600 mb-1 text-sm">
-              Drag and drop videos here, or click to browse
+              Drag and drop videos or photos here, or click to browse
             </p>
             <p className="text-xs text-gray-400">
-              MP4, MOV, or WebM · Max 50GB each · Multiple files supported
+              Videos (MP4, MOV, WebM) or Photos (JPG, PNG, GIF, WebP) · Max 50GB
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept="video/mp4,video/quicktime,video/webm"
+              accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,image/svg+xml"
               onChange={handleFileInputChange}
               className="hidden"
               multiple

@@ -15,6 +15,8 @@ const ROLE_LABELS: Record<string, string> = {
   member: 'Member',
   project_manager: 'Project Manager',
   social_media_manager: 'Social Media Manager',
+  videographer: 'Videographer',
+  photo_editor: 'Photo Editor',
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -24,6 +26,8 @@ const ROLE_COLORS: Record<string, string> = {
   member: 'bg-gray-100 text-gray-600 border-gray-200',
   project_manager: 'bg-amber-100 text-amber-700 border-amber-200',
   social_media_manager: 'bg-teal-100 text-teal-700 border-teal-200',
+  videographer: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  photo_editor: 'bg-pink-100 text-pink-700 border-pink-200',
 };
 
 export default function UsersPage() {
@@ -185,6 +189,8 @@ export default function UsersPage() {
                   <option value="member">Member</option>
                   <option value="client">Client</option>
                   <option value="video_editor">Video Editor</option>
+                  <option value="videographer">Videographer</option>
+                  <option value="photo_editor">Photo Editor</option>
                   <option value="project_manager">Project Manager</option>
                   <option value="social_media_manager">Social Media Manager</option>
                   <option value="admin">Admin</option>

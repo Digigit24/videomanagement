@@ -612,7 +612,16 @@ export default function VideoDetail() {
               </span>
             </div>
 
-            {video.hls_ready ? (
+            {(video.media_type || 'video') === 'photo' ? (
+              <div className="w-full flex items-center justify-center bg-gray-950 p-4" style={{ minHeight: '300px' }}>
+                <img
+                  src={videoService.getPhotoUrl(video.id)}
+                  alt={video.filename}
+                  className="max-w-full max-h-[70vh] object-contain rounded"
+                  style={{ imageRendering: 'auto' }}
+                />
+              </div>
+            ) : video.hls_ready ? (
               <HLSPlayer
                 hlsUrl={hlsUrl}
                 fallbackUrl={streamUrl}

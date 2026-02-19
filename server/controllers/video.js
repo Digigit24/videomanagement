@@ -10,6 +10,7 @@ import {
   restoreDeletedVideo,
   cleanupExpiredBackups,
   deleteVideo,
+  permanentlyDeleteVideo,
 } from "../services/video.js";
 import { getVideoStream, resolveBucket } from "../services/storage.js";
 import { uploadFileToS3 } from "../services/upload.js";
@@ -22,11 +23,12 @@ const upload = multer({
   storage: multer.diskStorage({}), // Uses system temp directory
   limits: { fileSize: 50 * 1024 * 1024 * 1024 }, // 50GB
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["video/mp4", "video/quicktime", "video/webm"];
-    if (allowedTypes.includes(file.mimetype)) {
+    const allowedVideoTypes = ["video/mp4", "video/quicktime", "video/webm", "video/x-msvideo", "video/x-matroska", "video/x-flv", "video/x-ms-wmv", "video/3gpp"];
+    const allowedImageTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff", "image/svg+xml"];
+    if (allowedVideoTypes.includes(file.mimetype) || allowedImageTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only MP4, MOV, and WebM are allowed."));
+      cb(new Error("Invalid file type. Supported: MP4, MOV, WebM, AVI, MKV, JPG, PNG, GIF, WebP, BMP, TIFF, SVG"));
     }
   },
 });
@@ -118,10 +120,10 @@ export async function uploadVideo(req, res) {
 
     try {
       if (!req.file) {
-        return res.status(400).json({ error: "No video file provided" });
+        return res.status(400).json({ error: "No file provided" });
       }
 
-      // All workspace members can upload videos
+      // All workspace members can upload (permission check via role or workspace perms)
       const allowedRoles = [
         "admin",
         "video_editor",
@@ -129,44 +131,47 @@ export async function uploadVideo(req, res) {
         "social_media_manager",
         "client",
         "member",
+        "videographer",
+        "photo_editor",
       ];
       if (!allowedRoles.includes(req.user.role)) {
         return res
           .status(403)
-          .json({ error: "You do not have permission to upload videos" });
+          .json({ error: "You do not have permission to upload" });
       }
 
       const { originalname, path: filePath, size, mimetype } = req.file;
       const { bucket: resolvedBucket, prefix } = resolveBucket(req.bucket);
       const replaceVideoId = req.body.replaceVideoId || null;
+      const folderId = req.body.folderId || null;
 
-      // Sanitize filename: replace special chars / spaces with underscores to avoid
-      // S3 key encoding issues that cause NoSuchKey errors on download.
+      // Auto-detect media type from mimetype
+      const isPhoto = mimetype.startsWith("image/");
+      const mediaType = isPhoto ? "photo" : "video";
+
+      // Sanitize filename
       const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
       const timestamp = Date.now();
       const objectKey = `${prefix}${timestamp}-${safeName}`;
 
-      // Step 1: Upload the original video to S3 immediately (as a temp file).
-      // This frees server disk space as fast as possible.
-      // Use the SAME timestamp so the temp key and objectKey are consistent.
+      // Step 1: Upload to S3
       const tempS3Key = `${prefix}temp-uploads/${timestamp}-${safeName}`;
       console.log(
-        `[Upload] Uploading to S3 temp: bucket=${resolvedBucket}, key=${tempS3Key}`,
+        `[Upload] Uploading ${mediaType} to S3 temp: bucket=${resolvedBucket}, key=${tempS3Key}`,
       );
       await uploadFileToS3(resolvedBucket, tempS3Key, filePath, mimetype);
       console.log(
         `[Upload] Upload complete: bucket=${resolvedBucket}, key=${tempS3Key}`,
       );
 
-      // Step 2: Delete local temp file immediately to free server disk space
+      // Step 2: Delete local temp file
       try {
         fs.unlinkSync(filePath);
-        console.log(`Local temp file deleted: ${filePath}`);
       } catch (e) {
         console.warn(`Failed to delete local temp: ${e.message}`);
       }
 
-      // Step 3: Create video record in database
+      // Step 3: Create record in database
       const video = await createVideo({
         bucket: req.bucket,
         filename: originalname,
@@ -174,6 +179,8 @@ export async function uploadVideo(req, res) {
         size,
         uploadedBy: req.user.id,
         replaceVideoId,
+        folderId,
+        mediaType,
       });
 
       // Send notification
@@ -181,11 +188,12 @@ export async function uploadVideo(req, res) {
         const workspace = await getWorkspaceByBucket(req.bucket);
         if (workspace) {
           const userName = req.user.name || req.user.email;
+          const typeLabel = isPhoto ? "Photo" : "Video";
           await notifyWorkspaceMembers(
             workspace.id,
             req.user.id,
             "video_uploaded",
-            `New Video — ${workspace.client_name}`,
+            `New ${typeLabel} — ${workspace.client_name}`,
             `${userName} uploaded "${originalname}" to ${workspace.client_name}`,
             "video",
             video.id,
@@ -195,24 +203,42 @@ export async function uploadVideo(req, res) {
         console.error("Notification error:", e);
       }
 
-      // Step 4: Enqueue for HLS processing.
-      // The queue processes videos sequentially (one at a time) to prevent CPU overload.
-      // Each video tracks its queue position and processing progress.
-      // Pass safeName (not originalname) to ensure consistent S3 key handling.
-      processingQueue
-        .enqueue(video.id, tempS3Key, req.bucket, safeName)
-        .catch((err) => {
-          console.error(`Failed to enqueue video ${video.id}:`, err.message);
-        });
+      // Step 4: For videos, enqueue for HLS processing
+      // Photos don't need HLS processing - they're stored as-is at full quality
+      if (!isPhoto) {
+        processingQueue
+          .enqueue(video.id, tempS3Key, req.bucket, safeName)
+          .catch((err) => {
+            console.error(`Failed to enqueue video ${video.id}:`, err.message);
+          });
+      } else {
+        // For photos, copy from temp to final location and mark as ready
+        try {
+          const { copyS3Object, deleteS3Object } = await import("../services/storage.js");
+          await copyS3Object(resolvedBucket, tempS3Key, resolvedBucket, objectKey);
+          await deleteS3Object(resolvedBucket, tempS3Key);
+          // Mark photo as ready (no HLS needed)
+          const pool = (await import("../db/index.js")).getPool();
+          await pool.query(
+            `UPDATE videos SET object_key = $1, hls_ready = FALSE, thumbnail_key = $1, processing_status = 'completed' WHERE id = $2`,
+            [objectKey, video.id],
+          );
+        } catch (photoErr) {
+          console.error("Photo finalization error:", photoErr);
+          // Photo is still accessible from temp location
+        }
+      }
 
       res.status(201).json({
-        video,
-        message: "Video uploaded to storage. Processing started in background.",
+        video: { ...video, media_type: mediaType },
+        message: isPhoto
+          ? "Photo uploaded successfully."
+          : "Video uploaded to storage. Processing started in background.",
       });
     } catch (error) {
       apiError(req, error);
       if (!res.headersSent) {
-        res.status(500).json({ error: "Failed to upload video" });
+        res.status(500).json({ error: "Failed to upload" });
       }
     }
   });
@@ -244,6 +270,24 @@ export async function listDeletedVideos(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to get deleted videos" });
+  }
+}
+
+// Permanently delete a video from recycle bin
+export async function permanentDeleteVideo(req, res) {
+  try {
+    const { id } = req.params;
+
+    // Only admin can permanently delete
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Only admins can permanently delete videos" });
+    }
+
+    await permanentlyDeleteVideo(id);
+    res.json({ message: "Video permanently deleted" });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: error.message || "Failed to permanently delete video" });
   }
 }
 
