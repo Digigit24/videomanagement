@@ -80,9 +80,10 @@ export async function syncBucketVideos(bucket) {
     // Note: match without leading "/" so it works both with and without workspace prefix
     // e.g. "temp-uploads/..." (no prefix) and "workspaces/slug/temp-uploads/..." (with prefix)
     const filteredVideos = storageVideos.filter(
-      (v) => !v.object_key.includes("temp-uploads/") &&
-             !v.object_key.includes("hls/") &&
-             !v.object_key.includes("thumbnails/")
+      (v) =>
+        !v.object_key.includes("temp-uploads/") &&
+        !v.object_key.includes("hls/") &&
+        !v.object_key.includes("thumbnails/"),
     );
 
     for (const video of filteredVideos) {
@@ -168,13 +169,18 @@ export async function getBucketByVideoId(id) {
 
 export async function getVideoById(id, bucket) {
   try {
-    const result = await pool().query(
-      `SELECT v.*, u.name as uploaded_by_name, u.email as uploaded_by_email
+    let query = `SELECT v.*, u.name as uploaded_by_name, u.email as uploaded_by_email
        FROM videos v
        LEFT JOIN users u ON v.uploaded_by = u.id
-       WHERE v.id = $1 AND v.bucket = $2`,
-      [id, bucket],
-    );
+       WHERE v.id = $1`;
+    let params = [id];
+
+    if (bucket) {
+      query += ` AND v.bucket = $2`;
+      params.push(bucket);
+    }
+
+    const result = await pool().query(query, params);
 
     if (result.rows.length === 0) {
       return null;
@@ -388,7 +394,7 @@ export async function deleteVideo(videoId, userId) {
     await pool().query("DELETE FROM video_share_tokens WHERE video_id = $1", [
       videoId,
     ]);
-    await pool().query("DELETE FROM video_viewers WHERE video_id = $1", [
+    await pool().query("DELETE FROM video_views WHERE video_id = $1", [
       videoId,
     ]);
     await pool().query("DELETE FROM comments WHERE video_id = $1", [videoId]);

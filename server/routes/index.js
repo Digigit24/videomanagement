@@ -211,7 +211,7 @@ router.get(
 router.get("/deleted-videos", authenticate, validateBucket, listDeletedVideos);
 router.post("/deleted-video/:id/restore", authenticate, restoreVideo);
 
-// HLS streaming
+// HLS streaming (master playlist, variant playlists, segments)
 router.get("/hls/:id/*", authenticateStream, validateBucket, streamHLS);
 
 // Attachment streaming
@@ -428,8 +428,7 @@ router.post("/public/video/:videoId/reviews", validateShareAccess, addReview);
 router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const hlsPath = req.params[0];
-  const { getObjectStream } =
-    await import("../services/storage.js");
+  const { getObjectStream } = await import("../services/storage.js");
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
 
   try {
@@ -441,10 +440,7 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
     // Derive the HLS directory from the DB's hls_path (includes workspace prefix)
     const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
     const objectKey = `${hlsDir}/${hlsPath}`;
-    const stream = await getObjectStream(
-      video.bucket,
-      objectKey,
-    );
+    const stream = await getObjectStream(video.bucket, objectKey);
 
     if (hlsPath.endsWith(".m3u8")) {
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
@@ -464,7 +460,8 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
 router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
-  const { getVideoStream, resolveBucket: resolve } = await import("../services/storage.js");
+  const { getVideoStream, resolveBucket: resolve } =
+    await import("../services/storage.js");
   const pool = (await import("../db/index.js")).getPool();
 
   try {

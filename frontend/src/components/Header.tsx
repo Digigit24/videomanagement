@@ -42,7 +42,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
   const visibleNavItems = NAV_ITEMS.filter(item => item.roles.includes(userRole));
 
   return (
-    <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+    <header className="bg-white border-b border-gray-100 sticky top-0 z-[100]">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14">
           {/* Left: Logo + Nav */}

@@ -23,6 +23,31 @@ app.use(
 );
 app.use(express.json());
 
+// Request logger
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const logFile = path.join(__dirname, "logs", "http.log");
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const msg = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${duration}ms)\n`;
+    console.log(msg.trim());
+    try {
+      if (!fs.existsSync(path.dirname(logFile)))
+        fs.mkdirSync(path.dirname(logFile), { recursive: true });
+      fs.appendFileSync(logFile, msg);
+    } catch (e) {
+      console.error("Failed to write log:", e);
+    }
+  });
+  next();
+});
+
 // Routes
 // We mount on both /api and / to handle different proxy configurations
 // (some proxies strip the /api prefix, others don't)

@@ -107,9 +107,13 @@ async function resetAll() {
       "activity_logs",
       "notifications",
       "video_share_tokens",
-      "video_viewers",
       "video_reviews",
       "workspace_video_stats",
+      "workspaces",
+      "workspace_members",
+      "invitations",
+      "chat_messages",
+      "users",
     ];
 
     for (const table of tablesToClear) {

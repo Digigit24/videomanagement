@@ -66,6 +66,13 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       const hls = new Hls({
         enableWorker: true,
         startLevel: -1, // auto
+        xhrSetup: function(xhr, url) {
+          const token = localStorage.getItem('token');
+          if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          }
+          // Also allow passing bucket in query if needed, but headers are cleaner
+        }
       });
 
       hls.loadSource(hlsUrl);
@@ -89,12 +96,25 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
+        console.error('HLS error:', data);
         if (data.fatal) {
-          console.warn('HLS fatal error, falling back to direct stream');
-          hls.destroy();
-          video.src = fallbackUrl;
-          setLoading(false);
-          setLevels([]);
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn('HLS network error, falling back to direct stream');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('HLS media error, trying recovery');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error('HLS unrecoverable error, destructive fallback');
+              hls.destroy();
+              video.src = fallbackUrl;
+              setLoading(false);
+              setLevels([]);
+              break;
+          }
         }
       });
 

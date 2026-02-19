@@ -26,7 +26,10 @@ export default function Login({ onLogin }: LoginProps) {
       onLogin(data.user.email, data.token, data.user.name, data.user.id, data.user.role, data.user.avatar_url);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed');
+      console.error('Login error:', err);
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || 'Login failed';
+      setError(status ? `Error ${status}: ${msg}` : msg);
     } finally {
       setLoading(false);
     }

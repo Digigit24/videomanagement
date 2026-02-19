@@ -394,7 +394,18 @@ export default function VideoDetail() {
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (currentBucket) {
+                navigate(`/workspace/${currentBucket}`);
+              } else {
+                navigate('/');
+              }
+            }}
+            className="text-gray-500 hover:text-gray-700 flex-shrink-0"
+          >
             <ArrowLeft className="h-4 w-4 mr-1" />
             <span className="hidden sm:inline">Back</span>
           </Button>

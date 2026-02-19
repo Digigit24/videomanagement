@@ -1,10 +1,9 @@
 import axios from "axios";
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "https://video.celiyo.com/api";
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export const APP_URL =
-  import.meta.env.VITE_APP_URL || "https://videomanagement.celiyo.com";
+export const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:3000";
 
 const api = axios.create({
   baseURL: API_BASE_URL,

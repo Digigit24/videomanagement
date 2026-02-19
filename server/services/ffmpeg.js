@@ -6,7 +6,11 @@ import path from "path";
 import os from "os";
 import { uploadToS3 } from "./upload.js";
 import { getPool } from "../db/index.js";
-import { resolveBucket, downloadFromS3ToFile, deleteFromS3 } from "./storage.js";
+import {
+  resolveBucket,
+  downloadFromS3ToFile,
+  deleteFromS3,
+} from "./storage.js";
 
 // Use node-module FFmpeg binaries instead of system-installed ones.
 // This avoids needing a system ffmpeg install, keeps RAM/storage low,
@@ -83,10 +87,15 @@ export async function processVideoToHLS(
   const tempDir = path.join(os.tmpdir(), `hls-${videoId}`);
   const hlsBase = `${prefix}hls/${videoId}`;
   // Use videoId in the local path (not filename) to avoid path issues
-  const localInputPath = path.join(os.tmpdir(), `input-${videoId}${path.extname(originalFilename)}`);
+  const localInputPath = path.join(
+    os.tmpdir(),
+    `input-${videoId}${path.extname(originalFilename)}`,
+  );
 
   console.log(`[FFmpeg] Processing video ${videoId}`);
-  console.log(`[FFmpeg]   bucketName=${bucketName}, resolvedBucket=${bucket}, prefix="${prefix}"`);
+  console.log(
+    `[FFmpeg]   bucketName=${bucketName}, resolvedBucket=${bucket}, prefix="${prefix}"`,
+  );
   console.log(`[FFmpeg]   tempS3Key=${tempS3Key}`);
   console.log(`[FFmpeg]   localInputPath=${localInputPath}`);
   console.log(`[FFmpeg]   hlsBase=${hlsBase}`);
@@ -96,7 +105,9 @@ export async function processVideoToHLS(
 
     // --- Step 1: Download temp original from S3 ---
     report("downloading", PROGRESS_DOWNLOAD.start);
-    console.log(`[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${tempS3Key}`);
+    console.log(
+      `[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${tempS3Key}`,
+    );
     await downloadFromS3ToFile(bucket, tempS3Key, localInputPath);
 
     // Verify the downloaded file exists and has content
@@ -105,10 +116,14 @@ export async function processVideoToHLS(
     }
     const fileSize = fs.statSync(localInputPath).size;
     if (fileSize === 0) {
-      throw new Error(`Downloaded file is empty (0 bytes) at ${localInputPath}`);
+      throw new Error(
+        `Downloaded file is empty (0 bytes) at ${localInputPath}`,
+      );
     }
     const fileSizeMB = (fileSize / 1024 / 1024).toFixed(1);
-    console.log(`[FFmpeg] Step 1 complete: Downloaded ${fileSizeMB} MB to ${localInputPath}`);
+    console.log(
+      `[FFmpeg] Step 1 complete: Downloaded ${fileSizeMB} MB to ${localInputPath}`,
+    );
     report("downloading", PROGRESS_DOWNLOAD.end);
 
     // --- Step 2: Generate thumbnail ---
@@ -123,10 +138,15 @@ export async function processVideoToHLS(
         "UPDATE videos SET thumbnail_key = $1 WHERE id = $2",
         [thumbKey, videoId],
       );
-      console.log(`[FFmpeg] Step 2 complete: Thumbnail generated for video ${videoId}`);
+      console.log(
+        `[FFmpeg] Step 2 complete: Thumbnail generated for video ${videoId}`,
+      );
     } catch (thumbErr) {
       // Non-fatal: continue processing even if thumbnail fails
-      console.error(`[FFmpeg] Step 2 warning: Thumbnail generation failed for ${videoId}:`, thumbErr.message);
+      console.error(
+        `[FFmpeg] Step 2 warning: Thumbnail generation failed for ${videoId}:`,
+        thumbErr.message,
+      );
     }
     report("generating_thumbnail", PROGRESS_THUMBNAIL.end);
 
@@ -160,7 +180,8 @@ export async function processVideoToHLS(
       const outputDir = path.join(tempDir, quality.name);
       fs.mkdirSync(outputDir, { recursive: true });
 
-      const qualityBaseProgress = PROGRESS_TRANSCODE.start + qi * perQualityRange;
+      const qualityBaseProgress =
+        PROGRESS_TRANSCODE.start + qi * perQualityRange;
       const stepName = `transcoding_${quality.name}`;
 
       report(stepName, qualityBaseProgress);
@@ -168,10 +189,15 @@ export async function processVideoToHLS(
 
       // Transcode with retry + progress reporting
       await transcodeWithRetry(
-        localInputPath, outputDir, quality, videoId, duration,
+        localInputPath,
+        outputDir,
+        quality,
+        videoId,
+        duration,
         (ffmpegPercent) => {
           // Map FFmpeg's 0-100% to this quality's portion of overall progress
-          const qualityProgress = qualityBaseProgress + (ffmpegPercent / 100) * perQualityRange * 0.8;
+          const qualityProgress =
+            qualityBaseProgress + (ffmpegPercent / 100) * perQualityRange * 0.8;
           report(stepName, qualityProgress);
         },
       );
@@ -182,7 +208,9 @@ export async function processVideoToHLS(
       report(uploadStepName, uploadBaseProgress);
 
       const files = fs.readdirSync(outputDir);
-      console.log(`[FFmpeg] Uploading ${files.length} ${quality.name} files to S3...`);
+      console.log(
+        `[FFmpeg] Uploading ${files.length} ${quality.name} files to S3...`,
+      );
 
       for (let fi = 0; fi < files.length; fi++) {
         const file = files[fi];
@@ -195,12 +223,16 @@ export async function processVideoToHLS(
         await uploadToS3(bucket, objectKey, fileBuffer, contentType);
 
         // Report upload progress per file
-        const uploadProgress = uploadBaseProgress + ((fi + 1) / files.length) * (perQualityRange * 0.2);
+        const uploadProgress =
+          uploadBaseProgress +
+          ((fi + 1) / files.length) * (perQualityRange * 0.2);
         report(uploadStepName, uploadProgress);
       }
 
       report(uploadStepName, qualityBaseProgress + perQualityRange);
-      console.log(`[FFmpeg] Step 4.${qi + 1} complete: ${quality.name} (${files.length} files) uploaded`);
+      console.log(
+        `[FFmpeg] Step 4.${qi + 1} complete: ${quality.name} (${files.length} files) uploaded`,
+      );
 
       variants.push({
         name: quality.name,
@@ -228,7 +260,9 @@ export async function processVideoToHLS(
       [masterKey, videoId],
     );
 
-    console.log(`[FFmpeg] Step 6 complete: HLS ready for video ${videoId}, masterKey=${masterKey}`);
+    console.log(
+      `[FFmpeg] Step 6 complete: HLS ready for video ${videoId}, masterKey=${masterKey}`,
+    );
     report("finalizing", 95);
 
     // --- Step 7: Cleanup local temp files ---
@@ -238,16 +272,23 @@ export async function processVideoToHLS(
     // --- Step 8: Delete temp original from S3 ---
     try {
       await deleteFromS3(bucket, tempS3Key);
-      console.log(`[FFmpeg] Step 8 complete: Deleted temp S3 file ${tempS3Key}`);
+      console.log(
+        `[FFmpeg] Step 8 complete: Deleted temp S3 file ${tempS3Key}`,
+      );
     } catch (e) {
-      console.warn(`[FFmpeg] Step 8 warning: Failed to delete temp S3 file ${tempS3Key}: ${e.message}`);
+      console.warn(
+        `[FFmpeg] Step 8 warning: Failed to delete temp S3 file ${tempS3Key}: ${e.message}`,
+      );
     }
 
     report("completed", 100);
     console.log(`[FFmpeg] Processing complete for video ${videoId}`);
     return masterKey;
   } catch (error) {
-    console.error(`[FFmpeg] FAILED processing video ${videoId}:`, error.message);
+    console.error(
+      `[FFmpeg] FAILED processing video ${videoId}:`,
+      error.message,
+    );
     console.error(`[FFmpeg]   S3 key was: ${tempS3Key}`);
     console.error(`[FFmpeg]   Bucket was: ${bucket}`);
     console.error(`[FFmpeg]   Full error:`, error);
@@ -260,11 +301,24 @@ export async function processVideoToHLS(
 /**
  * Transcode a single quality level with retry.
  */
-async function transcodeWithRetry(inputPath, outputDir, quality, videoId, duration, onFFmpegProgress) {
+async function transcodeWithRetry(
+  inputPath,
+  outputDir,
+  quality,
+  videoId,
+  duration,
+  onFFmpegProgress,
+) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_TRANSCODE_RETRIES + 1; attempt++) {
     try {
-      await transcodeToHLS(inputPath, outputDir, quality, duration, onFFmpegProgress);
+      await transcodeToHLS(
+        inputPath,
+        outputDir,
+        quality,
+        duration,
+        onFFmpegProgress,
+      );
       return;
     } catch (error) {
       lastError = error;
@@ -278,7 +332,9 @@ async function transcodeWithRetry(inputPath, outputDir, quality, videoId, durati
           for (const f of files) {
             fs.unlinkSync(path.join(outputDir, f));
           }
-        } catch (_) { /* ignore cleanup errors */ }
+        } catch (_) {
+          /* ignore cleanup errors */
+        }
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -320,7 +376,7 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
         `-b:a ${quality.audioBitrate}`,
         `-hls_time 6`,
         `-hls_list_size 0`,
-        `-hls_segment_filename ${path.join(outputDir, "segment_%03d.ts")}`,
+        `-hls_segment_filename ${path.join(outputDir, "segment_%03d.ts").replace(/\\/g, "/")}`,
         `-f hls`,
       ])
       .output(path.join(outputDir, "playlist.m3u8"))
@@ -337,7 +393,10 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
           // Parse timemark (HH:MM:SS.ms) to seconds
           const parts = progress.timemark.split(":");
           if (parts.length === 3) {
-            const secs = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
+            const secs =
+              parseInt(parts[0]) * 3600 +
+              parseInt(parts[1]) * 60 +
+              parseFloat(parts[2]);
             percent = Math.min(100, (secs / duration) * 100);
           }
         }
@@ -353,7 +412,9 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
         resolve();
       })
       .on("error", (err) => {
-        console.error(`[FFmpeg] Transcode ${quality.name} error: ${err.message}`);
+        console.error(
+          `[FFmpeg] Transcode ${quality.name} error: ${err.message}`,
+        );
         reject(err);
       });
 

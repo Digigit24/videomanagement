@@ -102,7 +102,11 @@ export async function getVideoStream(
     const response = await getS3Client().send(command);
     return response.Body;
   } catch (error) {
-    console.error("Error getting video stream:", error);
+    if (error.Code === "NoSuchKey") {
+      console.warn(`Video not found in S3: ${objectKey}`);
+    } else {
+      console.error("Error getting video stream:", error);
+    }
     throw new Error("Failed to get video stream");
   }
 }
@@ -117,7 +121,11 @@ export async function getObjectStream(bucketName, objectKey) {
     const response = await getS3Client().send(command);
     return response.Body;
   } catch (error) {
-    console.error("Error getting object stream:", error);
+    if (error.Code === "NoSuchKey") {
+      console.warn(`Object not found in S3: ${objectKey}`);
+    } else {
+      console.error("Error getting object stream:", error);
+    }
     throw new Error("Failed to get object stream");
   }
 }
@@ -136,7 +144,11 @@ export async function getVideoMetadata(bucketName, objectKey) {
       contentLength: response.ContentLength,
     };
   } catch (error) {
-    console.error("Error getting video metadata:", error);
+    if (error.Code === "NoSuchKey") {
+      console.warn(`Metadata not found in S3: ${objectKey}`);
+    } else {
+      console.error("Error getting video metadata:", error);
+    }
     throw new Error("Failed to get video metadata");
   }
 }
@@ -155,8 +167,12 @@ export async function downloadFromS3ToFile(bucketName, objectKey, destPath) {
     const response = await getS3Client().send(command);
     await pipeline(response.Body, fs.createWriteStream(destPath));
   } catch (error) {
-    console.error(`[S3] downloadFromS3ToFile FAILED: Bucket=${bucket}, Key=${objectKey}, Dest=${destPath}`);
-    console.error(`[S3]   Error code: ${error.Code || error.name}, Message: ${error.message}`);
+    console.error(
+      `[S3] downloadFromS3ToFile FAILED: Bucket=${bucket}, Key=${objectKey}, Dest=${destPath}`,
+    );
+    console.error(
+      `[S3]   Error code: ${error.Code || error.name}, Message: ${error.message}`,
+    );
     throw error;
   }
 }

@@ -142,7 +142,7 @@ export async function uploadVideo(req, res) {
 
       // Sanitize filename: replace special chars / spaces with underscores to avoid
       // S3 key encoding issues that cause NoSuchKey errors on download.
-      const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
       const timestamp = Date.now();
       const objectKey = `${prefix}${timestamp}-${safeName}`;
 
@@ -150,9 +150,13 @@ export async function uploadVideo(req, res) {
       // This frees server disk space as fast as possible.
       // Use the SAME timestamp so the temp key and objectKey are consistent.
       const tempS3Key = `${prefix}temp-uploads/${timestamp}-${safeName}`;
-      console.log(`[Upload] Uploading to S3 temp: bucket=${resolvedBucket}, key=${tempS3Key}`);
+      console.log(
+        `[Upload] Uploading to S3 temp: bucket=${resolvedBucket}, key=${tempS3Key}`,
+      );
       await uploadFileToS3(resolvedBucket, tempS3Key, filePath, mimetype);
-      console.log(`[Upload] Upload complete: bucket=${resolvedBucket}, key=${tempS3Key}`);
+      console.log(
+        `[Upload] Upload complete: bucket=${resolvedBucket}, key=${tempS3Key}`,
+      );
 
       // Step 2: Delete local temp file immediately to free server disk space
       try {
@@ -416,6 +420,9 @@ export async function streamHLS(req, res) {
     const video = await getVideoById(id, req.bucket);
 
     if (!video || !video.hls_ready) {
+      console.warn(
+        `[HLS] Video ${id} not found or not HLS-ready. Bucket: ${req.bucket}`,
+      );
       return res
         .status(404)
         .json({ error: "HLS not available for this video" });
@@ -428,11 +435,10 @@ export async function streamHLS(req, res) {
       ? "application/vnd.apple.mpegurl"
       : "video/MP2T";
 
-    const stream = await getVideoStream(req.bucket, objectKey);
+    const stream = await getVideoStream(req.bucket || video.bucket, objectKey);
 
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "public, max-age=31536000");
-    res.setHeader("Access-Control-Allow-Origin", "*");
     stream.pipe(res);
   } catch (error) {
     apiError(req, error);

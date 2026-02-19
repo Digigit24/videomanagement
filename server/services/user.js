@@ -39,7 +39,7 @@ export async function createUser(
       `INSERT INTO users (email, password, name, role, is_org_member) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING id, email, name, role, avatar_url, is_org_member, created_at`,
-      [email, hashedPassword, name, role, orgMember],
+      [email.trim().toLowerCase(), hashedPassword, name, role, orgMember],
     );
 
     return result.rows[0];
@@ -54,8 +54,8 @@ export async function createUser(
 export async function getUserByEmail(email) {
   try {
     const result = await getPool().query(
-      "SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL",
-      [email],
+      "SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL",
+      [email.trim()],
     );
     return result.rows[0] || null;
   } catch (error) {
