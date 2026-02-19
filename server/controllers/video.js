@@ -138,15 +138,21 @@ export async function uploadVideo(req, res) {
 
       const { originalname, path: filePath, size, mimetype } = req.file;
       const { bucket: resolvedBucket, prefix } = resolveBucket(req.bucket);
-      const objectKey = `${prefix}${Date.now()}-${originalname}`;
       const replaceVideoId = req.body.replaceVideoId || null;
+
+      // Sanitize filename: replace special chars / spaces with underscores to avoid
+      // S3 key encoding issues that cause NoSuchKey errors on download.
+      const safeName = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const timestamp = Date.now();
+      const objectKey = `${prefix}${timestamp}-${safeName}`;
 
       // Step 1: Upload the original video to S3 immediately (as a temp file).
       // This frees server disk space as fast as possible.
-      const tempS3Key = `${prefix}temp-uploads/${Date.now()}-${originalname}`;
-      console.log(`Uploading video to S3 temp: ${tempS3Key}`);
+      // Use the SAME timestamp so the temp key and objectKey are consistent.
+      const tempS3Key = `${prefix}temp-uploads/${timestamp}-${safeName}`;
+      console.log(`[Upload] Uploading to S3 temp: bucket=${resolvedBucket}, key=${tempS3Key}`);
       await uploadFileToS3(resolvedBucket, tempS3Key, filePath, mimetype);
-      console.log(`Video uploaded to S3 temp: ${tempS3Key}`);
+      console.log(`[Upload] Upload complete: bucket=${resolvedBucket}, key=${tempS3Key}`);
 
       // Step 2: Delete local temp file immediately to free server disk space
       try {
@@ -188,8 +194,9 @@ export async function uploadVideo(req, res) {
       // Step 4: Enqueue for HLS processing.
       // The queue processes videos sequentially (one at a time) to prevent CPU overload.
       // Each video tracks its queue position and processing progress.
+      // Pass safeName (not originalname) to ensure consistent S3 key handling.
       processingQueue
-        .enqueue(video.id, tempS3Key, req.bucket, originalname)
+        .enqueue(video.id, tempS3Key, req.bucket, safeName)
         .catch((err) => {
           console.error(`Failed to enqueue video ${video.id}:`, err.message);
         });

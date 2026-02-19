@@ -77,10 +77,12 @@ export async function syncBucketVideos(bucket) {
 
     // Exclude temp-uploads, hls, and thumbnails directories from sync —
     // those are managed by the upload/processing pipeline, not raw video files.
+    // Note: match without leading "/" so it works both with and without workspace prefix
+    // e.g. "temp-uploads/..." (no prefix) and "workspaces/slug/temp-uploads/..." (with prefix)
     const filteredVideos = storageVideos.filter(
-      (v) => !v.object_key.includes("/temp-uploads/") &&
-             !v.object_key.includes("/hls/") &&
-             !v.object_key.includes("/thumbnails/")
+      (v) => !v.object_key.includes("temp-uploads/") &&
+             !v.object_key.includes("hls/") &&
+             !v.object_key.includes("thumbnails/")
     );
 
     for (const video of filteredVideos) {
@@ -110,8 +112,9 @@ export async function syncBucketVideos(bucket) {
 
 export async function getVideos(bucket) {
   try {
-    await syncBucketVideos(bucket);
-
+    // Videos are created in the DB during upload (createVideo) — no need to
+    // sync with S3 on every list request. The old syncBucketVideos call was
+    // creating duplicate entries for temp-upload files still in S3.
     const result = await pool().query(
       `SELECT v.*, u.name as uploaded_by_name, u.email as uploaded_by_email
        FROM videos v

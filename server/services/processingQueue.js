@@ -26,6 +26,9 @@ class ProcessingQueue {
     console.log(
       `[Queue] Video ${videoId} enqueued. Queue length: ${this.queue.length}, processing: ${this.processing}`
     );
+    console.log(
+      `[Queue]   tempS3Key=${tempS3Key}, bucket=${bucketName}, filename=${originalFilename}`
+    );
 
     // Start processing if not already running
     this.processNext();
@@ -89,10 +92,13 @@ class ProcessingQueue {
     );
 
     try {
+      // Mark as processing immediately so the frontend shows the right status
+      await this.updateDB(job.videoId, "processing", 0, "downloading");
+
       // Progress callback - called by ffmpeg.js during processing
       const onProgress = (step, progress) => {
         this.updateDB(job.videoId, "processing", progress, step).catch((e) =>
-          console.warn(`[Queue] DB update failed: ${e.message}`)
+          console.warn(`[Queue] DB progress update failed: ${e.message}`)
         );
       };
 
@@ -105,10 +111,15 @@ class ProcessingQueue {
       );
 
       await this.updateDB(job.videoId, "completed", 100, null);
-      console.log(`[Queue] Video ${job.videoId} processing completed.`);
+      console.log(`[Queue] Video ${job.videoId} processing completed successfully.`);
     } catch (err) {
-      console.error(`[Queue] Video ${job.videoId} processing failed:`, err.message);
-      await this.updateDB(job.videoId, "failed", 0, "error");
+      console.error(`[Queue] Video ${job.videoId} processing FAILED:`, err.message);
+      // Ensure failed status is set in DB so the frontend shows the error
+      try {
+        await this.updateDB(job.videoId, "failed", 0, `error: ${err.message.substring(0, 200)}`);
+      } catch (dbErr) {
+        console.error(`[Queue] CRITICAL: Failed to update DB failure status for ${job.videoId}:`, dbErr.message);
+      }
     }
 
     this.processing = false;
