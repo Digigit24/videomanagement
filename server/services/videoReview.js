@@ -43,7 +43,7 @@ export async function createReview(videoId, reviewerName, content, replyTo) {
     [videoId, reviewerName, content, replyTo || null],
   );
 
-  // Fetch with reply info
+  // Fetch with reply info and attachment
   const review = await getPool().query(
     `SELECT r.*,
             rr.content as reply_content,
@@ -57,6 +57,26 @@ export async function createReview(videoId, reviewerName, content, replyTo) {
   return review.rows[0];
 }
 
+export async function createReviewAttachment(
+  reviewId,
+  videoId,
+  filename,
+  objectKey,
+  size,
+  contentType,
+) {
+  try {
+    await getPool().query(
+      `INSERT INTO video_review_attachments (review_id, video_id, filename, object_key, size, content_type)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [reviewId, videoId, filename, objectKey, size, contentType],
+    );
+  } catch (error) {
+    console.error("Error creating review attachment:", error);
+    throw error;
+  }
+}
+
 export async function getVideoReviews(videoId) {
   const result = await getPool().query(
     `SELECT r.*,
@@ -68,7 +88,37 @@ export async function getVideoReviews(videoId) {
      ORDER BY r.created_at ASC`,
     [videoId],
   );
-  return result.rows;
+
+  const reviews = result.rows;
+  if (reviews.length > 0) {
+    const reviewIds = reviews.map((r) => r.id);
+    const attachments = await getPool().query(
+      `SELECT a.*, v.bucket 
+       FROM video_review_attachments a
+       JOIN videos v ON a.video_id = v.id
+       WHERE a.review_id = ANY($1)`,
+      [reviewIds],
+    );
+
+    const attachmentMap = {};
+    attachments.rows.forEach((att) => {
+      attachmentMap[att.review_id] = {
+        id: att.id,
+        filename: att.filename,
+        size: att.size,
+        content_type: att.content_type,
+        url: `/api/stream-attachment/${att.bucket}/${att.object_key}`,
+      };
+    });
+
+    reviews.forEach((r) => {
+      if (attachmentMap[r.id]) {
+        r.attachment = attachmentMap[r.id];
+      }
+    });
+  }
+
+  return reviews;
 }
 
 // Get video info for public pages (by video ID, no auth needed if share token valid)

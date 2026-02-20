@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
+import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Review {
   id: string;
@@ -14,6 +15,13 @@ interface Review {
   reply_content?: string;
   reply_reviewer_name?: string;
   created_at: string;
+  attachment?: {
+    id: string;
+    filename: string;
+    size: number;
+    content_type: string;
+    url: string;
+  };
 }
 
 const QUICK_REACTIONS = [
@@ -21,6 +29,12 @@ const QUICK_REACTIONS = [
   { emoji: "✅", label: "Approved" },
   { emoji: "🔄", label: "Needs changes" },
   { emoji: "❤️", label: "Love it" },
+];
+
+const EMOJI_CATEGORIES = [
+  { label: "Smileys", emojis: ["😊", "😂", "🤣", "😍", "🥰", "😘", "😜", "🤪", "😎", "🤩", "🥳", "😅", "😇", "🙂", "😉", "😋"] },
+  { label: "Gestures", emojis: ["👍", "👎", "👏", "🙌", "🤝", "💪", "✌️", "🤞", "👌", "🫡", "👋", "🙏", "💅", "🤙", "👀", "🫶"] },
+  { label: "Hearts", emojis: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💯", "💕", "💖", "💗", "💝", "❣️", "💔", "🫀"] },
 ];
 
 export default function VideoReview() {
@@ -59,6 +73,10 @@ export default function VideoReview() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
+  const [rotation, setRotation] = useState(0);
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (videoId) {
@@ -314,6 +332,30 @@ export default function VideoReview() {
     setShowQualityMenu(false);
   }, []);
 
+  const toggleRotation = useCallback(() => {
+    setRotation((prev) => (prev + 90) % 360);
+  }, []);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setAttachment(file);
+    e.target.value = "";
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const cursorPos = inputRef.current?.selectionStart || message.length;
+    const newValue = message.slice(0, cursorPos) + emoji + message.slice(cursorPos);
+    setMessage(newValue);
+    setTimeout(() => {
+      if (inputRef.current) {
+        const newPos = cursorPos + emoji.length;
+        inputRef.current.selectionStart = newPos;
+        inputRef.current.selectionEnd = newPos;
+        inputRef.current.focus();
+      }
+    }, 0);
+  };
+
   const formatTime = (seconds: number) => {
     if (isNaN(seconds)) return '0:00';
     const h = Math.floor(seconds / 3600);
@@ -364,10 +406,13 @@ export default function VideoReview() {
         message.trim(),
         replyTo?.id,
         token,
+        attachment || undefined,
       );
       setReviews(prev => [...prev, review]);
       setMessage('');
       setReplyTo(null);
+      setAttachment(null);
+      setShowEmojiPicker(false);
       isNearBottomRef.current = true;
       inputRef.current?.focus();
       if (inputRef.current) inputRef.current.style.height = 'auto';
@@ -378,24 +423,63 @@ export default function VideoReview() {
     }
   };
 
-  const handleQuickReaction = async (text: string) => {
-    if (sending) return;
-    setSending(true);
-    try {
-      const review = await publicVideoService.addReview(
-        videoId!,
-        reviewerName,
-        text,
-        undefined,
-        token,
-      );
-      setReviews(prev => [...prev, review]);
-      isNearBottomRef.current = true;
-    } catch (err) {
-      console.error('Failed to send reaction:', err);
-    } finally {
-      setSending(false);
-    }
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  };
+
+  const getFileIcon = (ct: string) => {
+    if (ct?.startsWith('image/')) return Image;
+    if (ct?.startsWith('video/')) return FileVideo;
+    if (ct?.includes('pdf')) return FileText;
+    return File;
+  };
+
+  const renderAttachment = (att: { filename: string; content_type: string; size: number; url: string }) => {
+    const Icon = getFileIcon(att.content_type);
+    const isImage = att.content_type.startsWith('image/');
+    const isVideo = att.content_type.startsWith('video/');
+
+    return (
+      <div className="mt-2 text-left">
+        {isImage ? (
+          <div className="relative group/att max-w-full">
+            <img 
+              src={att.url} 
+              alt={att.filename} 
+              className="max-h-60 rounded-lg object-contain bg-black/5 cursor-pointer hover:opacity-95 transition-opacity"
+              onClick={() => window.open(att.url, '_blank')}
+            />
+            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/att:opacity-100 transition-opacity">
+              <a href={att.url} download={att.filename} className="p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70">
+                <Download className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          </div>
+        ) : isVideo ? (
+          <div className="relative group/att max-w-[300px] aspect-video bg-black rounded-lg overflow-hidden">
+            <video src={att.url} className="w-full h-full object-contain" controls />
+          </div>
+        ) : (
+          <a
+            href={att.url}
+            download={att.filename}
+            className="flex items-center gap-3 px-3 py-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors w-fit max-w-full"
+          >
+            <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Icon className="h-5 w-5 text-blue-600" />
+            </div>
+            <div className="min-w-0 pr-2">
+              <p className="text-xs font-semibold truncate leading-tight text-gray-900">{att.filename}</p>
+              <p className="text-[10px] mt-0.5 text-gray-500">{formatFileSize(att.size)}</p>
+            </div>
+            <Download className="h-4 w-4 text-gray-400 flex-shrink-0 ml-auto" />
+          </a>
+        )}
+      </div>
+    );
   };
 
   // --- Render states ---
@@ -488,33 +572,27 @@ export default function VideoReview() {
         {/* Video Player Section */}
         <div
           ref={playerContainerRef}
-          className={`w-full md:flex-1 bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group ${
-            isFullscreen ? '' : 'h-[35vh] sm:h-[45vh] md:h-full'
-          }`}
+          className={cn(
+            "w-full md:flex-1 bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group transition-all duration-300",
+            isFullscreen ? "" : "h-[40vh] sm:h-[45vh] md:h-full"
+          )}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
         >
-          {/* Processing state */}
-          {processing ? (
-            <div className="flex flex-col items-center justify-center text-center px-6">
-              <div className="w-10 h-10 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mb-4" />
-              <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
-              <p className="text-gray-500 text-xs max-w-xs">
-                Your video is being transcoded into multiple quality levels. This may take a few moments.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Video loading spinner */}
-              {videoLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
-                    <p className="text-gray-400 text-sm">Loading video...</p>
-                  </div>
-                </div>
-              )}
-
+          {/* Rotating Content: Video or Processing UI */}
+          <div 
+            className="w-full h-full flex items-center justify-center transition-transform duration-500 ease-in-out"
+            style={{ transform: `rotate(${rotation}deg)` }}
+          >
+            {processing ? (
+              <div className="flex flex-col items-center justify-center text-center px-6">
+                <div className="w-10 h-10 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mb-4" />
+                <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
+                <p className="text-gray-500 text-xs max-w-xs">
+                  Your video is being transcoded into multiple quality levels. This may take a few moments.
+                </p>
+              </div>
+            ) : (
               <video
                 ref={videoRef}
                 className="w-full h-full object-contain cursor-pointer"
@@ -528,11 +606,25 @@ export default function VideoReview() {
                 onWaiting={() => setVideoLoading(true)}
                 onPlaying={() => setVideoLoading(false)}
               />
+            )}
+          </div>
+
+          {/* Non-Rotating Overlays: Loading, Controls, etc. */}
+          {!processing && (
+            <>
+              {videoLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 pointer-events-none">
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
+                    <p className="text-gray-400 text-sm">Loading video...</p>
+                  </div>
+                </div>
+              )}
 
               {/* Center play overlay - only on initial state */}
               {!isPlaying && !videoLoading && (
                 <div
-                  className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+                  className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10"
                   onClick={togglePlay}
                 >
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
@@ -543,9 +635,10 @@ export default function VideoReview() {
 
               {/* Bottom controls overlay */}
               <div
-                className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-3 sm:px-4 pb-2.5 sm:pb-3 pt-12 transition-opacity duration-300 z-20 ${
-                  showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
+                className={cn(
+                  "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-3 sm:px-4 pb-2.5 sm:pb-3 pt-12 transition-opacity duration-300 z-20",
+                  showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+                )}
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Progress bar */}
@@ -651,6 +744,15 @@ export default function VideoReview() {
                       {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                     </button>
 
+                    {/* Rotate Toggle */}
+                    <button 
+                      onClick={toggleRotation} 
+                      className="text-white hover:text-white/80 transition-colors p-1"
+                      title="Rotate Video"
+                    >
+                      <RotateCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </button>
+
                     {/* Fullscreen */}
                     <button onClick={toggleFullscreen} className="text-white hover:text-white/80 transition-colors p-1">
                       {isFullscreen
@@ -750,6 +852,7 @@ export default function VideoReview() {
                           }`}
                         >
                           {review.content}
+                          {review.attachment && renderAttachment(review.attachment)}
                         </div>
 
                         <button
@@ -793,58 +896,151 @@ export default function VideoReview() {
 
           {/* Input Area */}
           <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0 safe-pb">
+            {/* Attachment preview */}
+            {attachment && (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 bg-emerald-100 rounded flex items-center justify-center flex-shrink-0">
+                    {attachment.type.startsWith('image/') ? (
+                      <Image className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <Paperclip className="h-4 w-4 text-emerald-600" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-emerald-900 truncate">{attachment.name}</p>
+                    <p className="text-[10px] text-emerald-600">{formatFileSize(attachment.size)}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setAttachment(null)}
+                  className="p-1 hover:bg-emerald-100 rounded-full text-emerald-500 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
             {replyTo && (
               <div className="flex items-center justify-between bg-blue-50/50 border border-blue-100 rounded-lg px-3 py-2 mb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Reply className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold text-blue-700 flex items-center gap-1">
-                      Replying to {replyTo.reviewer_name}
-                    </p>
-                    <p className="text-[10px] text-blue-600/70 truncate max-w-[200px]">{replyTo.content}</p>
+                    <p className="text-[10px] font-bold text-blue-900 truncate">Replying to {replyTo.reviewer_name}</p>
+                    <p className="text-[10px] text-blue-600 truncate italic">{replyTo.content}</p>
                   </div>
                 </div>
-                <button
+                <button 
                   onClick={() => setReplyTo(null)}
-                  className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-blue-100 text-blue-400 hover:text-blue-600 transition-colors"
+                  className="p-1 hover:bg-blue-100 rounded-full text-blue-500 transition-colors"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
 
-            <form onSubmit={handleSendReview} className="flex items-end gap-2">
-              <div className="flex-1 relative">
+            <form onSubmit={handleSendReview} className="flex items-end gap-2 relative">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              
+              <div className="flex-1 flex flex-col bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 shadow-sm transition-all overflow-hidden relative">
                 <textarea
                   ref={inputRef}
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={(e) => {
+                    setMessage(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    if (e.key === 'Enter' && !e.shiftKey && !sending) {
                       e.preventDefault();
-                      handleSendReview(e);
+                      handleSendReview(e as any);
                     }
                   }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = 'auto';
-                    target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
-                  }}
-                  placeholder={replyTo ? "Write a reply..." : "Share your feedback..."}
-                  rows={1}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none shadow-sm placeholder:text-gray-400 scrollbar-hide"
-                  style={{ minHeight: '44px', maxHeight: '120px' }}
+                  placeholder="Ask a question or leave feedback..."
+                  className="w-full px-4 py-2.5 text-sm bg-transparent border-none focus:ring-0 resize-none max-h-[120px] min-h-[40px]"
                 />
+                
+                <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all"
+                      title="Attach file"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className={cn(
+                          "p-1.5 hover:bg-yellow-50 rounded-full transition-all",
+                          showEmojiPicker ? "text-yellow-600 bg-yellow-50" : "text-gray-400 hover:text-yellow-600"
+                        )}
+                        title="Add emoji"
+                      >
+                        <Smile className="h-4 w-4" />
+                      </button>
+
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-full left-0 mb-3 bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 z-[60] min-w-[280px]">
+                          <div className="flex items-center justify-between mb-2 px-1">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Emojis</span>
+                            <button onClick={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-gray-600">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                            {EMOJI_CATEGORIES.map((cat) => (
+                              <div key={cat.label}>
+                                <div className="text-[10px] font-medium text-gray-400 mb-1.5 ml-1">{cat.label}</div>
+                                <div className="grid grid-cols-8 gap-1">
+                                  {cat.emojis.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      onClick={() => insertEmoji(emoji)}
+                                      className="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 rounded-lg transition-colors active:scale-95"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className={`text-[10px] ${message.length > 900 ? 'text-red-500' : 'text-gray-300'} font-medium`}>
+                    {message.length > 0 && `${message.length}/1000`}
+                  </div>
+                </div>
               </div>
+
               <button
                 type="submit"
-                disabled={!message.trim() || sending}
-                className="w-11 h-11 rounded-full bg-gray-900 text-white hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all flex items-center justify-center shadow-md active:scale-95 flex-shrink-0"
+                disabled={(!message.trim() && !attachment) || sending}
+                className={cn(
+                  "w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-md active:scale-95 flex-shrink-0",
+                  (!message.trim() && !attachment) || sending
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
+                    : "bg-gray-900 text-white hover:bg-gray-800 hover:shadow-lg"
+                )}
               >
                 {sending ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  <Send className="h-5 w-5 ml-0.5" />
+                  <Send className="h-5 w-5" />
                 )}
               </button>
             </form>

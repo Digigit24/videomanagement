@@ -542,17 +542,24 @@ export const publicVideoService = {
     content: string,
     replyTo?: string,
     token?: string,
+    attachment?: File,
   ) => {
     const params: any = {};
     if (token) params.token = token;
+
+    const formData = new FormData();
+    formData.append("reviewerName", reviewerName);
+    formData.append("content", content);
+    if (replyTo) formData.append("replyTo", replyTo);
+    if (attachment) formData.append("attachment", attachment);
+
     const { data } = await api.post(
       `/public/video/${videoId}/reviews`,
+      formData,
       {
-        reviewerName,
-        content,
-        replyTo,
+        params,
+        headers: { "Content-Type": "multipart/form-data" },
       },
-      { params },
     );
     return data.review;
   },

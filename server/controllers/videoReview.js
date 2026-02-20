@@ -4,8 +4,16 @@ import {
   getVideoPublicInfo,
   getOrCreateShareToken,
   getShareToken,
+  createReviewAttachment,
 } from "../services/videoReview.js";
 import { apiError } from "../utils/logger.js";
+import { uploadToS3 } from "../services/upload.js";
+import multer from "multer";
+
+const reviewAttachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+}).single("attachment");
 
 // === Share Token Endpoints ===
 
@@ -70,63 +78,101 @@ export async function getPublicVideoInfo(req, res) {
 
 // Add a review (public - no auth needed, reviewer provides name)
 export async function addReview(req, res) {
-  try {
-    const { videoId } = req.params;
-    const { reviewerName, content, replyTo } = req.body;
-
-    if (!reviewerName || !reviewerName.trim()) {
-      return res.status(400).json({ error: "Reviewer name is required" });
+  reviewAttachmentUpload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
 
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: "Review content is required" });
-    }
-
-    // Verify the video exists
-    const video = await getVideoPublicInfo(videoId);
-    if (!video) {
-      return res.status(404).json({ error: "Video not found" });
-    }
-
-    const review = await createReview(
-      videoId,
-      reviewerName.trim(),
-      content.trim(),
-      replyTo || null,
-    );
-
-    // Notify workspace members about new client review
     try {
-      if (video.bucket) {
-        const { getWorkspaceByBucket } = await import(
-          "../services/workspace.js"
-        );
-        const { notifyWorkspaceMembers } = await import(
-          "../services/notification.js"
-        );
-        const workspace = await getWorkspaceByBucket(video.bucket);
-        if (workspace) {
-          const truncated = content.substring(0, 60);
-          await notifyWorkspaceMembers(
-            workspace.id,
-            null, // No user ID for external reviewers
-            "client_review",
-            `Client Review — ${video.filename}`,
-            `${reviewerName}: ${truncated}`,
-            "video",
-            videoId,
-          );
-        }
-      }
-    } catch (e) {
-      console.error("Review notification error:", e);
-    }
+      const { videoId } = req.params;
+      const { reviewerName, content, replyTo } = req.body;
 
-    res.status(201).json({ review });
-  } catch (error) {
-    apiError(req, error);
-    res.status(500).json({ error: "Failed to add review" });
-  }
+      if (!reviewerName || !reviewerName.trim()) {
+        return res.status(400).json({ error: "Reviewer name is required" });
+      }
+
+      if (!content && !req.file) {
+        return res
+          .status(400)
+          .json({ error: "Content or attachment is required" });
+      }
+
+      // Verify the video exists
+      const video = await getVideoPublicInfo(videoId);
+      if (!video) {
+        return res.status(404).json({ error: "Video not found" });
+      }
+
+      const review = await createReview(
+        videoId,
+        reviewerName.trim(),
+        content?.trim() || "",
+        replyTo || null,
+      );
+
+      if (req.file) {
+        const objectKey = `review-attachments/${videoId}/${Date.now()}-${req.file.originalname}`;
+
+        await uploadToS3(
+          video.bucket,
+          objectKey,
+          req.file.buffer,
+          req.file.mimetype,
+        );
+
+        await createReviewAttachment(
+          review.id,
+          videoId,
+          req.file.originalname,
+          objectKey,
+          req.file.size,
+          req.file.mimetype,
+        );
+
+        // Add attachment info to review object for response
+        review.attachment = {
+          id: "temp-id",
+          filename: req.file.originalname,
+          size: req.file.size,
+          content_type: req.file.mimetype,
+          url: `/api/stream-attachment/${video.bucket}/${objectKey}`,
+        };
+      }
+
+      // Notify workspace members about new client review
+      try {
+        if (video.bucket) {
+          const { getWorkspaceByBucket } =
+            await import("../services/workspace.js");
+          const { notifyWorkspaceMembers } =
+            await import("../services/notification.js");
+          const workspace = await getWorkspaceByBucket(video.bucket);
+          if (workspace) {
+            const truncated = (content || "Sent an attachment").substring(
+              0,
+              60,
+            );
+            await notifyWorkspaceMembers(
+              workspace.id,
+              null, // No user ID for external reviewers
+              "client_review",
+              `Client Review — ${video.filename}`,
+              `${reviewerName}: ${truncated}`,
+              "video",
+              videoId,
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Review notification error:", e);
+      }
+
+      res.status(201).json({ review });
+    } catch (error) {
+      apiError(req, error);
+      res.status(500).json({ error: "Failed to add review" });
+    }
+  });
 }
 
 // Get reviews for a video (public)
