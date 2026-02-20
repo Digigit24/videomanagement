@@ -46,7 +46,11 @@ import {
   removeComment,
   updateMarkerStatus,
 } from "../controllers/comment.js";
-import { listActivities, listUserActivities } from "../controllers/activity.js";
+import {
+  listActivities,
+  listUserActivities,
+  listEntityActivities,
+} from "../controllers/activity.js";
 import { recordView, getVideoViewers } from "../services/views.js";
 import {
   listWorkspaces,
@@ -220,11 +224,17 @@ router.get("/photo/:id", authenticateStream, async (req, res) => {
     const objectKey = result.rows[0].object_key;
     const stream = await getObjectStream(bucket, objectKey);
 
-    const ext = result.rows[0].filename.split(".").pop()?.toLowerCase() || "jpg";
+    const ext =
+      result.rows[0].filename.split(".").pop()?.toLowerCase() || "jpg";
     const contentTypes = {
-      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-      gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
-      tiff: "image/tiff", svg: "image/svg+xml",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      webp: "image/webp",
+      bmp: "image/bmp",
+      tiff: "image/tiff",
+      svg: "image/svg+xml",
     };
     res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=86400");
@@ -258,7 +268,11 @@ router.get(
 // Deleted videos (backup)
 router.get("/deleted-videos", authenticate, validateBucket, listDeletedVideos);
 router.post("/deleted-video/:id/restore", authenticate, restoreVideo);
-router.delete("/deleted-video/:id/permanent", authenticate, permanentDeleteVideo);
+router.delete(
+  "/deleted-video/:id/permanent",
+  authenticate,
+  permanentDeleteVideo,
+);
 
 // Folders
 router.get("/workspace/:workspaceId/folders", authenticate, listFolders);
@@ -267,10 +281,26 @@ router.patch("/folder/:id", authenticate, updateFolderName);
 router.delete("/folder/:id", authenticate, removeFolder);
 
 // Per-workspace permissions
-router.get("/workspace/:workspaceId/permissions", authenticate, listAllPermissions);
-router.get("/workspace/:workspaceId/permissions/me", authenticate, getMyPermissions);
-router.get("/workspace/:workspaceId/permissions/:userId", authenticate, getUserPermissions);
-router.put("/workspace/:workspaceId/permissions/:userId", authenticate, updateUserPermissions);
+router.get(
+  "/workspace/:workspaceId/permissions",
+  authenticate,
+  listAllPermissions,
+);
+router.get(
+  "/workspace/:workspaceId/permissions/me",
+  authenticate,
+  getMyPermissions,
+);
+router.get(
+  "/workspace/:workspaceId/permissions/:userId",
+  authenticate,
+  getUserPermissions,
+);
+router.put(
+  "/workspace/:workspaceId/permissions/:userId",
+  authenticate,
+  updateUserPermissions,
+);
 router.get("/role-defaults/:role", authenticate, getRoleDefaults);
 
 // HLS streaming (master playlist, variant playlists, segments)
@@ -319,11 +349,19 @@ router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
     // Detect content type based on file extension for photos
     const isPhoto = result.rows[0].media_type === "photo";
     if (isPhoto) {
-      const ext = (result.rows[0].filename || result.rows[0].thumbnail_key).split(".").pop()?.toLowerCase();
+      const ext = (result.rows[0].filename || result.rows[0].thumbnail_key)
+        .split(".")
+        .pop()
+        ?.toLowerCase();
       const contentTypes = {
-        jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-        gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
-        tiff: "image/tiff", svg: "image/svg+xml",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        gif: "image/gif",
+        webp: "image/webp",
+        bmp: "image/bmp",
+        tiff: "image/tiff",
+        svg: "image/svg+xml",
       };
       res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
     } else {
@@ -610,6 +648,11 @@ router.get("/video/:videoId/reviews", authenticate, listReviews);
 // Activities
 router.get("/activities", authenticate, listActivities);
 router.get("/user/:userId/activities", authenticate, listUserActivities);
+router.get(
+  "/activities/:entityType/:entityId",
+  authenticate,
+  listEntityActivities,
+);
 
 import recycleBinRouter from "./recycleBin.js";
 router.use("/admin/recycle-bin", recycleBinRouter);

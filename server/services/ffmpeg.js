@@ -269,15 +269,40 @@ export async function processVideoToHLS(
     cleanupTempDir(tempDir);
     cleanupTempFile(localInputPath);
 
-    // --- Step 8: Delete temp original from S3 ---
+    // --- Step 8: Move temp original to permanent storage (for download) ---
     try {
-      await deleteFromS3(bucket, tempS3Key);
-      console.log(
-        `[FFmpeg] Step 8 complete: Deleted temp S3 file ${tempS3Key}`,
+      // Get the intended object_key from the database
+      const res = await getPool().query(
+        "SELECT object_key FROM videos WHERE id = $1",
+        [videoId],
       );
+      if (res.rows.length > 0 && res.rows[0].object_key) {
+        const targetKey = res.rows[0].object_key;
+        // Copy from temp location to permanent location
+        const { copyS3Object, deleteS3Object } = await import("./storage.js");
+
+        console.log(
+          `[FFmpeg] Step 8: Preserving original MP4: ${tempS3Key} -> ${targetKey}`,
+        );
+
+        // Copy using the resolved bucket name
+        await copyS3Object(bucket, tempS3Key, bucket, targetKey);
+
+        // Now delete the temp file
+        await deleteS3Object(bucket, tempS3Key);
+        console.log(
+          `[FFmpeg] Step 8 complete: Moved temp file to ${targetKey}`,
+        );
+      } else {
+        // Fallback if no object_key found (should not happen)
+        await deleteFromS3(bucketName, tempS3Key);
+        console.log(
+          `[FFmpeg] Step 8 complete: Deleted temp S3 file ${tempS3Key}`,
+        );
+      }
     } catch (e) {
       console.warn(
-        `[FFmpeg] Step 8 warning: Failed to delete temp S3 file ${tempS3Key}: ${e.message}`,
+        `[FFmpeg] Step 8 warning: Failed to preserve/delete temp S3 file: ${e.message}`,
       );
     }
 

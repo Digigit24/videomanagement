@@ -23,12 +23,36 @@ const upload = multer({
   storage: multer.diskStorage({}), // Uses system temp directory
   limits: { fileSize: 50 * 1024 * 1024 * 1024 }, // 50GB
   fileFilter: (req, file, cb) => {
-    const allowedVideoTypes = ["video/mp4", "video/quicktime", "video/webm", "video/x-msvideo", "video/x-matroska", "video/x-flv", "video/x-ms-wmv", "video/3gpp"];
-    const allowedImageTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff", "image/svg+xml"];
-    if (allowedVideoTypes.includes(file.mimetype) || allowedImageTypes.includes(file.mimetype)) {
+    const allowedVideoTypes = [
+      "video/mp4",
+      "video/quicktime",
+      "video/webm",
+      "video/x-msvideo",
+      "video/x-matroska",
+      "video/x-flv",
+      "video/x-ms-wmv",
+      "video/3gpp",
+    ];
+    const allowedImageTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/bmp",
+      "image/tiff",
+      "image/svg+xml",
+    ];
+    if (
+      allowedVideoTypes.includes(file.mimetype) ||
+      allowedImageTypes.includes(file.mimetype)
+    ) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Supported: MP4, MOV, WebM, AVI, MKV, JPG, PNG, GIF, WebP, BMP, TIFF, SVG"));
+      cb(
+        new Error(
+          "Invalid file type. Supported: MP4, MOV, WebM, AVI, MKV, JPG, PNG, GIF, WebP, BMP, TIFF, SVG",
+        ),
+      );
     }
   },
 });
@@ -214,8 +238,14 @@ export async function uploadVideo(req, res) {
       } else {
         // For photos, copy from temp to final location and mark as ready
         try {
-          const { copyS3Object, deleteS3Object } = await import("../services/storage.js");
-          await copyS3Object(resolvedBucket, tempS3Key, resolvedBucket, objectKey);
+          const { copyS3Object, deleteS3Object } =
+            await import("../services/storage.js");
+          await copyS3Object(
+            resolvedBucket,
+            tempS3Key,
+            resolvedBucket,
+            objectKey,
+          );
           await deleteS3Object(resolvedBucket, tempS3Key);
           // Mark photo as ready (no HLS needed)
           const pool = (await import("../db/index.js")).getPool();
@@ -280,14 +310,18 @@ export async function permanentDeleteVideo(req, res) {
 
     // Only admin can permanently delete
     if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Only admins can permanently delete videos" });
+      return res
+        .status(403)
+        .json({ error: "Only admins can permanently delete videos" });
     }
 
     await permanentlyDeleteVideo(id);
     res.json({ message: "Video permanently deleted" });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: error.message || "Failed to permanently delete video" });
+    res
+      .status(500)
+      .json({ error: error.message || "Failed to permanently delete video" });
   }
 }
 
@@ -316,7 +350,8 @@ export async function downloadVideo(req, res) {
 
     // Photos: serve the original file directly from S3
     if (video.media_type === "photo") {
-      const { getObjectStream, resolveBucket: resolve } = await import("../services/storage.js");
+      const { getObjectStream, resolveBucket: resolve } =
+        await import("../services/storage.js");
       const { bucket: physicalBucket } = resolve(video.bucket);
       const objectKey = video.object_key;
 
@@ -324,12 +359,20 @@ export async function downloadVideo(req, res) {
         const stream = await getObjectStream(physicalBucket, objectKey);
         const ext = video.filename.split(".").pop()?.toLowerCase() || "jpg";
         const contentTypes = {
-          jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-          gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
-          tiff: "image/tiff", svg: "image/svg+xml",
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
+          bmp: "image/bmp",
+          tiff: "image/tiff",
+          svg: "image/svg+xml",
         };
         res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
-        res.setHeader("Content-Disposition", `attachment; filename="${video.filename}"`);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${video.filename}"`,
+        );
         stream.pipe(res);
       } catch (streamErr) {
         console.error("Photo download error:", streamErr);
@@ -338,7 +381,38 @@ export async function downloadVideo(req, res) {
       return;
     }
 
-    // Videos: serve HLS
+    // Video download: Try to serve original file first (Highest Quality / MP4)
+    try {
+      const stream = await getVideoStream(req.bucket, video.object_key);
+      const ext = video.filename.split(".").pop().toLowerCase();
+      const mimeTypes = {
+        mp4: "video/mp4",
+        mov: "video/quicktime",
+        webm: "video/webm",
+        avi: "video/x-msvideo",
+        mkv: "video/x-matroska",
+        wmv: "video/x-ms-wmv",
+        flv: "video/x-flv",
+      };
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${video.filename}"`,
+      );
+      res.setHeader(
+        "Content-Type",
+        mimeTypes[ext] || "application/octet-stream",
+      );
+      stream.pipe(res);
+      return;
+    } catch (originalErr) {
+      console.warn(
+        `[Download] Original file not found for video ${video.id} (key: ${video.object_key}), falling back to HLS.`,
+      );
+      // Fall through to HLS logic
+    }
+
+    // Videos: serve HLS (fallback)
     if (!video.hls_ready || !video.hls_path) {
       return res.status(202).json({
         error: "Video is still being processed. Please try again later.",

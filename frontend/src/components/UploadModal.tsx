@@ -7,9 +7,10 @@ import { useBucket } from '@/hooks/useBucket';
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadComplete: () => void;
+  onUploadComplete: (video?: any) => void;
   bucket?: string;
   folderId?: string | null;
+  replaceVideoId?: string;
 }
 
 interface FileUploadItem {
@@ -19,7 +20,7 @@ interface FileUploadItem {
   error?: string;
 }
 
-export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket, folderId }: UploadModalProps) {
+export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket, folderId, replaceVideoId }: UploadModalProps) {
   const { currentBucket: hookBucket } = useBucket();
   const currentBucket = bucket || hookBucket;
   const [files, setFiles] = useState<FileUploadItem[]>([]);
@@ -42,7 +43,14 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
   };
 
   const addFiles = (newFiles: FileList | File[]) => {
+    // If we are replacing a video, we only allow one file
+    if (replaceVideoId && (files.length > 0 || newFiles.length > 1)) {
+        alert("You can only upload one file when replacing a version.");
+        return;
+    }
+
     const fileArray = Array.from(newFiles);
+    // ... (rest is same)
     const errors: string[] = [];
     const validItems: FileUploadItem[] = [];
 
@@ -63,7 +71,6 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
       setFiles(prev => [...prev, ...validItems]);
     }
 
-    // Show first validation error if any
     if (errors.length > 0) {
       setFiles(prev => [
         ...prev,
@@ -102,7 +109,6 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
     if (e.target.files && e.target.files.length > 0) {
       addFiles(e.target.files);
     }
-    // Reset input so the same files can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -112,9 +118,12 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
     if (files.length === 0 || !currentBucket) return;
 
     setUploading(true);
+    let hasError = false;
+    let lastUploadedVideo = undefined;
 
-    // Upload each file sequentially (to avoid overwhelming the server)
+    // Upload each file sequentially
     for (let i = 0; i < files.length; i++) {
+        // Skip already completed or failed
       if (files[i].status === 'completed' || files[i].status === 'error') continue;
 
       setFiles(prev => prev.map((f, idx) =>
@@ -122,17 +131,19 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
       ));
 
       try {
-        await videoService.uploadVideo(files[i].file, currentBucket, (progressEvent) => {
+        const video = await videoService.uploadVideo(files[i].file, currentBucket, (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
           setFiles(prev => prev.map((f, idx) =>
             idx === i ? { ...f, progress: percent } : f
           ));
-        }, undefined, folderId || undefined);
+        }, replaceVideoId, folderId || undefined);
 
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'completed', progress: 100 } : f
         ));
+        lastUploadedVideo = video;
       } catch (err: any) {
+        hasError = true;
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'error', error: err.response?.data?.error || 'Upload failed' } : f
         ));
@@ -141,13 +152,13 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
 
     setUploading(false);
 
-    // Wait a bit then close if all succeeded
-    const allDone = files.every(f => f.status === 'completed' || f.status === 'error');
-    if (allDone) {
+    // Close automatically if there were no errors
+    if (!hasError) {
       setTimeout(() => {
-        onUploadComplete();
+        // Clear files before closing to reset state but wait for animation
+        onUploadComplete(lastUploadedVideo); 
         handleClose();
-      }, 1500);
+      }, 1000);
     }
   };
 

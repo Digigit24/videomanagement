@@ -205,7 +205,9 @@ export const folderService = {
   },
 
   createFolder: async (workspaceId: string, name: string) => {
-    const { data } = await api.post(`/workspace/${workspaceId}/folders`, { name });
+    const { data } = await api.post(`/workspace/${workspaceId}/folders`, {
+      name,
+    });
     return data.folder as Folder;
   },
 
@@ -226,7 +228,9 @@ export const permissionService = {
   },
 
   getUserPermissions: async (workspaceId: string, userId: string) => {
-    const { data } = await api.get(`/workspace/${workspaceId}/permissions/${userId}`);
+    const { data } = await api.get(
+      `/workspace/${workspaceId}/permissions/${userId}`,
+    );
     return data.permissions as WorkspacePermissions;
   },
 
@@ -235,8 +239,15 @@ export const permissionService = {
     return data.permissions as WorkspacePermissions[];
   },
 
-  updatePermissions: async (workspaceId: string, userId: string, permissions: Partial<WorkspacePermissions>) => {
-    const { data } = await api.put(`/workspace/${workspaceId}/permissions/${userId}`, { permissions });
+  updatePermissions: async (
+    workspaceId: string,
+    userId: string,
+    permissions: Partial<WorkspacePermissions>,
+  ) => {
+    const { data } = await api.put(
+      `/workspace/${workspaceId}/permissions/${userId}`,
+      { permissions },
+    );
     return data.permissions as WorkspacePermissions;
   },
 
@@ -570,5 +581,18 @@ export const recycleBinService = {
   restoreUser: async (id: string) => {
     const { data } = await api.post(`/admin/recycle-bin/user/${id}/restore`);
     return data;
+  },
+};
+
+export const activityService = {
+  getEntityActivities: async (
+    entityType: string,
+    entityId: string,
+    limit: number = 50,
+  ) => {
+    const { data } = await api.get(`/activities/${entityType}/${entityId}`, {
+      params: { limit },
+    });
+    return data.activities;
   },
 };

@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
-import { videoService, commentService, workspaceService } from '@/services/api.service';
+import { videoService, commentService, workspaceService, activityService } from '@/services/api.service';
 import { APP_URL } from '@/lib/api';
-import { Video, VideoStatus, Comment, VideoViewer, ProcessingStatus } from '@/types';
+import { Video, VideoStatus, Comment, VideoViewer, ProcessingStatus, Activity } from '@/types';
 import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
@@ -11,7 +11,8 @@ import TimestampPanel from '@/components/TimestampPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare, MessageCircle, RefreshCw } from 'lucide-react';
+import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ReactPlayer from 'react-player';
 import { formatDistanceToNow } from 'date-fns';
@@ -56,6 +57,92 @@ function isRecentUpload(dateStr: string | null): boolean {
   return (now - uploadTime) < twentyFourHours;
 }
 
+function ActivityLog({ videoId }: { videoId: string }) {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadActivities();
+  }, [videoId]);
+
+  const loadActivities = async () => {
+    try {
+      setLoading(true);
+      const data = await activityService.getEntityActivities('video', videoId);
+      setActivities(data);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-gray-400">
+        <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+        <p className="text-xs">Loading activity log...</p>
+      </div>
+    );
+  }
+
+  if (activities.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 sm:h-64 text-gray-400">
+        <Clock className="w-8 h-8 mb-2 opacity-20" />
+        <p className="text-xs">No activity yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-gray-50/30">
+      <div className="p-4 space-y-4">
+        {activities.map((activity) => (
+          <div key={activity.id} className="flex gap-3 relative pb-4 last:pb-0">
+            {/* Timeline Line */}
+            <div className="absolute left-[15px] top-8 bottom-0 w-px bg-gray-200 last:hidden" />
+            
+            <div className="flex-shrink-0 mt-1">
+               <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600">
+                  {activity.user_name?.charAt(0).toUpperCase() || '?'}
+               </div>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-sm font-medium text-gray-900">{activity.user_name}</span>
+                <span className="text-[10px] text-gray-400">
+                  {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
+                </span>
+              </div>
+              
+              <div className="text-xs text-gray-600 bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                {activity.action === 'video_uploaded' && (
+                  <p>Uploaded the video <span className="font-medium text-gray-800">{activity.details?.filename}</span></p>
+                )}
+                {activity.action === 'status_changed' && (
+                   <p>Changed status from <span className="font-medium text-gray-500 line-through">{activity.details?.oldStatus}</span> to <span className={`font-medium ${statusColors[activity.details?.newStatus as VideoStatus] || 'text-gray-800'} px-1.5 py-0.5 rounded ml-1`}>{activity.details?.newStatus}</span></p>
+                )}
+                {activity.action === 'comment_added' && (
+                  <p>Added a {activity.details?.timestamp ? 'timestamped ' : ''}comment</p>
+                )}
+                {activity.action === 'marker_status_changed' && (
+                   <p>Updated timeline marker status</p>
+                )}
+                {/* Fallback for unknown actions */}
+                {!['video_uploaded', 'status_changed', 'comment_added', 'marker_status_changed'].includes(activity.action) && (
+                   <p>{activity.action.replace(/_/g, ' ')}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function VideoDetail() {
   const { id, bucket } = useParams<{ id: string; bucket?: string }>();
   const { currentBucket: contextBucket } = useBucket();
@@ -78,10 +165,10 @@ export default function VideoDetail() {
 
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
 
-  const [sidebarTab, setSidebarTab] = useState<'feedback' | 'chat'>('chat');
+  const [sidebarTab, setSidebarTab] = useState<'feedback' | 'chat' | 'activity'>('chat');
 
   // Auto-pause video when switching to feedback tab
-  const handleTabSwitch = useCallback((tab: 'feedback' | 'chat') => {
+  const handleTabSwitch = useCallback((tab: 'feedback' | 'chat' | 'activity') => {
     setSidebarTab(tab);
     if (tab === 'feedback' && isVideoPlaying) {
       // Pause video when user switches to feedback while video is playing
@@ -115,6 +202,20 @@ export default function VideoDetail() {
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  const handleUploadComplete = (newVideo?: any) => {
+    if (newVideo && newVideo.id && newVideo.id !== id) {
+      // Navigate to new video version
+      if (currentBucket) {
+        navigate(`/workspace/${currentBucket}/video/${newVideo.id}`);
+      } else {
+        navigate(`/v/${newVideo.id}`);
+      }
+    } else {
+      loadVideo();
+    }
+  };
 
   const userRole = localStorage.getItem('userRole');
   const isAdmin = userRole === 'admin';
@@ -523,6 +624,19 @@ export default function VideoDetail() {
             </Button>
           )}
 
+          {/* New Version */}
+          {canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUploadModal(true)}
+              className="text-xs text-blue-600 border-blue-200 hover:bg-blue-50 flex-shrink-0"
+            >
+              <RefreshCw className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">New Version</span>
+            </Button>
+          )}
+
           {/* Viewers */}
           <div className="relative flex-shrink-0">
             <button
@@ -751,10 +865,10 @@ export default function VideoDetail() {
         <div className="lg:col-span-4 space-y-4">
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col lg:sticky lg:top-20 h-[calc(100vh-140px)] lg:h-[calc(100vh-100px)] animate-slide-in-right overflow-hidden">
             {/* Tabs Header - prominent & recognizable */}
-            <div className="flex border-b border-gray-200 bg-gray-50/50 rounded-t-xl">
+            <div className="flex border-b border-gray-200 bg-gray-50/50 rounded-t-xl overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => handleTabSwitch('feedback')}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all relative ${
+                className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-bold transition-all relative ${
                   sidebarTab === 'feedback'
                     ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tl-xl'
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50'
@@ -765,14 +879,25 @@ export default function VideoDetail() {
               </button>
               <button
                 onClick={() => handleTabSwitch('chat')}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-bold transition-all relative ${
+                className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-bold transition-all relative ${
                   sidebarTab === 'chat'
-                    ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tr-xl'
+                    ? 'text-gray-900 bg-white border-b-2 border-blue-600'
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50'
                 }`}
               >
                 <MessageCircle className="h-3.5 w-3.5" />
                 CHAT
+              </button>
+              <button
+                onClick={() => handleTabSwitch('activity')}
+                className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-bold transition-all relative ${
+                  sidebarTab === 'activity'
+                    ? 'text-gray-900 bg-white border-b-2 border-blue-600 rounded-tr-xl'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50'
+                }`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                ACTIVITY
               </button>
             </div>
 
@@ -821,6 +946,11 @@ export default function VideoDetail() {
                 )}
               </div>
             )}
+
+            {/* Activity Tab */}
+            {sidebarTab === 'activity' && (
+              <ActivityLog videoId={video.id} />
+            )}
           </div>
         </div>
       </div>
@@ -846,6 +976,15 @@ export default function VideoDetail() {
         error={deleteError}
         onConfirm={handleDeleteVideo}
         onCancel={() => { setConfirmDelete(false); setDeleteError(''); }}
+      />
+      {/* Upload New Version Modal */}
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onUploadComplete={handleUploadComplete}
+        bucket={currentBucket}
+        folderId={video.folder_id}
+        replaceVideoId={video.id}
       />
     </div>
   );

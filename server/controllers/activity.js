@@ -1,5 +1,5 @@
-import { getActivities, getUserActivities } from '../services/activity.js';
-import { apiError } from '../utils/logger.js';
+import { getActivities, getUserActivities } from "../services/activity.js";
+import { apiError } from "../utils/logger.js";
 
 export async function listActivities(req, res) {
   try {
@@ -8,7 +8,7 @@ export async function listActivities(req, res) {
     res.json({ activities });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: 'Failed to get activities' });
+    res.status(500).json({ error: "Failed to get activities" });
   }
 }
 
@@ -20,6 +20,24 @@ export async function listUserActivities(req, res) {
     res.json({ activities });
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: 'Failed to get user activities' });
+    res.status(500).json({ error: "Failed to get user activities" });
+  }
+}
+
+export async function listEntityActivities(req, res) {
+  try {
+    const { entityType, entityId } = req.params;
+    const { limit = 50 } = req.query;
+    import("../services/activity.js").then(async ({ getEntityActivities }) => {
+      const activities = await getEntityActivities(
+        entityType,
+        entityId,
+        parseInt(limit),
+      );
+      res.json({ activities });
+    });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to get entity activities" });
   }
 }

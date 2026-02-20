@@ -201,6 +201,24 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
             <p className="text-xs text-gray-400">
               Select other team members (Editors, Social Media Managers). Admins have full access.
             </p>
+            
+            {availableMembers.length > 0 && (
+              <div className="flex justify-end mb-2">
+                 <button
+                  type="button"
+                  onClick={() => {
+                     if (selectedMembers.length === availableMembers.length) {
+                       setSelectedMembers([]);
+                     } else {
+                       setSelectedMembers(availableMembers.map(m => m.id!));
+                     }
+                  }}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  {selectedMembers.length === availableMembers.length ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+            )}
 
             {loadingMembers ? (
               <div className="flex items-center gap-2 py-4">
