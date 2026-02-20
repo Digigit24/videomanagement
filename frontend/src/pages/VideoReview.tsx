@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw, Trash2 } from 'lucide-react';
+import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -428,6 +428,26 @@ export default function VideoReview() {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
     return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  };
+
+  const handleQuickReaction = async (text: string) => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const review = await publicVideoService.addReview(
+        videoId!,
+        reviewerName,
+        text,
+        undefined,
+        token,
+      );
+      setReviews(prev => [...prev, review]);
+      isNearBottomRef.current = true;
+    } catch (err) {
+      console.error('Failed to send reaction:', err);
+    } finally {
+      setSending(false);
+    }
   };
 
   const getFileIcon = (ct: string) => {
