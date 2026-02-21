@@ -28,7 +28,7 @@ export default function ShareVideoPlayer() {
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [buffered, setBuffered] = useState(0);
   const [videoLoading, setVideoLoading] = useState(true);
-  const [isPortrait, setIsPortrait] = useState(false);
+
 
   useEffect(() => {
     if (videoId) loadVideo();
@@ -256,7 +256,7 @@ export default function ShareVideoPlayer() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-black flex items-center justify-center">
+      <div className="h-[100dvh] bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 text-white animate-spin" />
           <p className="text-white/60 text-sm">Loading video...</p>
@@ -267,7 +267,7 @@ export default function ShareVideoPlayer() {
 
   if (error || !video) {
     return (
-      <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center p-4">
+      <div className="h-[100dvh] bg-gray-950 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
             {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <Play className="h-8 w-8 text-red-400" />}
@@ -283,7 +283,7 @@ export default function ShareVideoPlayer() {
 
   if (processing) {
     return (
-      <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center p-4">
+      <div className="h-[100dvh] bg-gray-950 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-12 h-12 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
           <h1 className="text-xl font-bold text-white mb-2">Processing Video</h1>
@@ -296,7 +296,7 @@ export default function ShareVideoPlayer() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-black flex flex-col">
+    <div className="h-[100dvh] bg-black flex flex-col overflow-hidden">
       {/* Brand Header */}
       <div className="bg-gray-950 border-b border-gray-800 px-3 sm:px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
@@ -329,7 +329,7 @@ export default function ShareVideoPlayer() {
 
         <video
           ref={videoRef}
-          className={`h-full object-contain ${isPortrait ? 'max-w-[100vw] w-auto' : 'w-full'}`}
+          className="w-full h-full object-contain"
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}
@@ -337,10 +337,6 @@ export default function ShareVideoPlayer() {
           onEnded={() => setIsPlaying(false)}
           onLoadedMetadata={() => {
             setVideoLoading(false);
-            const v = videoRef.current;
-            if (v && v.videoWidth && v.videoHeight) {
-              setIsPortrait(v.videoHeight > v.videoWidth);
-            }
           }}
           onWaiting={() => setVideoLoading(true)}
           onPlaying={() => setVideoLoading(false)}

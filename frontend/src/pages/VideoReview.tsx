@@ -507,7 +507,7 @@ export default function VideoReview() {
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center">
+      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
           <p className="text-gray-500 text-sm">Loading review...</p>
@@ -518,7 +518,7 @@ export default function VideoReview() {
 
   if (error || !video) {
     return (
-      <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
+      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
             {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <MessageCircle className="h-8 w-8 text-red-400" />}
@@ -535,7 +535,7 @@ export default function VideoReview() {
   // Name entry screen
   if (!nameSet) {
     return (
-      <div className="min-h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
+      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-sm">
           <div className="text-center mb-6">
             <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-3">
