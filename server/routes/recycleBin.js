@@ -6,12 +6,16 @@ import {
   restoreWorkspaceItem,
   restoreUserItem,
   getRecycleBin,
+  clearBin,
 } from "../controllers/recycleBin.js";
 
 const router = express.Router();
 
 // Get recycle bin
 router.get("/", authenticate, getRecycleBin);
+
+// Clear entire recycle bin
+router.post("/clear", authenticate, clearBin);
 
 // Delete workspace
 router.post("/workspace/:id/delete", authenticate, deleteWorkspace);

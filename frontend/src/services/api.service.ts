@@ -589,6 +589,11 @@ export const recycleBinService = {
     const { data } = await api.post(`/admin/recycle-bin/user/${id}/restore`);
     return data;
   },
+
+  clearBin: async (password: string) => {
+    const { data } = await api.post("/admin/recycle-bin/clear", { password });
+    return data as { message: string; deleted: { workspaces: number; users: number; videos: number } };
+  },
 };
 
 export const activityService = {

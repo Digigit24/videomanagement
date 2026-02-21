@@ -5,6 +5,7 @@ import {
   restoreUser,
   getDeletedWorkspaces,
   getDeletedUsers,
+  clearEntireRecycleBin,
 } from "../services/recycleBin.js";
 import { getUserWithPassword, verifyPassword } from "../services/user.js";
 
@@ -111,6 +112,29 @@ export async function getRecycleBin(req, res) {
     const workspaces = await getDeletedWorkspaces();
     const users = await getDeletedUsers();
     res.json({ workspaces, users });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+}
+
+export async function clearBin(req, res) {
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({ error: "Password is required" });
+  }
+
+  const authorized = await checkAdminPassword(req.user.id, password);
+  if (!authorized) {
+    return res.status(403).json({ error: "Invalid password" });
+  }
+
+  try {
+    const counts = await clearEntireRecycleBin();
+    res.json({
+      message: "Recycle bin cleared",
+      deleted: counts,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

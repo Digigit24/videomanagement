@@ -127,3 +127,40 @@ export async function processPermanentDeletions() {
     console.error("Error in recycle bin cleanup:", error);
   }
 }
+
+// Clear entire recycle bin (permanently delete all items)
+export async function clearEntireRecycleBin() {
+  const pool = getPool();
+  let deletedCounts = { workspaces: 0, users: 0, videos: 0 };
+
+  // 1. Permanently delete all soft-deleted workspaces
+  const deletedWorkspaces = await pool.query(
+    "SELECT * FROM workspaces WHERE deleted_at IS NOT NULL",
+  );
+  for (const ws of deletedWorkspaces.rows) {
+    await deleteS3Content(ws.bucket);
+    await pool.query("DELETE FROM workspaces WHERE id = $1", [ws.id]);
+  }
+  deletedCounts.workspaces = deletedWorkspaces.rows.length;
+
+  // 2. Permanently delete all soft-deleted users
+  const deletedUsers = await pool.query(
+    "SELECT * FROM users WHERE deleted_at IS NOT NULL",
+  );
+  for (const user of deletedUsers.rows) {
+    await pool.query("DELETE FROM users WHERE id = $1", [user.id]);
+  }
+  deletedCounts.users = deletedUsers.rows.length;
+
+  // 3. Permanently delete all deleted videos
+  const result = await pool.query(
+    "DELETE FROM deleted_videos RETURNING id",
+  );
+  deletedCounts.videos = result.rows.length;
+
+  console.log(
+    `Recycle bin cleared: ${deletedCounts.workspaces} workspace(s), ${deletedCounts.users} user(s), ${deletedCounts.videos} video(s)`,
+  );
+
+  return deletedCounts;
+}

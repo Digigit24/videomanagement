@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { recycleBinService, videoService, workspaceService } from '@/services/api.service';
 import { Workspace, User, DeletedVideo } from '@/types';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Trash2, User as UserIcon, Building2, FileVideo, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Trash2, User as UserIcon, Building2, FileVideo, AlertTriangle, X } from 'lucide-react';
 import { formatDate, formatBytes } from '@/lib/utils';
 import { Toast } from '@/components/ui/toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function RecycleBin() {
+  const { user: currentUser } = useAuth();
   const [deletedWorkspaces, setDeletedWorkspaces] = useState<Workspace[]>([]);
   const [deletedUsers, setDeletedUsers] = useState<User[]>([]);
   const [deletedVideos, setDeletedVideos] = useState<DeletedVideo[]>([]);
@@ -14,6 +16,14 @@ export default function RecycleBin() {
   const [restoring, setRestoring] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearPassword, setClearPassword] = useState('');
+  const [clearError, setClearError] = useState('');
+  const [clearing, setClearing] = useState(false);
+
+  const isAdmin = currentUser?.role === 'admin';
+
+  const totalItems = deletedVideos.length + deletedWorkspaces.length + deletedUsers.length;
 
   useEffect(() => {
     loadRecycleBin();
@@ -28,7 +38,7 @@ export default function RecycleBin() {
 
       // Load deleted videos from all workspaces
       const ws = await workspaceService.getWorkspaces();
-      
+
       const allDeleted: DeletedVideo[] = [];
       for (const w of ws) {
         try {
@@ -98,6 +108,35 @@ export default function RecycleBin() {
     }
   };
 
+  const handleClearBin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setClearError('');
+
+    if (!clearPassword) {
+      setClearError('Password is required');
+      return;
+    }
+
+    try {
+      setClearing(true);
+      const result = await recycleBinService.clearBin(clearPassword);
+      setDeletedVideos([]);
+      setDeletedWorkspaces([]);
+      setDeletedUsers([]);
+      setShowClearModal(false);
+      setClearPassword('');
+      const { workspaces, users, videos } = result.deleted;
+      setToast({
+        message: `Recycle bin cleared: ${videos} video(s), ${workspaces} workspace(s), ${users} user(s) permanently deleted`,
+        type: 'success',
+      });
+    } catch (err: any) {
+      setClearError(err.response?.data?.error || 'Failed to clear recycle bin');
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const calculateExpiry = (deletedAt: string) => {
     const deleted = new Date(deletedAt);
     const now = new Date();
@@ -121,15 +160,102 @@ export default function RecycleBin() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Trash2 className="h-6 w-6 text-gray-500" />
-          Recycle Bin
-        </h1>
-        <p className="text-gray-500 mt-1">
-          Items stay here until you restore or permanently delete them.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Trash2 className="h-6 w-6 text-gray-500" />
+            Recycle Bin
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Items stay here until you restore or permanently delete them.
+          </p>
+        </div>
+        {isAdmin && totalItems > 0 && (
+          <Button
+            variant="outline"
+            className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            onClick={() => { setShowClearModal(true); setClearError(''); setClearPassword(''); }}
+          >
+            <Trash2 className="h-4 w-4" />
+            Clear Bin
+          </Button>
+        )}
       </div>
+
+      {/* Clear Bin Password Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Clear Recycle Bin
+              </h2>
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-2">
+              This will <strong>permanently delete</strong> all items in the recycle bin:
+            </p>
+            <ul className="text-sm text-gray-500 mb-4 space-y-1 ml-4 list-disc">
+              {deletedVideos.length > 0 && <li>{deletedVideos.length} video(s) / photo(s)</li>}
+              {deletedWorkspaces.length > 0 && <li>{deletedWorkspaces.length} workspace(s)</li>}
+              {deletedUsers.length > 0 && <li>{deletedUsers.length} user(s)</li>}
+            </ul>
+            <p className="text-sm text-red-600 font-medium mb-4">
+              This action cannot be undone. Enter your password to confirm.
+            </p>
+
+            <form onSubmit={handleClearBin}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Admin Password
+              </label>
+              <input
+                type="password"
+                value={clearPassword}
+                onChange={(e) => { setClearPassword(e.target.value); setClearError(''); }}
+                placeholder="Enter your password"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                autoFocus
+                required
+              />
+              {clearError && (
+                <p className="text-sm text-red-600 mt-1">{clearError}</p>
+              )}
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowClearModal(false)}
+                  disabled={clearing}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={clearing}
+                >
+                  {clearing ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                      Clearing...
+                    </>
+                  ) : (
+                    'Clear Entire Bin'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Deleted Videos Section */}
       <section>
