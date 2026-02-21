@@ -100,13 +100,12 @@ export default function RecycleBin() {
 
   const calculateExpiry = (deletedAt: string) => {
     const deleted = new Date(deletedAt);
-    const expiry = new Date(deleted.getTime() + 5 * 24 * 60 * 60 * 1000);
     const now = new Date();
-    const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysAgo = Math.floor((now.getTime() - deleted.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (daysLeft < 0) return 'Expired';
-    if (daysLeft === 0) return 'Review pending';
-    return `${daysLeft} days left`;
+    if (daysAgo === 0) return 'Deleted today';
+    if (daysAgo === 1) return '1 day ago';
+    return `${daysAgo} days ago`;
   };
 
   if (loading) {
@@ -128,7 +127,7 @@ export default function RecycleBin() {
           Recycle Bin
         </h1>
         <p className="text-gray-500 mt-1">
-          Items are permanently deleted after 5 days. You can also permanently delete items manually.
+          Items stay here until you restore or permanently delete them.
         </p>
       </div>
 
@@ -153,7 +152,7 @@ export default function RecycleBin() {
                       <p className="text-xs text-gray-400">Uploaded by: {video.uploaded_by_name}</p>
                     )}
                   </div>
-                  <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-medium flex-shrink-0 ml-2">
+                  <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium flex-shrink-0 ml-2">
                     {calculateExpiry(video.deleted_at)}
                   </span>
                 </div>

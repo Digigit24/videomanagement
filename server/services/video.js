@@ -238,12 +238,8 @@ export async function updateVideoStatus(id, status, userId) {
     const oldStatus = current.rows[0]?.status;
     const bucket = current.rows[0]?.bucket;
 
-    // If changing to "Posted", also set posted_at timestamp
-    const postedClause =
-      status === "Posted" ? ", posted_at = CURRENT_TIMESTAMP" : "";
-
     const result = await pool().query(
-      `UPDATE videos SET status = $1, updated_at = CURRENT_TIMESTAMP${postedClause} WHERE id = $2 RETURNING *`,
+      `UPDATE videos SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
       [status, id],
     );
 
@@ -286,7 +282,7 @@ export async function getDeletedVideos(bucket) {
       `SELECT dv.*, u.name as uploaded_by_name
        FROM deleted_videos dv
        LEFT JOIN users u ON dv.uploaded_by = u.id
-       WHERE dv.bucket = $1 AND dv.expires_at > CURRENT_TIMESTAMP
+       WHERE dv.bucket = $1
        ORDER BY dv.deleted_at DESC`,
       [bucket],
     );
@@ -301,12 +297,12 @@ export async function getDeletedVideos(bucket) {
 export async function restoreDeletedVideo(deletedVideoId) {
   try {
     const deleted = await pool().query(
-      "SELECT * FROM deleted_videos WHERE id = $1 AND expires_at > CURRENT_TIMESTAMP",
+      "SELECT * FROM deleted_videos WHERE id = $1",
       [deletedVideoId],
     );
 
     if (deleted.rows.length === 0) {
-      throw new Error("Deleted video not found or expired");
+      throw new Error("Deleted video not found");
     }
 
     const dv = deleted.rows[0];
@@ -341,21 +337,6 @@ export async function restoreDeletedVideo(deletedVideoId) {
   } catch (error) {
     console.error("Error restoring deleted video:", error);
     throw error;
-  }
-}
-
-// Permanently delete expired backups
-export async function cleanupExpiredBackups() {
-  try {
-    const result = await pool().query(
-      "DELETE FROM deleted_videos WHERE expires_at <= CURRENT_TIMESTAMP RETURNING id",
-    );
-    if (result.rows.length > 0) {
-      console.log(`Cleaned up ${result.rows.length} expired backup(s)`);
-    }
-    return result.rows.length;
-  } catch (error) {
-    console.error("Error cleaning up expired backups:", error);
   }
 }
 

@@ -2,9 +2,7 @@ import "./env.js"; // Must be imported first
 import app from "./app.js";
 import { initDatabase } from "./db/index.js";
 import { seedAdmin } from "./services/user.js";
-import { startBackupCleanup } from "./controllers/video.js";
 import { processPermanentDeletions } from "./services/recycleBin.js";
-import { startPostedVideoCleanup } from "./services/postedCleanup.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -14,13 +12,7 @@ async function start() {
     await initDatabase();
     await seedAdmin();
 
-    // Start backup cleanup scheduler
-    startBackupCleanup();
-
-    // Start posted video auto-cleanup (removes S3 files for Posted videos with no feedback after 5 days)
-    startPostedVideoCleanup();
-
-    // Start recycle bin cleanup scheduler (every hour)
+    // Start recycle bin cleanup scheduler (every hour) - for soft-deleted workspaces/users only
     setInterval(
       () => {
         processPermanentDeletions().catch(console.error);

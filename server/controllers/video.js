@@ -8,7 +8,6 @@ import {
   getVideoVersions,
   getDeletedVideos,
   restoreDeletedVideo,
-  cleanupExpiredBackups,
   deleteVideo,
   permanentlyDeleteVideo,
 } from "../services/video.js";
@@ -601,16 +600,3 @@ export async function getProcessingStatus(req, res) {
   }
 }
 
-// Run cleanup periodically (called on startup and every hour)
-export function startBackupCleanup() {
-  // Run cleanup immediately
-  cleanupExpiredBackups();
-
-  // Run every hour
-  setInterval(
-    () => {
-      cleanupExpiredBackups();
-    },
-    60 * 60 * 1000,
-  );
-}
