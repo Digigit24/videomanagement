@@ -28,6 +28,7 @@ export default function ShareVideoPlayer() {
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [buffered, setBuffered] = useState(0);
   const [videoLoading, setVideoLoading] = useState(true);
+  const [isPortrait, setIsPortrait] = useState(false);
 
   useEffect(() => {
     if (videoId) loadVideo();
@@ -328,13 +329,19 @@ export default function ShareVideoPlayer() {
 
         <video
           ref={videoRef}
-          className="w-full h-full object-contain"
+          className={`h-full object-contain ${isPortrait ? 'max-w-[100vw] w-auto' : 'w-full'}`}
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={() => setIsPlaying(false)}
-          onLoadedMetadata={() => setVideoLoading(false)}
+          onLoadedMetadata={() => {
+            setVideoLoading(false);
+            const v = videoRef.current;
+            if (v && v.videoWidth && v.videoHeight) {
+              setIsPortrait(v.videoHeight > v.videoWidth);
+            }
+          }}
           onWaiting={() => setVideoLoading(true)}
           onPlaying={() => setVideoLoading(false)}
           playsInline

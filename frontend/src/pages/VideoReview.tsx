@@ -74,6 +74,7 @@ export default function VideoReview() {
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
   const [rotation, setRotation] = useState(0);
+  const [isPortrait, setIsPortrait] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -594,7 +595,11 @@ export default function VideoReview() {
           ref={playerContainerRef}
           className={cn(
             "w-full md:flex-1 bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group transition-all duration-300",
-            isFullscreen ? "" : "h-[40vh] sm:h-[45vh] md:h-full"
+            isFullscreen
+              ? ""
+              : isPortrait
+                ? "h-[75vh] sm:h-[80vh] md:h-full"
+                : "h-[40vh] sm:h-[45vh] md:h-full"
           )}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
@@ -622,7 +627,13 @@ export default function VideoReview() {
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={() => setVideoLoading(false)}
+                onLoadedMetadata={() => {
+                  setVideoLoading(false);
+                  const v = videoRef.current;
+                  if (v && v.videoWidth && v.videoHeight) {
+                    setIsPortrait(v.videoHeight > v.videoWidth);
+                  }
+                }}
                 onWaiting={() => setVideoLoading(true)}
                 onPlaying={() => setVideoLoading(false)}
               />
