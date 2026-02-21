@@ -4,7 +4,7 @@ import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { uploadToS3 } from "./upload.js";
+import { uploadToS3, uploadFileToS3 } from "./upload.js";
 import { getPool } from "../db/index.js";
 import {
   resolveBucket,
@@ -53,6 +53,8 @@ const QUALITIES = [
 ];
 
 const MAX_TRANSCODE_RETRIES = 2;
+// Stall timeout: if FFmpeg produces no progress for this long, kill it
+const STALL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 // Progress distribution:
 // Download: 0-10%, Thumbnail: 10-15%, Transcoding: 15-90%, Finalize: 90-100%
@@ -202,7 +204,7 @@ export async function processVideoToHLS(
         },
       );
 
-      // Upload all segment files
+      // Upload all segment files using streaming to avoid loading into memory
       const uploadStepName = `uploading_${quality.name}`;
       const uploadBaseProgress = qualityBaseProgress + perQualityRange * 0.8;
       report(uploadStepName, uploadBaseProgress);
@@ -219,8 +221,13 @@ export async function processVideoToHLS(
         const contentType = file.endsWith(".m3u8")
           ? "application/vnd.apple.mpegurl"
           : "video/MP2T";
-        const fileBuffer = fs.readFileSync(filePath);
-        await uploadToS3(bucket, objectKey, fileBuffer, contentType);
+        // Stream upload for .ts segments (can be large), buffer for small .m3u8 files
+        if (file.endsWith(".m3u8")) {
+          const fileBuffer = fs.readFileSync(filePath);
+          await uploadToS3(bucket, objectKey, fileBuffer, contentType);
+        } else {
+          await uploadFileToS3(bucket, objectKey, filePath, contentType);
+        }
 
         // Report upload progress per file
         const uploadProgress =
@@ -228,6 +235,12 @@ export async function processVideoToHLS(
           ((fi + 1) / files.length) * (perQualityRange * 0.2);
         report(uploadStepName, uploadProgress);
       }
+
+      // Clean up this quality's local files to free disk space before next quality
+      try {
+        fs.rmSync(outputDir, { recursive: true, force: true });
+        console.log(`[FFmpeg] Cleaned up local ${quality.name} segments to free disk space`);
+      } catch (_) { /* ignore cleanup errors */ }
 
       report(uploadStepName, qualityBaseProgress + perQualityRange);
       console.log(
@@ -395,18 +408,40 @@ function getVideoInfo(inputPath) {
 }
 
 /**
- * Transcode to HLS with CPU throttling and progress reporting.
+ * Transcode to HLS with progress reporting and stall detection.
+ * Uses -threads 0 (auto) so FFmpeg can use available CPU cores for large files.
  */
 function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
   let lastReportedPercent = 0;
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let stallTimer = null;
+    let ffmpegCommand = null;
+
+    const resetStallTimer = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        if (!settled) {
+          console.error(`[FFmpeg] STALL DETECTED: ${quality.name} - no progress for ${STALL_TIMEOUT_MS / 1000}s, killing process`);
+          settled = true;
+          if (ffmpegCommand) {
+            try { ffmpegCommand.kill('SIGKILL'); } catch (_) {}
+          }
+          reject(new Error(`FFmpeg stalled during ${quality.name} transcoding (no progress for ${STALL_TIMEOUT_MS / 1000}s)`));
+        }
+      }, STALL_TIMEOUT_MS);
+    };
+
+    // Start initial stall timer
+    resetStallTimer();
+
     const cmd = ffmpegLib(inputPath)
       .outputOptions([
         `-vf scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2`,
         `-c:v libx264`,
         `-preset ultrafast`,
-        `-threads 1`,
+        `-threads 0`,
         `-b:v ${quality.bitrate}`,
         `-c:a aac`,
         `-b:a ${quality.audioBitrate}`,
@@ -418,8 +453,12 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
       .output(path.join(outputDir, "playlist.m3u8"))
       .on("start", (commandLine) => {
         console.log(`[FFmpeg] Command: ${commandLine.substring(0, 200)}...`);
+        ffmpegCommand = cmd;
       })
       .on("progress", (progress) => {
+        // Reset stall timer on any progress
+        resetStallTimer();
+
         if (typeof onProgress !== "function") return;
 
         let percent = 0;
@@ -444,10 +483,16 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
         }
       })
       .on("end", () => {
+        if (settled) return;
+        settled = true;
+        if (stallTimer) clearTimeout(stallTimer);
         console.log(`[FFmpeg] Transcode ${quality.name} finished`);
         resolve();
       })
       .on("error", (err) => {
+        if (settled) return;
+        settled = true;
+        if (stallTimer) clearTimeout(stallTimer);
         console.error(
           `[FFmpeg] Transcode ${quality.name} error: ${err.message}`,
         );
