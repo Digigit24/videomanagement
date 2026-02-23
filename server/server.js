@@ -3,6 +3,7 @@ import app from "./app.js";
 import { initDatabase } from "./db/index.js";
 import { seedAdmin } from "./services/user.js";
 import { processPermanentDeletions } from "./services/recycleBin.js";
+import processingQueue from "./services/processingQueue.js";
 
 const PORT = process.env.PORT || 5000;
 
@@ -27,6 +28,12 @@ async function start() {
     app.listen(PORT, () => {
       console.log(`\n✓ Server running on http://localhost:${PORT}`);
       console.log(`✓ Buckets: ${process.env.ZATA_BUCKETS}`);
+
+      // Recover any videos stuck from a previous crash/restart
+      // (run after server is listening so health checks pass)
+      processingQueue.recoverStuckVideos().catch((err) => {
+        console.error("Failed to recover stuck videos:", err);
+      });
     });
   } catch (error) {
     console.error("Failed to start server:", error);

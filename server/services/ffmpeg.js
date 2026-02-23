@@ -55,6 +55,8 @@ const QUALITIES = [
 const MAX_TRANSCODE_RETRIES = 2;
 // Stall timeout: if FFmpeg produces no progress for this long, kill it
 const STALL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+// Download timeout: maximum time to wait for S3 download before aborting
+const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 // Progress distribution:
 // Download: 0-10%, Thumbnail: 10-15%, Transcoding: 15-90%, Finalize: 90-100%
@@ -124,7 +126,12 @@ export async function processVideoToHLS(
     console.log(
       `[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${tempS3Key}`,
     );
-    await downloadFromS3ToFile(bucket, tempS3Key, localInputPath);
+    await Promise.race([
+      downloadFromS3ToFile(bucket, tempS3Key, localInputPath),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`S3 download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`)), DOWNLOAD_TIMEOUT_MS)
+      ),
+    ]);
 
     // Verify the downloaded file exists and has content
     if (!fs.existsSync(localInputPath)) {
