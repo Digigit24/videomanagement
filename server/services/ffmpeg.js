@@ -105,6 +105,20 @@ export async function processVideoToHLS(
   try {
     fs.mkdirSync(tempDir, { recursive: true });
 
+    // Record the video's updated_at at processing start. If the video is replaced
+    // mid-processing (in-place update), updated_at will change and we can skip
+    // the final DB update to avoid overwriting the new version's state.
+    let processingStartUpdatedAt = null;
+    try {
+      const startCheck = await getPool().query(
+        "SELECT updated_at FROM videos WHERE id = $1",
+        [videoId],
+      );
+      if (startCheck.rows.length > 0) {
+        processingStartUpdatedAt = startCheck.rows[0].updated_at;
+      }
+    } catch (_) { /* non-critical */ }
+
     // --- Step 1: Download temp original from S3 ---
     report("downloading", PROGRESS_DOWNLOAD.start);
     console.log(
@@ -268,14 +282,35 @@ export async function processVideoToHLS(
     );
 
     // --- Step 6: Mark video as HLS-ready in DB ---
-    await getPool().query(
-      "UPDATE videos SET hls_ready = TRUE, hls_path = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [masterKey, videoId],
-    );
+    // Guard: check if the video was replaced during processing (in-place update).
+    // If updated_at changed, a new version was uploaded and we must NOT overwrite its state.
+    let videoWasReplaced = false;
+    if (processingStartUpdatedAt) {
+      const currentCheck = await getPool().query(
+        "SELECT updated_at FROM videos WHERE id = $1",
+        [videoId],
+      );
+      if (
+        currentCheck.rows.length > 0 &&
+        new Date(currentCheck.rows[0].updated_at).getTime() !==
+          new Date(processingStartUpdatedAt).getTime()
+      ) {
+        videoWasReplaced = true;
+        console.log(
+          `[FFmpeg] Video ${videoId} was replaced during processing — skipping DB update and file move`,
+        );
+      }
+    }
 
-    console.log(
-      `[FFmpeg] Step 6 complete: HLS ready for video ${videoId}, masterKey=${masterKey}`,
-    );
+    if (!videoWasReplaced) {
+      await getPool().query(
+        "UPDATE videos SET hls_ready = TRUE, hls_path = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        [masterKey, videoId],
+      );
+      console.log(
+        `[FFmpeg] Step 6 complete: HLS ready for video ${videoId}, masterKey=${masterKey}`,
+      );
+    }
     report("finalizing", 95);
 
     // --- Step 7: Cleanup local temp files ---
@@ -283,51 +318,54 @@ export async function processVideoToHLS(
     cleanupTempFile(localInputPath);
 
     // --- Step 8: Move temp original to permanent storage (for download) ---
-    try {
-      // 1. Get filename to construct permanent key
-      const videoRes = await getPool().query(
-        "SELECT filename, object_key FROM videos WHERE id = $1",
-        [videoId],
-      );
+    // Skip this step if the video was replaced - the new version owns the DB record now.
+    if (!videoWasReplaced) {
+      try {
+        // 1. Get filename to construct permanent key
+        const videoRes = await getPool().query(
+          "SELECT filename, object_key FROM videos WHERE id = $1",
+          [videoId],
+        );
 
-      if (videoRes.rows.length > 0) {
-        const video = videoRes.rows[0];
-        // If the current key is already in "videos/" or doesn't start with "temp-uploads", we might not need to move it,
-        // but to be safe and consistent, let's enforce the structure `videos/{id}/{filename}`
-        const permanentKey = `videos/${videoId}/${video.filename}`;
+        if (videoRes.rows.length > 0) {
+          const video = videoRes.rows[0];
+          // If the current key is already in "videos/" or doesn't start with "temp-uploads", we might not need to move it,
+          // but to be safe and consistent, let's enforce the structure `videos/{id}/{filename}`
+          const permanentKey = `videos/${videoId}/${video.filename}`;
 
-        // Only perform move if the keys are different (to avoid self-deletion issues)
-        if (video.object_key !== permanentKey) {
-          const { copyS3Object, deleteS3Object } = await import("./storage.js");
+          // Only perform move if the keys are different (to avoid self-deletion issues)
+          if (video.object_key !== permanentKey) {
+            const { copyS3Object, deleteS3Object } = await import("./storage.js");
 
-          console.log(
-            `[FFmpeg] Step 8: Moving original MP4: ${video.object_key} -> ${permanentKey}`,
-          );
+            console.log(
+              `[FFmpeg] Step 8: Moving original MP4: ${video.object_key} -> ${permanentKey}`,
+            );
 
-          // 2. Copy to permanent location
-          await copyS3Object(bucket, video.object_key, bucket, permanentKey);
+            // 2. Copy to permanent location
+            await copyS3Object(bucket, video.object_key, bucket, permanentKey);
 
-          // 3. Update DB to point to new permanent key
-          await getPool().query(
-            "UPDATE videos SET object_key = $1 WHERE id = $2",
-            [permanentKey, videoId],
-          );
+            // 3. Update DB to point to new permanent key
+            await getPool().query(
+              "UPDATE videos SET object_key = $1 WHERE id = $2",
+              [permanentKey, videoId],
+            );
 
-          // 4. Delete the old temp file
-          // Make sure we are not deleting the new key if they somehow overlapped (unlikely with this naming)
-          await deleteS3Object(bucket, video.object_key);
+            // 4. Delete the old temp file
+            // Make sure we are not deleting the new key if they somehow overlapped (unlikely with this naming)
+            await deleteS3Object(bucket, video.object_key);
 
-          console.log(
-            `[FFmpeg] Step 8 complete: Updated DB and deleted temp file`,
-          );
-        } else {
-          console.log(`[FFmpeg] Step 8: Video already in permanent location.`);
+            console.log(
+              `[FFmpeg] Step 8 complete: Updated DB and deleted temp file`,
+            );
+          } else {
+            console.log(`[FFmpeg] Step 8: Video already in permanent location.`);
+          }
         }
+      } catch (e) {
+        console.warn(
+          `[FFmpeg] Step 8 warning: Failed to preserve/move original file: ${e.message}`,
+        );
       }
-    } catch (e) {
-      console.warn(
-        `[FFmpeg] Step 8 warning: Failed to preserve/move original file: ${e.message}`,
-      );
     }
 
     report("completed", 100);

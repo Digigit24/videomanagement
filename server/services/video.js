@@ -13,15 +13,37 @@ export async function createVideo({
   mediaType = "video",
 }) {
   try {
-    // If replacing an existing video, delete the old one first
+    // If replacing an existing video, UPDATE in place to keep the same video ID.
+    // This preserves all references: share links, comments, reviews, views.
     if (replaceVideoId) {
       const oldVideo = await pool().query(
         "SELECT * FROM videos WHERE id = $1",
         [replaceVideoId],
       );
       if (oldVideo.rows[0]) {
-        // Move old video to deleted_videos backup
         const v = oldVideo.rows[0];
+
+        // Save old video's S3 data for async cleanup later
+        const oldVideoS3Data = {
+          bucket: v.bucket,
+          objectKey: v.object_key,
+          hlsPath: v.hls_path,
+          thumbnailKey: v.thumbnail_key,
+          videoId: v.id,
+        };
+
+        // Remove old video from processing queue (if queued but not yet processing)
+        try {
+          const processingQueue = (await import("./processingQueue.js")).default;
+          const dequeued = processingQueue.dequeue(replaceVideoId);
+          if (dequeued) {
+            console.log(`[Replace] Dequeued old video ${replaceVideoId} from processing queue`);
+          }
+        } catch (e) {
+          console.warn(`[Replace] Failed to dequeue old video: ${e.message}`);
+        }
+
+        // Backup old version metadata to deleted_videos for history
         await pool().query(
           `INSERT INTO deleted_videos (original_video_id, version_group_id, version_number, bucket, filename, object_key, size, status, hls_ready, hls_path, uploaded_by, uploaded_at, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
@@ -42,13 +64,50 @@ export async function createVideo({
           ],
         );
 
-        // Delete old video record
-        await pool().query("DELETE FROM videos WHERE id = $1", [
-          replaceVideoId,
-        ]);
+        // Update the existing video record in place (keep same ID, preserve all FK refs)
+        const result = await pool().query(
+          `UPDATE videos SET
+             filename = $1,
+             object_key = $2,
+             size = $3,
+             uploaded_by = $4,
+             uploaded_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP,
+             hls_ready = FALSE,
+             hls_path = NULL,
+             thumbnail_key = NULL,
+             processing_status = NULL,
+             processing_progress = 0,
+             processing_step = NULL,
+             version_number = COALESCE(version_number, 1) + 1,
+             status = 'Pending',
+             media_type = $5
+           WHERE id = $6
+           RETURNING *`,
+          [filename, objectKey, size, uploadedBy, mediaType, replaceVideoId],
+        );
+
+        const video = result.rows[0];
+
+        // Log activity
+        await logActivity(uploadedBy, "video_uploaded", "video", video.id, {
+          filename,
+          bucket,
+          size,
+          replacedVideo: true,
+          previousVersion: v.version_number || 1,
+        });
+
+        // Schedule async cleanup of old video's S3 data
+        cleanupOldVideoS3(oldVideoS3Data).catch(err => {
+          console.warn(`[Replace] S3 cleanup failed for old video ${replaceVideoId}:`, err.message);
+        });
+
+        return video;
       }
     }
 
+    // Standard new video creation (no replacement)
     const result = await pool().query(
       `INSERT INTO videos (bucket, filename, object_key, size, uploaded_by, uploaded_at, created_at, version_group_id, version_number, is_active_version, parent_video_id, folder_id, media_type)
        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, gen_random_uuid(), 1, TRUE, NULL, $6, $7)
@@ -63,13 +122,53 @@ export async function createVideo({
       filename,
       bucket,
       size,
-      replacedVideo: !!replaceVideoId,
+      replacedVideo: false,
     });
 
     return video;
   } catch (error) {
     console.error("Error creating video:", error);
     throw error;
+  }
+}
+
+/**
+ * Asynchronously clean up old video's S3 data after replacement.
+ * Non-blocking - failures are logged but don't affect the upload flow.
+ */
+async function cleanupOldVideoS3(s3Data) {
+  const { deleteS3Object, deleteS3Prefix, resolveBucket } = await import("./storage.js");
+  const { bucket: physicalBucket } = resolveBucket(s3Data.bucket);
+
+  // Delete original file
+  if (s3Data.objectKey) {
+    try {
+      await deleteS3Object(physicalBucket, s3Data.objectKey);
+      console.log(`[S3 Cleanup] Deleted original: ${s3Data.objectKey}`);
+    } catch (e) {
+      console.warn(`[S3 Cleanup] Failed to delete original ${s3Data.objectKey}: ${e.message}`);
+    }
+  }
+
+  // Delete thumbnail
+  if (s3Data.thumbnailKey) {
+    try {
+      await deleteS3Object(physicalBucket, s3Data.thumbnailKey);
+      console.log(`[S3 Cleanup] Deleted thumbnail: ${s3Data.thumbnailKey}`);
+    } catch (e) {
+      console.warn(`[S3 Cleanup] Failed to delete thumbnail ${s3Data.thumbnailKey}: ${e.message}`);
+    }
+  }
+
+  // Delete HLS directory (all segments and playlists)
+  if (s3Data.hlsPath) {
+    const hlsDir = s3Data.hlsPath.replace(/\/master\.m3u8$/, "");
+    try {
+      await deleteS3Prefix(physicalBucket, hlsDir + "/");
+      console.log(`[S3 Cleanup] Deleted HLS directory: ${hlsDir}/`);
+    } catch (e) {
+      console.warn(`[S3 Cleanup] Failed to delete HLS dir ${hlsDir}: ${e.message}`);
+    }
   }
 }
 

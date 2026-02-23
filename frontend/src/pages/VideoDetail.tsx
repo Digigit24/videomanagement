@@ -206,13 +206,16 @@ export default function VideoDetail() {
 
   const handleUploadComplete = (newVideo?: any) => {
     if (newVideo && newVideo.id && newVideo.id !== id) {
-      // Navigate to new video version
+      // Navigate to new video version (different ID)
       if (currentBucket) {
         navigate(`/workspace/${currentBucket}/video/${newVideo.id}`);
       } else {
         navigate(`/v/${newVideo.id}`);
       }
     } else {
+      // Same video ID (in-place replacement) — reset processing state and reload
+      setProcessingStatus(null);
+      setShareToken(null);
       loadVideo();
     }
   };

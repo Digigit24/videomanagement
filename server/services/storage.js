@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   CopyObjectCommand,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import fs from "fs";
 import { pipeline } from "stream/promises";
@@ -214,6 +215,39 @@ export async function deleteS3Object(bucket, key) {
     Key: key,
   });
   await getS3Client().send(command);
+}
+
+/**
+ * Delete all S3 objects with a given prefix (e.g. an HLS directory).
+ * Lists all objects under the prefix and deletes them in batches.
+ */
+export async function deleteS3Prefix(bucket, prefix) {
+  if (!prefix) return;
+
+  let continuationToken;
+  do {
+    const listCommand = new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    });
+    const response = await getS3Client().send(listCommand);
+
+    if (response.Contents && response.Contents.length > 0) {
+      const deleteCommand = new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: {
+          Objects: response.Contents.map((obj) => ({ Key: obj.Key })),
+          Quiet: true,
+        },
+      });
+      await getS3Client().send(deleteCommand);
+    }
+
+    continuationToken = response.IsTruncated
+      ? response.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
 }
 
 export { getS3Client };

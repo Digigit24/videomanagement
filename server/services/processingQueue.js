@@ -45,6 +45,29 @@ class ProcessingQueue {
   }
 
   /**
+   * Remove a video from the queue (if it's queued but not yet processing).
+   * Returns true if the video was found and removed, false otherwise.
+   */
+  dequeue(videoId) {
+    const idx = this.queue.findIndex((j) => j.videoId === videoId);
+    if (idx !== -1) {
+      this.queue.splice(idx, 1);
+      console.log(
+        `[Queue] Video ${videoId} dequeued. Queue length: ${this.queue.length}`
+      );
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Check if a video is currently being processed (actively running FFmpeg).
+   */
+  isCurrentlyProcessing(videoId) {
+    return this.currentVideoId === videoId;
+  }
+
+  /**
    * Get total number of items in the queue (including the one being processed).
    */
   getQueueTotal() {
