@@ -13,8 +13,6 @@ import {
 } from "./storage.js";
 
 // Use node-module FFmpeg binaries instead of system-installed ones.
-// This avoids needing a system ffmpeg install, keeps RAM/storage low,
-// and ensures a consistent version across environments.
 ffmpegLib.setFfmpegPath(ffmpegInstaller.path);
 ffmpegLib.setFfprobePath(ffprobeInstaller.path);
 
@@ -54,9 +52,9 @@ const QUALITIES = [
 
 const MAX_TRANSCODE_RETRIES = 2;
 // Stall timeout: if FFmpeg produces no progress for this long, kill it
-const STALL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const STALL_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes
 // Download timeout: maximum time to wait for S3 download before aborting
-const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 // Progress distribution:
 // Download: 0-10%, Thumbnail: 10-15%, Transcoding: 15-90%, Finalize: 90-100%
@@ -68,14 +66,14 @@ const PROGRESS_FINALIZE = { start: 90, end: 100 };
 /**
  * Main entry point for video processing.
  *
- * @param {string} tempS3Key - The S3 key where the temp original is stored
+ * @param {string} localFilePath - Local file path OR S3 temp key (if starts with temp-uploads or workspace prefix)
  * @param {string} videoId - The video record ID
  * @param {string} bucketName - The bucket/workspace name (raw, not resolved)
  * @param {string} originalFilename - Sanitized filename (safe for filesystem/S3)
  * @param {Function} onProgress - Callback: (step, progressPercent) => void
  */
 export async function processVideoToHLS(
-  tempS3Key,
+  localFilePath,
   videoId,
   bucketName,
   originalFilename,
@@ -90,62 +88,55 @@ export async function processVideoToHLS(
   const { bucket, prefix } = resolveBucket(bucketName);
   const tempDir = path.join(os.tmpdir(), `hls-${videoId}`);
   const hlsBase = `${prefix}hls/${videoId}`;
-  // Use videoId in the local path (not filename) to avoid path issues
-  const localInputPath = path.join(
-    os.tmpdir(),
-    `input-${videoId}${path.extname(originalFilename)}`,
-  );
+
+  // Determine if the source is a local file or an S3 key
+  const isLocalFile = fs.existsSync(localFilePath);
+  const localInputPath = isLocalFile
+    ? localFilePath
+    : path.join(os.tmpdir(), `input-${videoId}${path.extname(originalFilename)}`);
 
   console.log(`[FFmpeg] Processing video ${videoId}`);
   console.log(
     `[FFmpeg]   bucketName=${bucketName}, resolvedBucket=${bucket}, prefix="${prefix}"`,
   );
-  console.log(`[FFmpeg]   tempS3Key=${tempS3Key}`);
+  console.log(`[FFmpeg]   source=${isLocalFile ? "local" : "s3"}, path=${localFilePath}`);
   console.log(`[FFmpeg]   localInputPath=${localInputPath}`);
   console.log(`[FFmpeg]   hlsBase=${hlsBase}`);
 
   try {
     fs.mkdirSync(tempDir, { recursive: true });
 
-    // Record the video's updated_at at processing start. If the video is replaced
-    // mid-processing (in-place update), updated_at will change and we can skip
-    // the final DB update to avoid overwriting the new version's state.
-    let processingStartUpdatedAt = null;
-    try {
-      const startCheck = await getPool().query(
-        "SELECT updated_at FROM videos WHERE id = $1",
-        [videoId],
-      );
-      if (startCheck.rows.length > 0) {
-        processingStartUpdatedAt = startCheck.rows[0].updated_at;
-      }
-    } catch (_) { /* non-critical */ }
-
-    // --- Step 1: Download temp original from S3 ---
+    // --- Step 1: Get the source file locally ---
     report("downloading", PROGRESS_DOWNLOAD.start);
-    console.log(
-      `[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${tempS3Key}`,
-    );
-    await Promise.race([
-      downloadFromS3ToFile(bucket, tempS3Key, localInputPath),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`S3 download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`)), DOWNLOAD_TIMEOUT_MS)
-      ),
-    ]);
 
-    // Verify the downloaded file exists and has content
+    if (!isLocalFile) {
+      // Legacy path: download from S3
+      console.log(
+        `[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${localFilePath}`,
+      );
+      await Promise.race([
+        downloadFromS3ToFile(bucket, localFilePath, localInputPath),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`S3 download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`)), DOWNLOAD_TIMEOUT_MS)
+        ),
+      ]);
+    } else {
+      console.log(`[FFmpeg] Step 1: Using local file at ${localInputPath}`);
+    }
+
+    // Verify the file exists and has content
     if (!fs.existsSync(localInputPath)) {
-      throw new Error(`Downloaded file not found at ${localInputPath}`);
+      throw new Error(`Input file not found at ${localInputPath}`);
     }
     const fileSize = fs.statSync(localInputPath).size;
     if (fileSize === 0) {
       throw new Error(
-        `Downloaded file is empty (0 bytes) at ${localInputPath}`,
+        `Input file is empty (0 bytes) at ${localInputPath}`,
       );
     }
     const fileSizeMB = (fileSize / 1024 / 1024).toFixed(1);
     console.log(
-      `[FFmpeg] Step 1 complete: Downloaded ${fileSizeMB} MB to ${localInputPath}`,
+      `[FFmpeg] Step 1 complete: ${fileSizeMB} MB ready at ${localInputPath}`,
     );
     report("downloading", PROGRESS_DOWNLOAD.end);
 
@@ -218,14 +209,13 @@ export async function processVideoToHLS(
         videoId,
         duration,
         (ffmpegPercent) => {
-          // Map FFmpeg's 0-100% to this quality's portion of overall progress
           const qualityProgress =
             qualityBaseProgress + (ffmpegPercent / 100) * perQualityRange * 0.8;
           report(stepName, qualityProgress);
         },
       );
 
-      // Upload all segment files using streaming to avoid loading into memory
+      // Upload all segment files
       const uploadStepName = `uploading_${quality.name}`;
       const uploadBaseProgress = qualityBaseProgress + perQualityRange * 0.8;
       report(uploadStepName, uploadBaseProgress);
@@ -242,7 +232,6 @@ export async function processVideoToHLS(
         const contentType = file.endsWith(".m3u8")
           ? "application/vnd.apple.mpegurl"
           : "video/MP2T";
-        // Stream upload for .ts segments (can be large), buffer for small .m3u8 files
         if (file.endsWith(".m3u8")) {
           const fileBuffer = fs.readFileSync(filePath);
           await uploadToS3(bucket, objectKey, fileBuffer, contentType);
@@ -250,7 +239,6 @@ export async function processVideoToHLS(
           await uploadFileToS3(bucket, objectKey, filePath, contentType);
         }
 
-        // Report upload progress per file
         const uploadProgress =
           uploadBaseProgress +
           ((fi + 1) / files.length) * (perQualityRange * 0.2);
@@ -260,7 +248,7 @@ export async function processVideoToHLS(
       // Clean up this quality's local files to free disk space before next quality
       try {
         fs.rmSync(outputDir, { recursive: true, force: true });
-        console.log(`[FFmpeg] Cleaned up local ${quality.name} segments to free disk space`);
+        console.log(`[FFmpeg] Cleaned up local ${quality.name} segments`);
       } catch (_) { /* ignore cleanup errors */ }
 
       report(uploadStepName, qualityBaseProgress + perQualityRange);
@@ -289,27 +277,15 @@ export async function processVideoToHLS(
     );
 
     // --- Step 6: Mark video as HLS-ready in DB ---
-    // Guard: check if the video was replaced during processing (in-place update).
-    // If updated_at changed, a new version was uploaded and we must NOT overwrite its state.
-    let videoWasReplaced = false;
-    if (processingStartUpdatedAt) {
-      const currentCheck = await getPool().query(
-        "SELECT updated_at FROM videos WHERE id = $1",
-        [videoId],
-      );
-      if (
-        currentCheck.rows.length > 0 &&
-        new Date(currentCheck.rows[0].updated_at).getTime() !==
-          new Date(processingStartUpdatedAt).getTime()
-      ) {
-        videoWasReplaced = true;
-        console.log(
-          `[FFmpeg] Video ${videoId} was replaced during processing — skipping DB update and file move`,
-        );
-      }
-    }
-
-    if (!videoWasReplaced) {
+    // Use processing_status check instead of updated_at to detect replacement.
+    // If the video's processing_status was reset to NULL or 'queued' (by a new upload replacing it),
+    // skip this update to avoid overwriting the new version's state.
+    const currentCheck = await getPool().query(
+      "SELECT processing_status FROM videos WHERE id = $1",
+      [videoId],
+    );
+    const currentStatus = currentCheck.rows[0]?.processing_status;
+    if (currentStatus === "processing") {
       await getPool().query(
         "UPDATE videos SET hls_ready = TRUE, hls_path = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
         [masterKey, videoId],
@@ -317,63 +293,42 @@ export async function processVideoToHLS(
       console.log(
         `[FFmpeg] Step 6 complete: HLS ready for video ${videoId}, masterKey=${masterKey}`,
       );
+    } else {
+      console.log(
+        `[FFmpeg] Step 6 SKIPPED: Video ${videoId} status is '${currentStatus}' (expected 'processing') — video was likely replaced`,
+      );
     }
     report("finalizing", 95);
 
     // --- Step 7: Cleanup local temp files ---
     cleanupTempDir(tempDir);
-    cleanupTempFile(localInputPath);
+    // Only delete the local input file if it's not a server-stored temp (will be cleaned up by queue)
+    if (!isLocalFile) {
+      cleanupTempFile(localInputPath);
+    }
 
-    // --- Step 8: Move temp original to permanent storage (for download) ---
-    // Skip this step if the video was replaced - the new version owns the DB record now.
-    if (!videoWasReplaced) {
+    // --- Step 8: Upload original to permanent S3 storage ---
+    if (currentStatus === "processing") {
       try {
-        // 1. Get filename to construct permanent key
-        const videoRes = await getPool().query(
-          "SELECT filename, object_key FROM videos WHERE id = $1",
-          [videoId],
+        const permanentKey = `${prefix}videos/${videoId}/${originalFilename}`;
+        console.log(
+          `[FFmpeg] Step 8: Uploading original to S3: ${permanentKey}`,
         );
-
-        if (videoRes.rows.length > 0) {
-          const video = videoRes.rows[0];
-          // If the current key is already in "videos/" or doesn't start with "temp-uploads", we might not need to move it,
-          // but to be safe and consistent, let's enforce the structure `videos/{id}/{filename}`
-          const permanentKey = `videos/${videoId}/${video.filename}`;
-
-          // Only perform move if the keys are different (to avoid self-deletion issues)
-          if (video.object_key !== permanentKey) {
-            const { copyS3Object, deleteS3Object } = await import("./storage.js");
-
-            console.log(
-              `[FFmpeg] Step 8: Moving original MP4: ${video.object_key} -> ${permanentKey}`,
-            );
-
-            // 2. Copy to permanent location
-            await copyS3Object(bucket, video.object_key, bucket, permanentKey);
-
-            // 3. Update DB to point to new permanent key
-            await getPool().query(
-              "UPDATE videos SET object_key = $1 WHERE id = $2",
-              [permanentKey, videoId],
-            );
-
-            // 4. Delete the old temp file
-            // Make sure we are not deleting the new key if they somehow overlapped (unlikely with this naming)
-            await deleteS3Object(bucket, video.object_key);
-
-            console.log(
-              `[FFmpeg] Step 8 complete: Updated DB and deleted temp file`,
-            );
-          } else {
-            console.log(`[FFmpeg] Step 8: Video already in permanent location.`);
-          }
-        }
+        await uploadFileToS3(bucket, permanentKey, localInputPath, "video/mp4");
+        await getPool().query(
+          "UPDATE videos SET object_key = $1 WHERE id = $2",
+          [permanentKey, videoId],
+        );
+        console.log(`[FFmpeg] Step 8 complete: Original uploaded to S3`);
       } catch (e) {
         console.warn(
-          `[FFmpeg] Step 8 warning: Failed to preserve/move original file: ${e.message}`,
+          `[FFmpeg] Step 8 warning: Failed to upload original file: ${e.message}`,
         );
       }
     }
+
+    // --- Step 9: Clean up local input file ---
+    cleanupTempFile(localInputPath);
 
     report("completed", 100);
     console.log(`[FFmpeg] Processing complete for video ${videoId}`);
@@ -383,7 +338,7 @@ export async function processVideoToHLS(
       `[FFmpeg] FAILED processing video ${videoId}:`,
       error.message,
     );
-    console.error(`[FFmpeg]   S3 key was: ${tempS3Key}`);
+    console.error(`[FFmpeg]   Source was: ${localFilePath}`);
     console.error(`[FFmpeg]   Bucket was: ${bucket}`);
     console.error(`[FFmpeg]   Full error:`, error);
     cleanupTempDir(tempDir);
@@ -454,7 +409,6 @@ function getVideoInfo(inputPath) {
 
 /**
  * Transcode to HLS with progress reporting and stall detection.
- * Uses -threads 0 (auto) so FFmpeg can use available CPU cores for large files.
  */
 function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
   let lastReportedPercent = 0;
@@ -510,7 +464,6 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
         if (progress.percent) {
           percent = Math.min(100, Math.max(0, progress.percent));
         } else if (duration > 0 && progress.timemark) {
-          // Parse timemark (HH:MM:SS.ms) to seconds
           const parts = progress.timemark.split(":");
           if (parts.length === 3) {
             const secs =

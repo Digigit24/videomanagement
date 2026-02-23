@@ -1,5 +1,7 @@
 import multer from "multer";
 import fs from "fs";
+import path from "path";
+import os from "os";
 import {
   getVideos,
   getVideoById,
@@ -18,8 +20,24 @@ import { apiError } from "../utils/logger.js";
 import { notifyWorkspaceMembers } from "../services/notification.js";
 import { getWorkspaceByBucket } from "../services/workspace.js";
 
+// Store uploaded files in a dedicated temp directory on the server
+const UPLOAD_TEMP_DIR = path.join(os.tmpdir(), "video-uploads");
+try {
+  fs.mkdirSync(UPLOAD_TEMP_DIR, { recursive: true });
+} catch (_) {}
+
 const upload = multer({
-  storage: multer.diskStorage({}), // Uses system temp directory
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      fs.mkdirSync(UPLOAD_TEMP_DIR, { recursive: true });
+      cb(null, UPLOAD_TEMP_DIR);
+    },
+    filename: (req, file, cb) => {
+      // Use timestamp + random suffix to avoid collisions
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`);
+    },
+  }),
   limits: { fileSize: 50 * 1024 * 1024 * 1024 }, // 50GB
   fileFilter: (req, file, cb) => {
     const allowedVideoTypes = [
@@ -108,7 +126,7 @@ export async function updateStatus(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // Send notification to ALL workspace members (including clients and admins)
+    // Send notification to ALL workspace members
     try {
       const workspace = await getWorkspaceByBucket(video.bucket);
       if (workspace) {
@@ -146,7 +164,7 @@ export async function uploadVideo(req, res) {
         return res.status(400).json({ error: "No file provided" });
       }
 
-      // All workspace members can upload (permission check via role or workspace perms)
+      // All workspace members can upload
       const allowedRoles = [
         "admin",
         "video_editor",
@@ -177,24 +195,11 @@ export async function uploadVideo(req, res) {
       const timestamp = Date.now();
       const objectKey = `${prefix}${timestamp}-${safeName}`;
 
-      // Step 1: Upload to S3
-      const tempS3Key = `${prefix}temp-uploads/${timestamp}-${safeName}`;
       console.log(
-        `[Upload] Uploading ${mediaType} to S3 temp: bucket=${resolvedBucket}, key=${tempS3Key}`,
-      );
-      await uploadFileToS3(resolvedBucket, tempS3Key, filePath, mimetype);
-      console.log(
-        `[Upload] Upload complete: bucket=${resolvedBucket}, key=${tempS3Key}`,
+        `[Upload] ${mediaType} received: filename=${safeName}, size=${(size / 1024 / 1024).toFixed(1)}MB, localPath=${filePath}`,
       );
 
-      // Step 2: Delete local temp file
-      try {
-        fs.unlinkSync(filePath);
-      } catch (e) {
-        console.warn(`Failed to delete local temp: ${e.message}`);
-      }
-
-      // Step 3: Create record in database
+      // Step 1: Create record in database (immediately, before S3 upload)
       const video = await createVideo({
         bucket: req.bucket,
         filename: originalname,
@@ -226,43 +231,38 @@ export async function uploadVideo(req, res) {
         console.error("Notification error:", e);
       }
 
-      // Step 4: For videos, enqueue for HLS processing
-      // Photos don't need HLS processing - they're stored as-is at full quality
-      if (!isPhoto) {
-        processingQueue
-          .enqueue(video.id, tempS3Key, req.bucket, safeName)
-          .catch((err) => {
-            console.error(`Failed to enqueue video ${video.id}:`, err.message);
-          });
-      } else {
-        // For photos, copy from temp to final location and mark as ready
+      // Step 2: Handle differently for photos vs videos
+      if (isPhoto) {
+        // Photos: Upload to S3 immediately, then delete local file
         try {
-          const { copyS3Object, deleteS3Object } =
-            await import("../services/storage.js");
-          await copyS3Object(
-            resolvedBucket,
-            tempS3Key,
-            resolvedBucket,
-            objectKey,
-          );
-          await deleteS3Object(resolvedBucket, tempS3Key);
-          // Mark photo as ready (no HLS needed)
+          await uploadFileToS3(resolvedBucket, objectKey, filePath, mimetype);
           const pool = (await import("../db/index.js")).getPool();
           await pool.query(
             `UPDATE videos SET object_key = $1, hls_ready = FALSE, thumbnail_key = $1, processing_status = 'completed' WHERE id = $2`,
             [objectKey, video.id],
           );
+          console.log(`[Upload] Photo uploaded to S3 and finalized: ${objectKey}`);
         } catch (photoErr) {
-          console.error("Photo finalization error:", photoErr);
-          // Photo is still accessible from temp location
+          console.error("Photo upload error:", photoErr);
         }
+        // Delete local temp file
+        try { fs.unlinkSync(filePath); } catch (_) {}
+      } else {
+        // Videos: Keep the file on server, enqueue for local processing
+        // The processing queue will process from the local file, upload results to S3,
+        // then delete the local file when done.
+        processingQueue
+          .enqueue(video.id, filePath, req.bucket, safeName)
+          .catch((err) => {
+            console.error(`Failed to enqueue video ${video.id}:`, err.message);
+          });
       }
 
       res.status(201).json({
         video: { ...video, media_type: mediaType },
         message: isPhoto
           ? "Photo uploaded successfully."
-          : "Video uploaded to storage. Processing started in background.",
+          : "Video uploaded. Processing will start shortly.",
       });
     } catch (error) {
       apiError(req, error);
@@ -336,8 +336,7 @@ export async function restoreVideo(req, res) {
   }
 }
 
-// Download video or photo — photos serve the original file directly,
-// videos serve the highest quality HLS variant playlist.
+// Download video or photo
 export async function downloadVideo(req, res) {
   try {
     const { id } = req.params;
@@ -408,7 +407,6 @@ export async function downloadVideo(req, res) {
       console.warn(
         `[Download] Original file not found for video ${video.id} (key: ${video.object_key}), falling back to HLS.`,
       );
-      // Fall through to HLS logic
     }
 
     // Videos: serve HLS (fallback)
@@ -522,9 +520,6 @@ export async function streamVideo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // Since the original video is NOT stored in S3 (only HLS chunks are),
-    // direct streaming is only possible when HLS is ready.
-    // The frontend should use the HLS player; this endpoint exists as a fallback.
     if (!video.hls_ready) {
       return res.status(202).json({
         error:
@@ -532,8 +527,6 @@ export async function streamVideo(req, res) {
       });
     }
 
-    // Redirect the caller to use HLS streaming instead.
-    // For backward compatibility, try to stream the HLS master playlist.
     const hlsMasterKey = video.hls_path;
     if (hlsMasterKey) {
       const stream = await getVideoStream(req.bucket, hlsMasterKey);
@@ -599,4 +592,3 @@ export async function getProcessingStatus(req, res) {
     res.status(500).json({ error: "Failed to get processing status" });
   }
 }
-

@@ -124,7 +124,7 @@ export async function getVideoReviews(videoId) {
 // Get video info for public pages (by video ID, no auth needed if share token valid)
 export async function getVideoPublicInfo(videoId) {
   const result = await getPool().query(
-    `SELECT id, bucket, filename, size, status, hls_ready, hls_path, created_at, uploaded_at
+    `SELECT id, bucket, filename, size, status, hls_ready, hls_path, media_type, processing_status, created_at, uploaded_at
      FROM videos WHERE id = $1`,
     [videoId],
   );

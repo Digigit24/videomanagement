@@ -18,9 +18,25 @@ const reviewAttachmentUpload = multer({
 // === Share Token Endpoints ===
 
 // Generate a share token for a video (authenticated)
+// Only allowed when the video is fully processed (hls_ready=true) or is a photo
 export async function generateShareToken(req, res) {
   try {
     const { videoId } = req.params;
+
+    // Check if video is ready to be shared
+    const video = await getVideoPublicInfo(videoId);
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    // Photos are always shareable. Videos require HLS processing to complete.
+    const isPhoto = video.media_type === "photo";
+    if (!isPhoto && !video.hls_ready) {
+      return res.status(400).json({
+        error: "Please wait until video processing completes before sharing.",
+      });
+    }
+
     const token = await getOrCreateShareToken(videoId, req.user.id);
     res.json({ token: token.token, videoId });
   } catch (error) {

@@ -415,6 +415,13 @@ export default function VideoDetail() {
   const [shareError, setShareError] = useState(false);
 
   const handleOpenSharePanel = async () => {
+    // Block share link if video is still processing
+    if (video && video.media_type !== 'photo' && !video.hls_ready) {
+      setShowShareLinks(true);
+      setShareError(true);
+      return;
+    }
+
     const opening = !showShareLinks;
     setShowShareLinks(opening);
     if (opening && !shareToken && video) {
@@ -423,7 +430,7 @@ export default function VideoDetail() {
       try {
         const token = await videoService.getShareToken(video.id);
         setShareToken(token);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to generate share token:', error);
         setShareError(true);
       } finally {
@@ -546,10 +553,20 @@ export default function VideoDetail() {
                     </div>
                   ) : shareError ? (
                     <div className="text-center py-4">
-                      <p className="text-xs text-red-500 mb-2">Failed to generate share link</p>
-                      <Button variant="outline" size="sm" onClick={() => { setShareToken(null); handleOpenSharePanel(); }} className="text-xs">
-                        Retry
-                      </Button>
+                      {video && video.media_type !== 'photo' && !video.hls_ready ? (
+                        <>
+                          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
+                          <p className="text-xs text-amber-600 font-medium mb-1">Video is still processing</p>
+                          <p className="text-[10px] text-gray-500">Please wait until processing completes before sharing.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-red-500 mb-2">Failed to generate share link</p>
+                          <Button variant="outline" size="sm" onClick={() => { setShareToken(null); setShareError(false); handleOpenSharePanel(); }} className="text-xs">
+                            Retry
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <>
