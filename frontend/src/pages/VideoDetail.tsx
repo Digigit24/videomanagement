@@ -776,11 +776,18 @@ export default function VideoDetail() {
                         </svg>
                       </div>
                       <p className="text-red-400 text-sm font-medium mb-1">Processing Failed</p>
-                      <p className="text-gray-500 text-xs">
+                      <p className="text-gray-500 text-xs mb-4">
                         {processingStatus.processing_step && processingStatus.processing_step.startsWith('error:')
                           ? processingStatus.processing_step.replace('error: ', '')
                           : 'An error occurred while transcoding this video.'}
                       </p>
+                      <button
+                        onClick={() => setShowUploadModal(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Upload New Version
+                      </button>
                     </>
                   ) : processingStatus?.processing_status === 'queued' ? (
                     <>

@@ -2,6 +2,7 @@ import {
   S3Client,
   ListObjectsV2Command,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
   CopyObjectCommand,
   DeleteObjectsCommand,
@@ -152,6 +153,24 @@ export async function getVideoMetadata(bucketName, objectKey) {
       console.error("Error getting video metadata:", error);
     }
     throw new Error("Failed to get video metadata");
+  }
+}
+
+/**
+ * Check if an S3 object exists without downloading it.
+ * Returns true if the object exists, false otherwise.
+ */
+export async function s3ObjectExists(bucketName, objectKey) {
+  const { bucket } = resolveBucket(bucketName);
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+    });
+    await getS3Client().send(command);
+    return true;
+  } catch (error) {
+    return false;
   }
 }
 

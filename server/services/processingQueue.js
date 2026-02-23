@@ -1,5 +1,6 @@
 import { getPool } from "../db/index.js";
 import { processVideoToHLS } from "./ffmpeg.js";
+import { s3ObjectExists, resolveBucket } from "./storage.js";
 import fs from "fs";
 
 // Maximum time (ms) for a single video to complete all processing steps.
@@ -267,6 +268,8 @@ class ProcessingQueue {
 
   /**
    * Recover videos stuck in 'queued' or 'processing' state from a previous crash/restart.
+   * Verifies that the source file actually exists in S3 before re-enqueueing.
+   * If the source file is missing, marks the video as failed with a clear re-upload message.
    */
   async recoverStuckVideos() {
     try {
@@ -286,21 +289,49 @@ class ProcessingQueue {
         return;
       }
 
-      console.log(`[Queue Recovery] Found ${result.rows.length} stuck video(s). Re-enqueueing...`);
+      console.log(`[Queue Recovery] Found ${result.rows.length} stuck video(s). Checking source files...`);
 
       for (const row of result.rows) {
-        // After restart, local temp files are gone. Fall back to S3 key.
-        // ffmpeg.js will detect the source is not a local file and download from S3.
         const safeName = row.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
         const s3Key = row.object_key;
+        const { prefix } = resolveBucket(row.bucket);
 
-        console.log(`[Queue Recovery] Re-enqueueing video ${row.id} (was ${row.processing_status}): bucket=${row.bucket}, s3Key=${s3Key}`);
+        // After restart, local temp files are gone. Check if S3 source exists.
+        // Try multiple possible S3 locations:
+        //   1. The object_key from DB (could be temp upload key or permanent key)
+        //   2. The permanent location: {prefix}videos/{videoId}/{filename}
+        let sourceKey = null;
 
-        try {
-          await this.enqueue(row.id, s3Key, row.bucket, safeName);
-        } catch (enqueueErr) {
-          console.error(`[Queue Recovery] Failed to re-enqueue video ${row.id}:`, enqueueErr.message);
-          await this.updateProcessingStatus(row.id, "failed", 0, "error: recovery failed - please re-upload").catch(() => {});
+        // Check primary object_key
+        if (s3Key && await s3ObjectExists(row.bucket, s3Key)) {
+          sourceKey = s3Key;
+          console.log(`[Queue Recovery] Video ${row.id}: Found source at object_key=${s3Key}`);
+        } else {
+          // Try permanent S3 location
+          const permanentKey = `${prefix}videos/${row.id}/${safeName}`;
+          if (await s3ObjectExists(row.bucket, permanentKey)) {
+            sourceKey = permanentKey;
+            console.log(`[Queue Recovery] Video ${row.id}: Found source at permanent key=${permanentKey}`);
+          }
+        }
+
+        if (sourceKey) {
+          console.log(`[Queue Recovery] Re-enqueueing video ${row.id} (was ${row.processing_status}): bucket=${row.bucket}, source=${sourceKey}`);
+          try {
+            await this.enqueue(row.id, sourceKey, row.bucket, safeName);
+          } catch (enqueueErr) {
+            console.error(`[Queue Recovery] Failed to re-enqueue video ${row.id}:`, enqueueErr.message);
+            await this.updateProcessingStatus(row.id, "failed", 0, "error: Recovery failed — please upload a new version").catch(() => {});
+          }
+        } else {
+          // Source file not found anywhere — mark as failed with clear message
+          console.warn(`[Queue Recovery] Video ${row.id}: Source file NOT FOUND in S3 (key=${s3Key}). Marking as failed.`);
+          await this.updateProcessingStatus(
+            row.id,
+            "failed",
+            0,
+            "error: Source file not found — please upload a new version"
+          ).catch(() => {});
         }
       }
 

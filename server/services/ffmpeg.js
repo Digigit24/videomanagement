@@ -110,16 +110,26 @@ export async function processVideoToHLS(
     report("downloading", PROGRESS_DOWNLOAD.start);
 
     if (!isLocalFile) {
-      // Legacy path: download from S3
+      // Legacy/recovery path: download from S3
       console.log(
         `[FFmpeg] Step 1: Downloading from S3 bucket=${bucket} key=${localFilePath}`,
       );
-      await Promise.race([
-        downloadFromS3ToFile(bucket, localFilePath, localInputPath),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`S3 download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`)), DOWNLOAD_TIMEOUT_MS)
-        ),
-      ]);
+      try {
+        await Promise.race([
+          downloadFromS3ToFile(bucket, localFilePath, localInputPath),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`S3 download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000}s`)), DOWNLOAD_TIMEOUT_MS)
+          ),
+        ]);
+      } catch (dlErr) {
+        // Clean up partial download
+        cleanupTempFile(localInputPath);
+        const msg = dlErr.message || String(dlErr);
+        if (msg.includes("NoSuchKey") || msg.includes("Not Found") || msg.includes("404") || msg.includes("Access Denied")) {
+          throw new Error("Source file not found in storage — please upload a new version");
+        }
+        throw new Error(`Failed to download source file — ${msg}`);
+      }
     } else {
       console.log(`[FFmpeg] Step 1: Using local file at ${localInputPath}`);
     }
@@ -343,7 +353,13 @@ export async function processVideoToHLS(
     console.error(`[FFmpeg]   Full error:`, error);
     cleanupTempDir(tempDir);
     cleanupTempFile(localInputPath);
-    throw error;
+    // Re-throw with a sanitized message (strip file paths for user-facing display)
+    const cleanMsg = (error.message || "Unknown processing error")
+      .replace(/\/tmp\/[^\s,]+/g, "<temp-file>")
+      .replace(/\/home\/[^\s,]+/g, "<server-path>");
+    const sanitizedError = new Error(cleanMsg);
+    sanitizedError.stack = error.stack;
+    throw sanitizedError;
   }
 }
 
