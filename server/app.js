@@ -48,9 +48,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Schema Generator (standalone tool integrated into this server)
+// Schema Generator API routes
 import schemaGeneratorRoutes from "./routes/schemaGenerator.js";
-app.use("/schema-generator", schemaGeneratorRoutes);
+app.use("/api/schema-generator", schemaGeneratorRoutes);
 
 // Routes
 // We mount on both /api and / to handle different proxy configurations

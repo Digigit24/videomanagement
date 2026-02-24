@@ -1,9 +1,6 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
 import { sendChatGPTRequest } from "../services/schemaGeneratorChatgpt.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
 
 // Increase body size limit for this route
@@ -658,20 +655,13 @@ function validateSchema(schema, detection) {
 // ROUTES
 // ============================================
 
-// Serve the schema generator UI
-router.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "schemaGenerator", "index.html"));
-});
-
-// SSE endpoint — the pipeline
-router.post("/api/generate-schema-stream", async (req, res) => {
+// SSE endpoint — the schema generation pipeline
+router.post("/generate-stream", async (req, res) => {
   const API_KEY = process.env.OPENAI_API_KEY;
   if (!API_KEY) {
-    return res
-      .status(500)
-      .json({
-        error: "OPENAI_API_KEY (Groq key) is not configured on the server.",
-      });
+    return res.status(500).json({
+      error: "OPENAI_API_KEY (Groq key) is not configured on the server.",
+    });
   }
 
   const { htmlContent, url } = req.body;
