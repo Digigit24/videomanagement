@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef } from 'react';
-import { API_BASE_URL } from '@/lib/api';
 import {
   Code2,
   FileCode,
@@ -140,7 +139,8 @@ export default function SchemaGenerator() {
     abortRef.current = controller;
 
     try {
-      const apiUrl = `${API_BASE_URL}/schema-generator/generate-stream`;
+      // Use relative path so Vite proxy (local) or Nginx (prod) handles it correctly
+      const apiUrl = '/api/schema-generator/generate-stream';
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

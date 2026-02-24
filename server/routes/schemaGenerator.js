@@ -656,7 +656,10 @@ function validateSchema(schema, detection) {
 // ============================================
 
 // SSE endpoint — the schema generation pipeline
-router.post("/generate-stream", async (req, res) => {
+// Supported at both:
+// 1. [BASE]/api/schema-generator/generate-stream
+// 2. [BASE]/api/generate-schema-stream (backward compatibility)
+const handleGeneration = async (req, res) => {
   const API_KEY = process.env.OPENAI_API_KEY;
   if (!API_KEY) {
     return res.status(500).json({
@@ -1043,6 +1046,9 @@ Output the COMPLETE updated <script type="application/ld+json"> block with ALL e
   } finally {
     res.end();
   }
-});
+};
+
+router.post("/generate-stream", handleGeneration);
+router.post("/api/generate-schema-stream", handleGeneration); // Support old path if hit directly
 
 export default router;

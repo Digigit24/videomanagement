@@ -50,7 +50,13 @@ app.use((req, res, next) => {
 
 // Schema Generator API routes
 import schemaGeneratorRoutes from "./routes/schemaGenerator.js";
+// We mount on multiple paths to handle different Nginx proxy configs:
+// 1. /api/schema-generator (Standard API path)
+// 2. /schema-generator (Standard proxy path)
+// 3. /api (Supports the legacy /api/generate-schema-stream path inside the router)
 app.use("/api/schema-generator", schemaGeneratorRoutes);
+app.use("/schema-generator", schemaGeneratorRoutes);
+app.use("/api", schemaGeneratorRoutes);
 
 // Routes
 // We mount on both /api and / to handle different proxy configurations

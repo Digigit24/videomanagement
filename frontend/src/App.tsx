@@ -9,6 +9,7 @@ import VideoDetail from '@/pages/VideoDetail';
 import Users from '@/pages/Users';
 import JoinInvite from '@/pages/JoinInvite';
 import RecycleBin from '@/pages/RecycleBin';
+import SchemaGenerator from '@/pages/SchemaGenerator';
 
 import VideoReview from '@/pages/VideoReview';
 
@@ -17,13 +18,14 @@ function AppContent() {
   const location = useLocation();
 
   // Public routes - accessible without authentication
-  const isPublicRoute = location.pathname.startsWith('/v/');
+  const isPublicRoute = location.pathname.startsWith('/v/') || location.pathname === '/schema-generator';
 
   if (isPublicRoute) {
     return (
       <Routes>
         <Route path="/v/:videoId/review" element={<VideoReview />} />
         <Route path="/v/:videoId" element={<VideoReview />} />
+        <Route path="/schema-generator" element={<SchemaGenerator />} />
       </Routes>
     );
   }
