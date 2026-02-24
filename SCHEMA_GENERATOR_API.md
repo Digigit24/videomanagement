@@ -4,14 +4,28 @@
 
 The Schema Generator API automatically analyzes HTML content and generates comprehensive, production-ready **JSON-LD structured data** (schema.org markup) using AI (LLaMA 3.3 70B via Groq).
 
-The pipeline runs through 6 stages:
+## Pipeline Flow
 
-1. **Clean** — Strips scripts, styles, classes, and noise from HTML
-2. **Chunk** — Splits large HTML into semantic chunks (≤12,000 chars each)
-3. **Recognize** — AI detects page type and selects appropriate schema types
-4. **Extract** — AI extracts all structured data from each chunk
-5. **Schema** — AI generates complete JSON-LD `@graph` from extracted data
-6. **Validate** — Checks schema completeness and repairs missing types
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. RECEIVE    → Full HTML uploaded, stored as-is (original)    │
+│  2. CLEAN      → Duplicate copy created → minified (scripts,    │
+│                   styles, classes, noise stripped)               │
+│  3. CHUNK      → Minified HTML split into semantic chunks       │
+│                   (≤12,000 chars each, split at section breaks) │
+│  4. RECOGNIZE  → AI detects page type + selects schema types    │
+│  5. EXTRACT    → AI extracts structured data from EACH chunk    │
+│                   (separate prompt per chunk → results merged)   │
+│  6. SCHEMA     → AI generates complete JSON-LD @graph from      │
+│                   all extracted data (repair pass if incomplete) │
+│  7. VALIDATE   → Schema checked for completeness & accuracy     │
+│  8. INJECT     → Schema injected into ORIGINAL HTML's <head>    │
+│                                                                 │
+│  RESULT: Returns both:                                          │
+│    • Plain schema JSON-LD (copy-paste into any page)            │
+│    • Original HTML with schema already injected                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -34,7 +48,7 @@ https://video.celiyo.com/api/schema-generator/generate-stream
 ```
 
 **Description:**  
-Generates a complete JSON-LD schema from raw HTML content. Returns results via **Server-Sent Events (SSE)** for real-time pipeline progress.
+Generates a complete JSON-LD schema from raw HTML content. Returns results via **Server-Sent Events (SSE)** for real-time pipeline progress. Returns both the plain schema AND the original HTML with schema injected.
 
 ---
 
@@ -45,22 +59,23 @@ Generates a complete JSON-LD schema from raw HTML content. Returns results via *
 **Content-Type:** `application/json`
 
 **Headers:**
-| Header | Value | Required |
-|---|---|---|
-| `Content-Type` | `application/json` | ✅ Yes |
+
+| Header         | Value              | Required |
+| -------------- | ------------------ | -------- |
+| `Content-Type` | `application/json` | ✅ Yes   |
 
 **Body Parameters:**
 
-| Field         | Type     | Required    | Description                                                                         |
-| ------------- | -------- | ----------- | ----------------------------------------------------------------------------------- |
-| `htmlContent` | `string` | ✅ Yes      | Full HTML source code of the page. Minimum 50 characters.                           |
-| `url`         | `string` | ❌ Optional | The page URL. Helps convert relative URLs to absolute and improves schema accuracy. |
+| Field         | Type     | Required    | Description                                                                                             |
+| ------------- | -------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `htmlContent` | `string` | ✅ Yes      | Full HTML source code of the page. Minimum 50 characters. This is preserved as-is for schema injection. |
+| `url`         | `string` | ❌ Optional | The page URL. Helps convert relative URLs to absolute and improves schema accuracy.                     |
 
 **Example Request Body:**
 
 ```json
 {
-  "htmlContent": "<!DOCTYPE html><html lang=\"en\"><head><title>My Page</title></head><body><h1>Hello World</h1><p>This is my page content...</p></body></html>",
+  "htmlContent": "<!DOCTYPE html><html lang=\"en\"><head><title>My Page</title></head><body><h1>Hello World</h1><p>This is my page content with enough text for the AI to analyze and generate a proper schema.</p></body></html>",
   "url": "https://example.com/my-page"
 }
 ```
@@ -71,8 +86,8 @@ Generates a complete JSON-LD schema from raw HTML content. Returns results via *
 curl -X POST https://video.celiyo.com/api/schema-generator/generate-stream \
   -H "Content-Type: application/json" \
   -d '{
-    "htmlContent": "<!DOCTYPE html><html><head><title>Test Page</title></head><body><h1>Test</h1><p>Content here with enough characters to pass validation.</p></body></html>",
-    "url": "https://example.com/test"
+    "htmlContent": "<!DOCTYPE html><html lang=\"en\"><head><title>Best Coffee Guide</title><meta name=\"description\" content=\"Learn to brew perfect coffee\"></head><body><h1>Coffee Brewing Guide</h1><p>A complete guide to brewing the perfect cup of coffee at home with expert tips.</p></body></html>",
+    "url": "https://coffeeexperts.com/guide"
   }'
 ```
 
@@ -82,7 +97,7 @@ curl -X POST https://video.celiyo.com/api/schema-generator/generate-stream \
 
 **Content-Type:** `text/event-stream` (Server-Sent Events)
 
-The response is an SSE stream. Each event has the format:
+Each event follows this format:
 
 ```
 event: <event_type>
@@ -96,12 +111,16 @@ data: <json_object>
 
 #### 1. `step` — Pipeline Stage Progress
 
-Fired when a pipeline stage starts or completes.
+Fired when a pipeline stage starts (`active`) or completes (`done`).
+
+**Example — stage starting:**
 
 ```
 event: step
 data: {"step":"minify","status":"active","message":"Extracting metadata & cleaning HTML..."}
 ```
+
+**Example — stage completed:**
 
 ```
 event: step
@@ -110,14 +129,26 @@ data: {"step":"minify","status":"done","message":"Cleaned: 45,230 → 12,450 cha
 
 **Data Fields:**
 
-| Field       | Type     | Description                                                              |
-| ----------- | -------- | ------------------------------------------------------------------------ |
-| `step`      | `string` | Stage name: `minify`, `chunk`, `detect`, `extract`, `schema`, `validate` |
-| `status`    | `string` | `"active"` (in progress) or `"done"` (completed)                         |
-| `message`   | `string` | Human-readable status message                                            |
-| `detection` | `object` | _(Only on `detect` done)_ Page detection results (see below)             |
+| Field       | Type     | Values                                                                 | Description                                      |
+| ----------- | -------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
+| `step`      | `string` | `minify`, `chunk`, `detect`, `extract`, `schema`, `validate`, `inject` | Pipeline stage name                              |
+| `status`    | `string` | `active`, `done`                                                       | Stage status                                     |
+| `message`   | `string` | —                                                                      | Human-readable progress message                  |
+| `detection` | `object` | —                                                                      | _(Only on `detect` done)_ Page detection results |
 
-**Detection Object** (included when `step === "detect"` and `status === "done"`):
+**Pipeline Steps in Order:**
+
+| #   | Step       | What it does                                               |
+| --- | ---------- | ---------------------------------------------------------- |
+| 1   | `minify`   | Extracts metadata from original HTML, creates cleaned copy |
+| 2   | `chunk`    | Splits cleaned HTML into semantic chunks                   |
+| 3   | `detect`   | AI recognizes page type and selects schema types           |
+| 4   | `extract`  | AI extracts structured data from each chunk                |
+| 5   | `schema`   | AI generates JSON-LD schema (+ repair if needed)           |
+| 6   | `validate` | Checks schema completeness and accuracy                    |
+| 7   | `inject`   | Injects schema into original HTML's `<head>`               |
+
+**Detection Object** (returned when `step === "detect"` and `status === "done"`):
 
 ```json
 {
@@ -148,72 +179,85 @@ data: {"step":"minify","status":"done","message":"Cleaned: 45,230 → 12,450 cha
 
 #### 2. `progress` — Chunk Processing Progress
 
-Fired during the extraction stage for each chunk being processed.
+Fired during extraction for each chunk being processed.
 
 ```
 event: progress
 data: {"message":"Extracting data from chunk 2/3...","current":2,"total":3}
 ```
 
-**Data Fields:**
-
-| Field     | Type     | Description            |
-| --------- | -------- | ---------------------- |
-| `message` | `string` | Progress description   |
-| `current` | `number` | Current chunk number   |
-| `total`   | `number` | Total number of chunks |
+| Field     | Type     | Description          |
+| --------- | -------- | -------------------- |
+| `message` | `string` | Progress description |
+| `current` | `number` | Current chunk number |
+| `total`   | `number` | Total chunks         |
 
 ---
 
-#### 3. `result` — Final Generated Schema
+#### 3. `result` — Final Output
 
-Fired once when the schema generation is complete.
+Fired once when the pipeline completes. Contains **everything your frontend needs**.
 
 ```
 event: result
-data: {"schema":"<script type=\"application/ld+json\">...</script>","detection":{...},"stats":{...}}
+data: {
+  "schema": "<script type=\"application/ld+json\">{...}</script>",
+  "htmlWithSchema": "<!DOCTYPE html><html>...<script type=\"application/ld+json\">{...}</script></head>...",
+  "detection": {...},
+  "stats": {...}
+}
 ```
 
 **Data Fields:**
 
-| Field       | Type     | Description                                                                                                                        |
-| ----------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `schema`    | `string` | Complete JSON-LD schema wrapped in `<script type="application/ld+json">...</script>` tags. Ready to copy-paste into HTML `<head>`. |
-| `detection` | `object` | Page type detection results (same as above)                                                                                        |
-| `stats`     | `object` | Generation statistics                                                                                                              |
+| Field            | Type     | Description                                                                                                   |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `schema`         | `string` | Plain JSON-LD schema wrapped in `<script type="application/ld+json">...</script>` tags. **Copy-paste ready.** |
+| `htmlWithSchema` | `string` | The **original HTML** (untouched) with the schema injected into `<head>`. **Copy-paste ready.**               |
+| `detection`      | `object` | Page type detection results                                                                                   |
+| `stats`          | `object` | Generation statistics                                                                                         |
 
 **Stats Object:**
 
 ```json
 {
-  "stats": {
-    "originalSize": 45230,
-    "minifiedSize": 12450,
-    "chunks": 2,
-    "schemaTypes": [
-      "BlogPosting",
-      "WebPage",
-      "WebSite",
-      "BreadcrumbList",
-      "Organization"
-    ],
-    "pageType": "Blog Post"
-  }
+  "originalSize": 45230,
+  "minifiedSize": 12450,
+  "chunks": 2,
+  "schemaTypes": [
+    "BlogPosting",
+    "WebPage",
+    "WebSite",
+    "BreadcrumbList",
+    "Organization"
+  ],
+  "pageType": "Blog Post"
 }
+```
+
+**Frontend Usage — Two Copy Options:**
+
+```javascript
+// When you receive the "result" event:
+const data = JSON.parse(eventData);
+
+// OPTION 1: Copy plain schema only
+copyToClipboard(data.schema);
+// → User pastes this into their HTML's <head> manually
+
+// OPTION 2: Copy full HTML with schema already injected
+copyToClipboard(data.htmlWithSchema);
+// → User replaces their entire HTML file with this
 ```
 
 ---
 
 #### 4. `error` — Error Occurred
 
-Fired if any error occurs during the pipeline.
-
 ```
 event: error
 data: {"message":"Failed to detect page type. The content might be too short or unclear."}
 ```
-
-**Data Fields:**
 
 | Field     | Type     | Description       |
 | --------- | -------- | ----------------- |
@@ -223,7 +267,7 @@ data: {"message":"Failed to detect page type. The content might be too short or 
 
 #### 5. `done` — Pipeline Complete
 
-Fired as the final event when everything is finished.
+Final event. Signals the SSE stream is ending.
 
 ```
 event: done
@@ -234,9 +278,9 @@ data: {"message":"Complete!"}
 
 ### Error Responses (Non-SSE)
 
-These are returned as standard JSON responses before the SSE stream starts:
+Returned as standard JSON if the request is rejected before the pipeline starts:
 
-**400 Bad Request — Invalid input:**
+**400 Bad Request:**
 
 ```json
 {
@@ -244,7 +288,7 @@ These are returned as standard JSON responses before the SSE stream starts:
 }
 ```
 
-**500 Internal Server Error — API key not configured:**
+**500 Server Error:**
 
 ```json
 {
@@ -254,28 +298,31 @@ These are returned as standard JSON responses before the SSE stream starts:
 
 ---
 
-## Event Flow Order
+## Complete Event Flow
 
-A successful request produces events in this order:
+A successful request produces events in this exact order:
 
 ```
-1. step (minify → active)
-2. step (minify → done)
-3. step (chunk → active)
-4. step (chunk → done)
-5. step (detect → active)
-6. step (detect → done)        ← includes detection object
-7. step (extract → active)
-8. progress (chunk 1/N)        ← repeated for each chunk
-9. progress (chunk 2/N)
-10. step (extract → done)
-11. step (schema → active)
-12. progress (repairing...)     ← only if schema is incomplete
-13. step (schema → done)
-14. step (validate → active)
-15. step (validate → done)
-16. result                      ← final schema + stats
-17. done
+ 1. step   → minify   → active     "Extracting metadata & cleaning HTML..."
+ 2. step   → minify   → done       "Cleaned: 45,230 → 12,450 chars (72% reduced)"
+ 3. step   → chunk    → active     "Splitting into semantic chunks..."
+ 4. step   → chunk    → done       "Split into 3 semantic chunk(s)"
+ 5. step   → detect   → active     "AI is recognizing page purpose & type..."
+ 6. step   → detect   → done       "Detected: Blog Post | Schemas: BlogPosting, WebPage..."
+ 7. step   → extract  → active     "Extracting structured data from 3 chunk(s)..."
+ 8. progress                        "Extracting data from chunk 1/3..."
+ 9. progress                        "Extracting data from chunk 2/3..."
+10. progress                        "Extracting data from chunk 3/3..."
+11. step   → extract  → done       "Extracted structured data from all 3 chunk(s)"
+12. step   → schema   → active     "Generating complete JSON-LD schema..."
+13. progress                        "Repairing schema — adding missing: FAQPage..."  (optional)
+14. step   → schema   → done       "Schema generated successfully!"
+15. step   → validate → active     "Validating schema completeness..."
+16. step   → validate → done       "✓ @context | ✓ @type | ✓ @graph | ✓ 7/7 schemas"
+17. step   → inject   → active     "Injecting schema into original HTML..."
+18. step   → inject   → done       "Schema injected into original HTML successfully"
+19. result                          { schema, htmlWithSchema, detection, stats }
+20. done                            "Complete!"
 ```
 
 ---
@@ -304,6 +351,7 @@ async function generateSchema(htmlContent, url) {
   const decoder = new TextDecoder();
   let buffer = "";
   let currentEvent = "";
+  let result = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -311,7 +359,7 @@ async function generateSchema(htmlContent, url) {
 
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
-    buffer = lines.pop(); // keep incomplete line in buffer
+    buffer = lines.pop();
 
     for (const line of lines) {
       if (line.startsWith("event: ")) {
@@ -322,10 +370,7 @@ async function generateSchema(htmlContent, url) {
         switch (currentEvent) {
           case "step":
             console.log(`[${data.step}] ${data.status}: ${data.message}`);
-            if (data.detection) {
-              console.log("Detected:", data.detection.pageType);
-              console.log("Schema types:", data.detection.schemaTypes);
-            }
+            // Update your UI pipeline indicators here
             break;
 
           case "progress":
@@ -333,10 +378,15 @@ async function generateSchema(htmlContent, url) {
             break;
 
           case "result":
+            result = data;
             console.log("✅ Schema generated!");
+
+            // OPTION 1: Plain schema (for "Copy Schema" button)
             console.log("Schema:", data.schema);
-            console.log("Stats:", data.stats);
-            // data.schema is ready to paste into <head>
+
+            // OPTION 2: HTML with schema injected (for "Copy HTML" button)
+            console.log("HTML with schema:", data.htmlWithSchema);
+
             break;
 
           case "error":
@@ -350,56 +400,97 @@ async function generateSchema(htmlContent, url) {
       }
     }
   }
+
+  return result;
 }
 
 // Usage:
-generateSchema(document.documentElement.outerHTML, window.location.href);
+const result = await generateSchema(myHtmlCode, "https://example.com/page");
+
+// Copy buttons:
+document.getElementById("copySchemaBtn").onclick = () => {
+  navigator.clipboard.writeText(result.schema);
+};
+
+document.getElementById("copyHtmlBtn").onclick = () => {
+  navigator.clipboard.writeText(result.htmlWithSchema);
+};
 ```
 
 ### React Example
 
 ```jsx
-const [status, setStatus] = useState("idle");
-const [schema, setSchema] = useState(null);
-const [steps, setSteps] = useState({});
+import { useState } from "react";
 
-async function handleGenerate(html, url) {
-  setStatus("loading");
-  setSchema(null);
+function SchemaGenerator() {
+  const [status, setStatus] = useState("idle");
+  const [steps, setSteps] = useState({});
+  const [result, setResult] = useState(null);
 
-  const res = await fetch(
-    "https://video.celiyo.com/api/schema-generator/generate-stream",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ htmlContent: html, url }),
-    },
-  );
+  async function handleGenerate(html, url) {
+    setStatus("loading");
+    setResult(null);
+    setSteps({});
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let event = "";
+    const res = await fetch(
+      "https://video.celiyo.com/api/schema-generator/generate-stream",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ htmlContent: html, url }),
+      },
+    );
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let event = "";
 
-    const lines = buffer.split("\n");
-    buffer = lines.pop();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
 
-    for (const line of lines) {
-      if (line.startsWith("event: ")) event = line.slice(7).trim();
-      else if (line.startsWith("data: ")) {
-        const d = JSON.parse(line.slice(6));
-        if (event === "step") setSteps((s) => ({ ...s, [d.step]: d }));
-        if (event === "result") setSchema(d.schema);
-        if (event === "error") setStatus("error: " + d.message);
-        if (event === "done") setStatus("done");
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          event = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          const d = JSON.parse(line.slice(6));
+          if (event === "step") setSteps((s) => ({ ...s, [d.step]: d }));
+          if (event === "result") {
+            setResult(d);
+            setStatus("done");
+          }
+          if (event === "error") setStatus("error: " + d.message);
+        }
       }
     }
   }
+
+  const copySchema = () => navigator.clipboard.writeText(result.schema);
+  const copyHtml = () => navigator.clipboard.writeText(result.htmlWithSchema);
+
+  return (
+    <div>
+      {/* Pipeline progress UI */}
+      {Object.entries(steps).map(([key, step]) => (
+        <div key={key}>
+          {step.status === "done" ? "✅" : "⏳"} {key}: {step.message}
+        </div>
+      ))}
+
+      {/* Result with two copy options */}
+      {result && (
+        <div>
+          <button onClick={copySchema}>📋 Copy Schema JSON-LD</button>
+          <button onClick={copyHtml}>📋 Copy HTML with Schema</button>
+          <pre>{result.schema}</pre>
+        </div>
+      )}
+    </div>
+  );
 }
 ```
 
@@ -407,7 +498,7 @@ async function handleGenerate(html, url) {
 
 ## Supported Page Types
 
-The AI automatically detects the page type and selects appropriate schema types:
+The AI automatically detects the page type and selects schema types:
 
 | Page Type           | Primary Schema Types                                                                       |
 | ------------------- | ------------------------------------------------------------------------------------------ |
@@ -428,15 +519,23 @@ The AI automatically detects the page type and selects appropriate schema types:
 | Hotel               | `Hotel`, `WebPage`, `WebSite`, `BreadcrumbList`                                            |
 | Software / Tool     | `SoftwareApplication`, `WebPage`, `WebSite`, `Organization`, `BreadcrumbList`              |
 
-**Secondary types** are added automatically if matching content is found (e.g., FAQ sections → `FAQPage`, reviews → `AggregateRating`, step-by-step instructions → `HowTo`).
+**Secondary types** are added automatically if matching content is found anywhere in the HTML:
+
+- FAQ sections → `FAQPage`
+- Reviews/ratings → `AggregateRating`, `Review`
+- Step-by-step instructions → `HowTo`
+- Embedded videos → `VideoObject`
+- Pricing → `Offer`
+- Contact info → `Organization`
 
 ---
 
 ## Notes
 
-- **Processing time:** 10–60 seconds depending on HTML size (multiple AI calls are made)
-- **Max HTML size:** 50 MB (enforced by request body limit)
+- **Processing time:** 10–60 seconds depending on HTML size (multiple AI calls)
+- **Max HTML size:** 50 MB
 - **AI Model:** LLaMA 3.3 70B Versatile (via Groq API)
-- **No authentication required** for this endpoint
+- **No authentication required**
 - **CORS:** Enabled for configured origins
-- The `schema` field in the result is a ready-to-use `<script>` tag — paste it directly into your page's `<head>`
+- The `schema` field is a ready-to-use `<script>` tag — paste into `<head>`
+- The `htmlWithSchema` field is the **untouched original HTML** with the schema injected before `</head>`

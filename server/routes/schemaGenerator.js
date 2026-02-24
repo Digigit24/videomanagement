@@ -991,9 +991,39 @@ Output the COMPLETE updated <script type="application/ld+json"> block with ALL e
       message: validationResults.join(" | ") || "Schema validated",
     });
 
+    // STEP 7: INJECT SCHEMA INTO ORIGINAL HTML
+    sendEvent("step", {
+      step: "inject",
+      status: "active",
+      message: "Injecting schema into original HTML...",
+    });
+
+    let htmlWithSchema = htmlContent;
+    // Inject right before </head> if it exists, otherwise before </body>, otherwise append
+    if (htmlWithSchema.match(/<\/head>/i)) {
+      htmlWithSchema = htmlWithSchema.replace(
+        /<\/head>/i,
+        `\n${finalSchema}\n</head>`,
+      );
+    } else if (htmlWithSchema.match(/<\/body>/i)) {
+      htmlWithSchema = htmlWithSchema.replace(
+        /<\/body>/i,
+        `\n${finalSchema}\n</body>`,
+      );
+    } else {
+      htmlWithSchema = htmlWithSchema + `\n${finalSchema}`;
+    }
+
+    sendEvent("step", {
+      step: "inject",
+      status: "done",
+      message: "Schema injected into original HTML successfully",
+    });
+
     // SEND FINAL RESULT
     sendEvent("result", {
       schema: finalSchema,
+      htmlWithSchema,
       detection,
       stats: {
         originalSize: originalLen,
