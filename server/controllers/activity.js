@@ -28,14 +28,13 @@ export async function listEntityActivities(req, res) {
   try {
     const { entityType, entityId } = req.params;
     const { limit = 50 } = req.query;
-    import("../services/activity.js").then(async ({ getEntityActivities }) => {
-      const activities = await getEntityActivities(
-        entityType,
-        entityId,
-        parseInt(limit),
-      );
-      res.json({ activities });
-    });
+    const { getEntityActivities } = await import("../services/activity.js");
+    const activities = await getEntityActivities(
+      entityType,
+      entityId,
+      parseInt(limit),
+    );
+    res.json({ activities });
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to get entity activities" });

@@ -69,9 +69,17 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// 404 handler - catch unmatched routes
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
+  if (res.headersSent) {
+    return next(err);
+  }
   res.status(500).json({ error: "Internal server error" });
 });
 

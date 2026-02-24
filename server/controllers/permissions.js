@@ -42,7 +42,7 @@ export async function updateUserPermissions(req, res) {
     if (!allowedRoles.includes(req.user.role)) {
       // Also check workspace-level permission
       const myPerms = await getWorkspacePermissions(workspaceId, req.user.id);
-      if (!myPerms.can_manage_permissions) {
+      if (!myPerms || !myPerms.can_manage_permissions) {
         return res.status(403).json({ error: "You do not have permission to manage permissions" });
       }
     }

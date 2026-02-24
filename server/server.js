@@ -7,6 +7,15 @@ import processingQueue from "./services/processingQueue.js";
 
 const PORT = process.env.PORT || 5000;
 
+// Prevent process crashes from unhandled errors
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[FATAL] Unhandled promise rejection:", reason);
+});
+
 async function start() {
   try {
     // Initialize database

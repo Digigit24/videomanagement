@@ -125,6 +125,9 @@ export async function deleteUser(req, res) {
 
     // Verify admin password
     const adminUser = await getUserWithPassword(req.user.id);
+    if (!adminUser) {
+      return res.status(404).json({ error: "Admin user not found" });
+    }
     const isValid = await verifyPassword(password, adminUser.password);
     if (!isValid) {
       return res.status(401).json({ error: "Invalid password" });
@@ -156,7 +159,10 @@ export async function uploadAvatar(req, res) {
 
       const objectKey = `avatars/${req.user.id}/${Date.now()}-${req.file.originalname}`;
       // Upload to first bucket
-      const buckets = process.env.ZATA_BUCKETS.split(",").map((b) => b.trim());
+      const buckets = (process.env.ZATA_BUCKETS || "").split(",").map((b) => b.trim()).filter(Boolean);
+      if (!buckets.length) {
+        return res.status(500).json({ error: "No storage buckets configured" });
+      }
       await uploadToS3(
         buckets[0],
         objectKey,
@@ -224,7 +230,10 @@ export async function toggleOrgMember(req, res) {
 export async function getAvatarStream(req, res) {
   try {
     const objectKey = `avatars/${req.params[0]}`;
-    const buckets = process.env.ZATA_BUCKETS.split(",").map((b) => b.trim());
+    const buckets = (process.env.ZATA_BUCKETS || "").split(",").map((b) => b.trim()).filter(Boolean);
+    if (!buckets.length) {
+      return res.status(500).json({ error: "No storage buckets configured" });
+    }
 
     const { getVideoStream } = await import("../services/storage.js");
     const stream = await getVideoStream(buckets[0], objectKey);

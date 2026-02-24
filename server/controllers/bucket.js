@@ -1,6 +1,8 @@
 export async function getBuckets(req, res) {
   try {
-    const buckets = process.env.ZATA_BUCKETS.split(',').map(b => b.trim());
+    const buckets = process.env.ZATA_BUCKETS
+      ? process.env.ZATA_BUCKETS.split(',').map(b => b.trim()).filter(Boolean)
+      : [];
     res.json({ buckets });
   } catch (error) {
     console.error('Error getting buckets:', error);
