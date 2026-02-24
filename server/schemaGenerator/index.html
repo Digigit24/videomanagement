@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Schema Generator — Auto SEO JSON-LD</title>
+    <meta
+      name="description"
+      content="Paste any HTML page and get a perfect, SEO-optimized JSON-LD schema automatically. Powered by LLaMA 3.3 70B."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #06060b;
+        --bg-card: rgba(14, 14, 22, 0.85);
+        --bg-input: rgba(10, 10, 18, 0.95);
+        --border: rgba(255, 255, 255, 0.06);
+        --border-glow: rgba(99, 102, 241, 0.4);
+        --text: #eeeef5;
+        --text-dim: #7a7a8e;
+        --text-muted: #4a4a5e;
+        --accent: #6366f1;
+        --accent-light: #818cf8;
+        --accent-bg: rgba(99, 102, 241, 0.08);
+        --green: #10b981;
+        --green-bg: rgba(16, 185, 129, 0.08);
+        --red: #ef4444;
+        --red-bg: rgba(239, 68, 68, 0.08);
+        --amber: #f59e0b;
+        --amber-bg: rgba(245, 158, 11, 0.08);
+        --cyan: #06b6d4;
+        --grad: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+        --grad2: linear-gradient(135deg, #06b6d4, #6366f1);
+        --radius: 12px;
+        --radius-sm: 8px;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* Ambient background */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse 600px 400px at 15% 40%,
+            rgba(99, 102, 241, 0.07) 0%,
+            transparent 70%
+          ),
+          radial-gradient(
+            ellipse 500px 500px at 85% 20%,
+            rgba(139, 92, 246, 0.05) 0%,
+            transparent 70%
+          ),
+          radial-gradient(
+            ellipse 400px 300px at 50% 90%,
+            rgba(6, 182, 212, 0.04) 0%,
+            transparent 70%
+          );
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .app {
+        position: relative;
+        z-index: 1;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 20px 20px 60px;
+      }
+
+      /* HEADER */
+      .header {
+        text-align: center;
+        padding: 40px 0 32px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+      }
+
+      .badge-accent {
+        background: var(--accent-bg);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        color: var(--accent-light);
+      }
+
+      .badge .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        animation: blink 2s infinite;
+      }
+
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+
+      .header h1 {
+        font-size: clamp(1.8rem, 5vw, 3rem);
+        font-weight: 900;
+        background: var(--grad);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.15;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        color: var(--text-dim);
+        font-size: 1rem;
+        max-width: 520px;
+        margin: 0 auto;
+        line-height: 1.6;
+      }
+
+      /* CARD */
+      .card {
+        background: var(--bg-card);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 16px;
+        transition: border-color 0.3s;
+      }
+
+      .card-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* TEXTAREA */
+      .html-input {
+        width: 100%;
+        min-height: 200px;
+        max-height: 400px;
+        padding: 16px;
+        background: var(--bg-input);
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12.5px;
+        line-height: 1.7;
+        resize: vertical;
+        transition: all 0.3s;
+      }
+
+      .html-input:focus {
+        outline: none;
+        border-color: var(--border-glow);
+        box-shadow:
+          0 0 0 3px var(--accent-bg),
+          0 0 30px rgba(99, 102, 241, 0.06);
+      }
+
+      .html-input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .url-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 14px;
+        align-items: flex-end;
+      }
+
+      .url-group {
+        flex: 1;
+      }
+
+      .url-group label {
+        display: block;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+        font-weight: 500;
+      }
+
+      .url-input {
+        width: 100%;
+        padding: 11px 14px;
+        background: var(--bg-input);
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text);
+        font-family: "Inter", sans-serif;
+        font-size: 13px;
+        transition: all 0.25s;
+      }
+
+      .url-input:focus {
+        outline: none;
+        border-color: var(--border-glow);
+        box-shadow: 0 0 0 3px var(--accent-bg);
+      }
+
+      /* BUTTONS */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 28px;
+        border-radius: var(--radius-sm);
+        font-family: "Inter", sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.25s;
+        white-space: nowrap;
+      }
+
+      .btn-generate {
+        background: var(--grad);
+        color: white;
+        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.25);
+        min-width: 200px;
+      }
+
+      .btn-generate:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 28px rgba(99, 102, 241, 0.35);
+      }
+
+      .btn-generate:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        padding: 11px 20px;
+      }
+
+      .btn-ghost:hover {
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--text);
+      }
+
+      .btn-copy {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        padding: 9px 18px;
+        font-size: 13px;
+        border-radius: var(--radius-sm);
+      }
+
+      .btn-copy:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+      }
+
+      .btn-copy.copied {
+        background: var(--green-bg) !important;
+        border-color: var(--green) !important;
+        color: var(--green) !important;
+      }
+
+      /* PIPELINE */
+      .pipeline {
+        display: none;
+      }
+      .pipeline.show {
+        display: block;
+      }
+
+      .pipe-steps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pipe-step {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-muted);
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border);
+        transition: all 0.4s;
+        flex: 1;
+        min-width: 130px;
+      }
+
+      .pipe-step .num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.05);
+        flex-shrink: 0;
+      }
+
+      .pipe-step.active {
+        color: var(--accent-light);
+        border-color: rgba(99, 102, 241, 0.3);
+        background: var(--accent-bg);
+      }
+
+      .pipe-step.active .num {
+        background: var(--accent);
+        color: white;
+        animation: spinNum 1s linear infinite;
+      }
+
+      .pipe-step.done {
+        color: var(--green);
+        border-color: rgba(16, 185, 129, 0.25);
+        background: var(--green-bg);
+      }
+
+      .pipe-step.done .num {
+        background: var(--green);
+        color: white;
+      }
+
+      .pipe-step.error {
+        color: var(--red);
+        border-color: rgba(239, 68, 68, 0.25);
+        background: var(--red-bg);
+      }
+
+      .pipe-step.error .num {
+        background: var(--red);
+        color: white;
+      }
+
+      @keyframes spinNum {
+        from {
+          transform: rotate(0);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .pipe-detail {
+        margin-top: 10px;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        background: rgba(99, 102, 241, 0.04);
+        border: 1px solid rgba(99, 102, 241, 0.1);
+        font-size: 12.5px;
+        color: var(--accent-light);
+        display: none;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pipe-detail.show {
+        display: flex;
+      }
+
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spinNum 0.7s linear infinite;
+        flex-shrink: 0;
+      }
+
+      /* DETECTION CARD */
+      .detection-card {
+        display: none;
+        margin-top: 12px;
+        padding: 16px 20px;
+        border-radius: var(--radius);
+        background: linear-gradient(
+          135deg,
+          rgba(99, 102, 241, 0.06),
+          rgba(6, 182, 212, 0.04)
+        );
+        border: 1px solid rgba(99, 102, 241, 0.15);
+      }
+
+      .detection-card.show {
+        display: block;
+      }
+
+      .detection-card h4 {
+        font-size: 13px;
+        color: var(--accent-light);
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+
+      .det-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .det-item {
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      .det-item .det-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        font-weight: 600;
+        margin-bottom: 3px;
+      }
+
+      .det-item .det-value {
+        font-size: 13px;
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      .det-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 4px;
+      }
+
+      .det-tag {
+        padding: 3px 10px;
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 600;
+        background: var(--accent-bg);
+        color: var(--accent-light);
+        border: 1px solid rgba(99, 102, 241, 0.15);
+      }
+
+      /* OUTPUT */
+      .output-card {
+        display: none;
+      }
+
+      .output-card.show {
+        display: block;
+      }
+
+      .output-tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .output-tab {
+        flex: 1;
+        padding: 14px 20px;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-muted);
+        font-family: "Inter", sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.25s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .output-tab:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .output-tab.active {
+        color: var(--accent-light);
+        border-bottom-color: var(--accent);
+        background: var(--accent-bg);
+      }
+
+      .output-tab .tab-tag {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        background: var(--green-bg);
+        color: var(--green);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+      }
+
+      .output-tab.active .tab-tag {
+        background: var(--accent-bg);
+        color: var(--accent-light);
+        border-color: rgba(99, 102, 241, 0.25);
+      }
+
+      .output-pane {
+        display: none;
+      }
+
+      .output-pane.active {
+        display: block;
+      }
+
+      .output-pane-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: rgba(255, 255, 255, 0.015);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .output-pane-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .output-code {
+        padding: 20px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        line-height: 1.8;
+        color: #c8d1d9;
+        overflow: auto;
+        max-height: 600px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: rgba(6, 6, 11, 0.6);
+      }
+
+      /* STATUS */
+      .status {
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        background: rgba(255, 255, 255, 0.01);
+        transition: all 0.3s;
+      }
+
+      .status .sdot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        flex-shrink: 0;
+      }
+
+      .status.loading {
+        border-color: rgba(99, 102, 241, 0.3);
+        color: var(--accent-light);
+      }
+      .status.loading .sdot {
+        background: var(--accent);
+        animation: blink 0.8s infinite;
+      }
+      .status.success {
+        border-color: rgba(16, 185, 129, 0.3);
+        color: var(--green);
+      }
+      .status.success .sdot {
+        background: var(--green);
+      }
+      .status.error {
+        border-color: rgba(239, 68, 68, 0.3);
+        color: var(--red);
+      }
+      .status.error .sdot {
+        background: var(--red);
+      }
+
+      /* STATS */
+      .stats-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+
+      .stat {
+        padding: 6px 14px;
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+      }
+
+      /* RESPONSIVE */
+      @media (max-width: 640px) {
+        .card {
+          padding: 20px;
+        }
+        .det-grid {
+          grid-template-columns: 1fr;
+        }
+        .url-row {
+          flex-direction: column;
+        }
+        .pipe-step {
+          min-width: 100px;
+          font-size: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- HEADER -->
+      <header class="header">
+        <div class="badge badge-accent">
+          <span class="dot"></span> Powered by LLaMA 3.3 · 70B
+        </div>
+        <h1>AI Schema Generator</h1>
+        <p>
+          Paste your page's HTML code — AI will recognize the page purpose,
+          strip noise, extract all real data, and generate a precise, complete
+          JSON-LD schema.
+        </p>
+      </header>
+
+      <!-- INPUT -->
+      <div class="card" id="inputCard">
+        <div class="card-label">📋 Paste Your HTML Code</div>
+        <textarea
+          class="html-input"
+          id="htmlInput"
+          placeholder="Paste your full HTML page code here...&#10;&#10;The AI will automatically:&#10;• Detect page type (Blog, Product, About, etc.)&#10;• Choose the best schema types&#10;• Extract all links, images & data&#10;• Generate copy-paste ready JSON-LD"
+        ></textarea>
+
+        <div class="url-row">
+          <div class="url-group">
+            <label for="urlInput"
+              >Base URL
+              <span style="color: var(--text-muted)"
+                >(optional — helps make relative URLs absolute)</span
+              ></label
+            >
+            <input
+              type="url"
+              class="url-input"
+              id="urlInput"
+              placeholder="https://yoursite.com/page-slug"
+            />
+          </div>
+          <button
+            class="btn btn-generate"
+            id="generateBtn"
+            onclick="startGeneration()"
+          >
+            ✦ Generate Schema
+          </button>
+          <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+        </div>
+      </div>
+
+      <!-- PIPELINE -->
+      <div class="card pipeline" id="pipeline">
+        <div class="card-label">⚡ AI Pipeline</div>
+        <div class="pipe-steps">
+          <div class="pipe-step" id="ps-minify">
+            <span class="num">1</span> Clean
+          </div>
+          <div class="pipe-step" id="ps-chunk">
+            <span class="num">2</span> Chunk
+          </div>
+          <div class="pipe-step" id="ps-detect">
+            <span class="num">3</span> Recognize
+          </div>
+          <div class="pipe-step" id="ps-extract">
+            <span class="num">4</span> Extract
+          </div>
+          <div class="pipe-step" id="ps-schema">
+            <span class="num">5</span> Schema
+          </div>
+          <div class="pipe-step" id="ps-validate">
+            <span class="num">6</span> Validate
+          </div>
+        </div>
+        <div class="pipe-detail" id="pipeDetail">
+          <div class="spinner"></div>
+          <span id="pipeDetailText">Working...</span>
+        </div>
+
+        <!-- Detection result -->
+        <div class="detection-card" id="detectionCard">
+          <h4>🔍 AI Detection Results</h4>
+          <div class="det-grid">
+            <div class="det-item">
+              <div class="det-label">Page Type</div>
+              <div class="det-value" id="detPageType">—</div>
+            </div>
+            <div class="det-item">
+              <div class="det-label">Content Summary</div>
+              <div class="det-value" id="detSummary">—</div>
+            </div>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="det-item">
+              <div class="det-label">Auto-Selected Schema Types</div>
+              <div class="det-tags" id="detSchemaTypes"></div>
+            </div>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="det-item">
+              <div class="det-label">Primary Keywords</div>
+              <div class="det-tags" id="detKeywords"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATUS -->
+      <div class="status" id="statusBar">
+        <div class="sdot"></div>
+        <span id="statusText">Ready — paste HTML and click Generate</span>
+      </div>
+
+      <!-- OUTPUT -->
+      <div class="card output-card" id="outputCard">
+        <!-- Tabs -->
+        <div class="output-tabs">
+          <button
+            class="output-tab active"
+            id="tabSchema"
+            onclick="switchTab('schema')"
+          >
+            <span class="tab-tag">JSON-LD</span> Schema Code
+          </button>
+          <button class="output-tab" id="tabHtml" onclick="switchTab('html')">
+            <span class="tab-tag">HTML</span> HTML + Schema
+          </button>
+        </div>
+
+        <!-- Tab: JSON Schema -->
+        <div class="output-pane active" id="paneSchema">
+          <div class="output-pane-toolbar">
+            <span class="output-pane-label"
+              >📋 Copy-paste this schema into your HTML &lt;head&gt;</span
+            >
+            <button
+              class="btn btn-copy"
+              id="copySchemaBtn"
+              onclick="copyContent('schema')"
+            >
+              📋 Copy Schema
+            </button>
+          </div>
+          <pre class="output-code" id="outputCodeSchema"></pre>
+        </div>
+
+        <!-- Tab: HTML + Injected Schema -->
+        <div class="output-pane" id="paneHtml">
+          <div class="output-pane-toolbar">
+            <span class="output-pane-label"
+              >🌐 Your exact HTML code + schema injected before &lt;/head&gt;
+              (no modifications)</span
+            >
+            <button
+              class="btn btn-copy"
+              id="copyHtmlBtn"
+              onclick="copyContent('html')"
+            >
+              📋 Copy HTML
+            </button>
+          </div>
+          <pre class="output-code" id="outputCodeHtml"></pre>
+        </div>
+
+        <div class="stats-row" id="statsRow"></div>
+      </div>
+    </div>
+
+    <script>
+      let isRunning = false;
+      let finalSchemaText = "";
+      let finalHtmlText = "";
+      let originalHtmlInput = "";
+
+      function setStatus(msg, type = "") {
+        const bar = document.getElementById("statusBar");
+        bar.className = "status " + type;
+        document.getElementById("statusText").textContent = msg;
+      }
+
+      function setPipeStep(id, state) {
+        document.getElementById(id).className = "pipe-step " + state;
+      }
+
+      function showPipeDetail(text) {
+        const el = document.getElementById("pipeDetail");
+        if (text) {
+          el.classList.add("show");
+          document.getElementById("pipeDetailText").textContent = text;
+        } else {
+          el.classList.remove("show");
+        }
+      }
+
+      function clearAll() {
+        document.getElementById("htmlInput").value = "";
+        document.getElementById("urlInput").value = "";
+        document.getElementById("pipeline").classList.remove("show");
+        document.getElementById("outputCard").classList.remove("show");
+        document.getElementById("detectionCard").classList.remove("show");
+        setStatus("Ready — paste HTML and click Generate", "");
+        finalSchemaText = "";
+        finalHtmlText = "";
+        originalHtmlInput = "";
+      }
+
+      // Tab switching
+      function switchTab(tab) {
+        document
+          .getElementById("tabSchema")
+          .classList.toggle("active", tab === "schema");
+        document
+          .getElementById("tabHtml")
+          .classList.toggle("active", tab === "html");
+        document
+          .getElementById("paneSchema")
+          .classList.toggle("active", tab === "schema");
+        document
+          .getElementById("paneHtml")
+          .classList.toggle("active", tab === "html");
+      }
+
+      // Copy content
+      function copyContent(type) {
+        const text = type === "schema" ? finalSchemaText : finalHtmlText;
+        if (!text) return;
+        const btnId = type === "schema" ? "copySchemaBtn" : "copyHtmlBtn";
+        const label = type === "schema" ? "📋 Copy Schema" : "📋 Copy HTML";
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = document.getElementById(btnId);
+          btn.classList.add("copied");
+          btn.textContent = "✓ Copied!";
+          setTimeout(() => {
+            btn.classList.remove("copied");
+            btn.textContent = label;
+          }, 2500);
+        });
+      }
+
+      // Inject schema into original HTML
+      function injectSchemaIntoHtml(originalHtml, schema) {
+        if (!originalHtml || !schema) return originalHtml;
+        const schemaBlock = "\n" + schema + "\n";
+
+        // Try to inject before </head>
+        if (originalHtml.match(/<\/head>/i)) {
+          return originalHtml.replace(/<\/head>/i, schemaBlock + "</head>");
+        }
+        // Try to inject after <head> opening tag
+        if (originalHtml.match(/<head[^>]*>/i)) {
+          return originalHtml.replace(
+            /<head([^>]*)>/i,
+            "<head$1>" + schemaBlock,
+          );
+        }
+        // Try to inject after <html> tag
+        if (originalHtml.match(/<html[^>]*>/i)) {
+          return originalHtml.replace(
+            /<html([^>]*)>/i,
+            "<html$1>\n<head>" + schemaBlock + "</head>",
+          );
+        }
+        // Prepend if nothing else works
+        return schemaBlock + originalHtml;
+      }
+
+      function escapeHtml(s) {
+        return s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      async function startGeneration() {
+        if (isRunning) return;
+
+        const htmlRaw = document.getElementById("htmlInput").value;
+        const html = htmlRaw.trim();
+        const url = document.getElementById("urlInput").value.trim();
+
+        if (!html || html.length < 50) {
+          setStatus("Please paste at least 50 characters of HTML", "error");
+          return;
+        }
+
+        // Store the EXACT original HTML (untouched) for injection later
+        // This ensures the HTML + Schema tab returns your code AS-IS + schema injected
+        originalHtmlInput = htmlRaw;
+
+        isRunning = true;
+        const btn = document.getElementById("generateBtn");
+        btn.disabled = true;
+        btn.innerHTML =
+          '<span class="spinner" style="border-top-color:white"></span> Processing...';
+
+        // Reset UI
+        document.getElementById("pipeline").classList.add("show");
+        document.getElementById("outputCard").classList.remove("show");
+        document.getElementById("detectionCard").classList.remove("show");
+        document.getElementById("statsRow").innerHTML = "";
+        switchTab("schema"); // Reset to schema tab
+        [
+          "ps-minify",
+          "ps-chunk",
+          "ps-detect",
+          "ps-extract",
+          "ps-schema",
+          "ps-validate",
+        ].forEach((id) => setPipeStep(id, ""));
+        setStatus("Starting AI pipeline...", "loading");
+
+        try {
+          const response = await fetch(
+            "/schema-generator/api/generate-schema-stream",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                htmlContent: html,
+                url: url || undefined,
+              }),
+            },
+          );
+
+          if (!response.ok) {
+            let errMsg = "Server error";
+            try {
+              const contentType = response.headers.get("content-type") || "";
+              if (contentType.includes("application/json")) {
+                const err = await response.json();
+                errMsg = err.error || errMsg;
+              } else {
+                errMsg = (await response.text()) || errMsg;
+              }
+            } catch (e) {
+              errMsg = `Server returned status ${response.status}`;
+            }
+            throw new Error(errMsg);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Parse SSE events
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || ""; // keep incomplete line
+
+            let eventName = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                eventName = line.substring(7).trim();
+              } else if (line.startsWith("data: ") && eventName) {
+                try {
+                  const data = JSON.parse(line.substring(6));
+                  handleEvent(eventName, data);
+                } catch (e) {}
+                eventName = "";
+              }
+            }
+          }
+        } catch (error) {
+          setStatus("Error: " + error.message, "error");
+        } finally {
+          isRunning = false;
+          btn.disabled = false;
+          btn.innerHTML = "✦ Generate Schema";
+          showPipeDetail(null);
+        }
+      }
+
+      function handleEvent(event, data) {
+        switch (event) {
+          case "step":
+            const stepMap = {
+              minify: "ps-minify",
+              chunk: "ps-chunk",
+              detect: "ps-detect",
+              extract: "ps-extract",
+              schema: "ps-schema",
+              validate: "ps-validate",
+            };
+            const elId = stepMap[data.step];
+            if (elId) {
+              setPipeStep(elId, data.status);
+            }
+
+            if (data.status === "active") {
+              showPipeDetail(data.message);
+              setStatus(data.message, "loading");
+            } else if (data.status === "done") {
+              showPipeDetail(null);
+              setStatus(data.message, "loading");
+            }
+
+            // Show detection results
+            if (
+              data.step === "detect" &&
+              data.status === "done" &&
+              data.detection
+            ) {
+              showDetection(data.detection);
+            }
+            break;
+
+          case "progress":
+            showPipeDetail(data.message);
+            setStatus(data.message, "loading");
+            break;
+
+          case "result":
+            finalSchemaText = data.schema;
+
+            // Show schema in JSON Schema tab
+            document.getElementById("outputCodeSchema").textContent =
+              data.schema;
+
+            // Inject schema into original HTML and show in HTML tab
+            finalHtmlText = injectSchemaIntoHtml(
+              originalHtmlInput,
+              data.schema,
+            );
+            document.getElementById("outputCodeHtml").textContent =
+              finalHtmlText;
+
+            document.getElementById("outputCard").classList.add("show");
+
+            // Stats
+            if (data.stats) {
+              const sr = document.getElementById("statsRow");
+              sr.innerHTML = `
+                <div class="stat">📄 Original: ${data.stats.originalSize.toLocaleString()} chars</div>
+                <div class="stat">📦 Cleaned: ${data.stats.minifiedSize.toLocaleString()} chars</div>
+                <div class="stat">🧩 Chunks: ${data.stats.chunks}</div>
+                <div class="stat">📋 Page: ${data.stats.pageType}</div>
+                <div class="stat">🏷️ Schemas: ${data.stats.schemaTypes.join(", ")}</div>
+              `;
+            }
+            break;
+
+          case "done":
+            setStatus(
+              "✨ Schema generated! Switch tabs to view JSON Schema or HTML with schema injected.",
+              "success",
+            );
+            break;
+
+          case "error":
+            setStatus("Error: " + data.message, "error");
+            break;
+        }
+      }
+
+      function showDetection(det) {
+        const dc = document.getElementById("detectionCard");
+        dc.classList.add("show");
+
+        document.getElementById("detPageType").textContent =
+          det.pageType || "—";
+        document.getElementById("detSummary").textContent =
+          det.contentSummary || "—";
+
+        const stEl = document.getElementById("detSchemaTypes");
+        stEl.innerHTML = "";
+        (det.schemaTypes || []).forEach((t) => {
+          const tag = document.createElement("span");
+          tag.className = "det-tag";
+          tag.textContent = t;
+          stEl.appendChild(tag);
+        });
+
+        const kwEl = document.getElementById("detKeywords");
+        kwEl.innerHTML = "";
+        (det.primaryKeywords || []).forEach((k) => {
+          const tag = document.createElement("span");
+          tag.className = "det-tag";
+          tag.style.background = "rgba(6,182,212,0.08)";
+          tag.style.color = "#06b6d4";
+          tag.style.borderColor = "rgba(6,182,212,0.15)";
+          tag.textContent = k;
+          kwEl.appendChild(tag);
+        });
+      }
+
+      // Keyboard shortcut
+      document.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") startGeneration();
+      });
+    </script>
+  </body>
+</html>

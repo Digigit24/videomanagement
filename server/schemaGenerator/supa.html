@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Supabase Admin Dashboard</title>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.header h1 {
+    color: #4a5568;
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.card h2 {
+    color: #2d3748;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #4a5568;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+    background: #718096;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4a5568;
+    transform: translateY(-2px);
+}
+
+.btn-success {
+    background: #38a169;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #2f855a;
+    transform: translateY(-2px);
+}
+
+.status-card {
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.status-info {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.hidden {
+    display: none;
+}
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+th {
+    background: #f7fafc;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.action-btn {
+    padding: 6px 12px;
+    margin: 2px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.edit-btn {
+    background: #3182ce;
+    color: white;
+}
+
+.delete-btn {
+    background: #e53e3e;
+    color: white;
+}
+
+.roles-list {
+    margin-top: 15px;
+}
+
+.role-item {
+    background: #edf2f7;
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 6px;
+    border-left: 4px solid #667eea;
+}
+
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.alert {
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: #c6f6d5;
+    color: #22543d;
+    border: 1px solid #9ae6b4;
+}
+
+.alert-error {
+    background: #fed7d7;
+    color: #742a2a;
+    border: 1px solid #fc8181;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.filter-section {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.filter-section input {
+    flex: 1;
+    min-width: 200px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🏥 Pulse Admin Dashboard</h1>
+    </div>
+
+    <!-- Authentication Section -->
+    <div class="card">
+        <h2>🔐 Authentication</h2>
+        <div class="grid">
+            <div>
+                <div class="form-group">
+                    <label for="login_email">Email Address</label>
+                    <input type="email" id="login_email" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label for="login_password">Password</label>
+                    <input type="password" id="login_password" placeholder="Enter your password">
+                </div>
+                <button class="btn btn-primary" id="btn_login">Login</button>
+                <button class="btn btn-secondary" id="btn_logout">Logout</button>
+                <button class="btn btn-secondary" id="btn_test_connection">Test Connection</button>
+                <button class="btn btn-success" id="btn_fix_user_role">Fix My Role</button>
+            </div>
+            <div>
+                <div class="status-card">
+                    <div class="status-info">Session Status:</div>
+                    <div id="session_info">No active session</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-info">User Role:</div>
+                    <div id="role_info">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="admin_panel" class="hidden">
+        <!-- Role Management -->
+        <div class="card">
+            <h2>👥 Role Management</h2>
+            <div class="grid">
+                <div>
+                    <h3>Create New Role</h3>
+                    <div class="form-group">
+                        <label for="new_role_name">Role Name</label>
+                        <input type="text" id="new_role_name" placeholder="e.g., doctor, nurse">
+                    </div>
+                    <div class="form-group">
+                        <label for="new_role_desc">Description</label>
+                        <input type="text" id="new_role_desc" placeholder="Role description">
+                    </div>
+                    <button class="btn btn-success" id="btn_create_role">Create Role</button>
+                    <button class="btn btn-secondary" id="btn_fetch_roles">Refresh Roles</button>
+                </div>
+                <div>
+                    <h3>Available Roles</h3>
+                    <div id="roles_list">Loading roles...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Management -->
+        <div class="card">
+            <h2>👤 User Management</h2>
+            <div class="grid">
+                <div>
+                    <h3>Create New User</h3>
+                    <div class="form-group">
+                        <label for="new_user_email">Email Address</label>
+                        <input type="email" id="new_user_email" placeholder="user@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="new_user_password">Password</label>
+                        <input type="password" id="new_user_password" placeholder="Minimum 6 characters">
+                    </div>
+                    <div class="form-group">
+                        <label for="new_user_role">Assign Role</label>
+                        <select id="new_user_role">
+                            <option value="">Select a role...</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success" id="btn_create_user">Create User</button>
+                    <button class="btn btn-secondary" id="btn_fetch_users">Refresh Users</button>
+                </div>
+                <div>
+                    <h3>System Users</h3>
+                    <div id="users_output">Click "Refresh Users" to load users...</div>
+                    
+                    <h4 style="margin-top: 20px;">User Management Actions</h4>
+                    <div class="form-group">
+                        <label for="manage_user_email">User Email</label>
+                        <input type="email" id="manage_user_email" placeholder="Enter user email">
+                    </div>
+                    <div class="form-group">
+                        <label for="manage_user_role">New Role</label>
+                        <select id="manage_user_role">
+                            <option value="">Select new role...</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="btn_update_user_role">Update User Role</button>
+                    <button class="btn btn-secondary" id="btn_delete_user">Delete User</button>
+                    
+                    <h4 style="margin-top: 20px;">Quick User Login Test</h4>
+                    <div class="form-group">
+                        <label for="test_user_email">Test Login Email</label>
+                        <input type="email" id="test_user_email" placeholder="Enter user email to test login">
+                    </div>
+                    <div class="form-group">
+                        <label for="test_user_password">Test Login Password</label>
+                        <input type="password" id="test_user_password" placeholder="Enter password">
+                    </div>
+                    <button class="btn btn-primary" id="btn_test_user_login">Test User Login</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pharmacy Section -->
+    <div id="pharmacy_panel" class="hidden">
+        <div class="card">
+            <h2>💊 Pharmacy Management</h2>
+            
+            <!-- Product Form -->
+            <div id="product_form" class="hidden">
+                <h3>Add/Edit Product</h3>
+                <div class="grid">
+                    <div>
+                        <div class="form-group">
+                            <label for="p_name">Product Name</label>
+                            <input type="text" id="p_name" placeholder="Medicine name">
+                        </div>
+                        <div class="form-group">
+                            <label for="p_company">Company</label>
+                            <input type="text" id="p_company" placeholder="Manufacturer">
+                        </div>
+                        <div class="form-group">
+                            <label for="p_batch">Batch Number</label>
+                            <input type="text" id="p_batch" placeholder="Batch no.">
+                        </div>
+                        <div class="form-group">
+                            <label for="p_expiry">Expiry Date</label>
+                            <input type="date" id="p_expiry">
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label for="p_packing">Packing</label>
+                            <input type="text" id="p_packing" placeholder="10 tablets">
+                        </div>
+                        <div class="form-group">
+                            <label for="p_qty">Quantity</label>
+                            <input type="number" id="p_qty" min="0" placeholder="Available quantity">
+                        </div>
+                        <div class="form-group">
+                            <label for="p_mrp">MRP (₹)</label>
+                            <input type="number" id="p_mrp" step="0.01" min="0" placeholder="Price">
+                        </div>
+                        <input type="hidden" id="p_edit_id">
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-success" id="btn_create_product">Add Product</button>
+                            <button class="btn btn-primary" id="btn_update_product">Update Product</button>
+                            <button class="btn btn-secondary" id="btn_cancel_edit">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products List -->
+            <div>
+                <h3>Products Inventory</h3>
+                <div class="filter-section">
+                    <input type="text" id="filter_company" placeholder="Filter by company...">
+                    <button class="btn btn-secondary" id="btn_fetch_products">Refresh Products</button>
+                </div>
+                <div class="table-container" id="products_table">
+                    Loading products...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Configuration
+const SUPABASE_URL = "https://pnltvuhlcapvniudcatn.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBubHR2dWhsY2Fwdm5pdWRjYXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1NzMzMTMsImV4cCI6MjA3MzE0OTMxM30.sFLzo23yEFIddTvVu8P2C05fW71xFGINXk8ECN5Fll0";
+const SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBubHR2dWhsY2Fwdm5pdWRjYXRuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzU3MzMxMywiZXhwIjoyMDczMTQ5MzEzfQ.b4L76xCXYvUJDP1NzLu27hA35NVVAFU0HZpbIzURefI";
+
+console.log('🚀 Initializing Supabase clients...');
+
+// Initialize Supabase clients
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const adminSupabase = window.supabase.createClient(SUPABASE_URL, SERVICE_KEY);
+
+console.log('✅ Supabase clients initialized');
+
+// Global variables
+let currentUser = null;
+let currentRole = null;
+
+// Utility functions
+function showAlert(message, type = 'info') {
+    const alertClass = type === 'error' ? 'alert-error' : 'alert-success';
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert ${alertClass}`;
+    alertDiv.textContent = message;
+    
+    document.body.insertBefore(alertDiv, document.body.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+function toggleElement(elementId, show) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        console.log(`Toggling ${elementId}: ${show ? 'show' : 'hide'}`);
+        element.classList.toggle('hidden', !show);
+    }
+}
+
+// Authentication functions
+async function updateSessionDisplay() {
+    try {
+        console.log('🔄 Updating session display...');
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+            console.error('❌ Session error:', error);
+            document.getElementById('session_info').textContent = `Error: ${error.message}`;
+            return;
+        }
+
+        if (session?.user) {
+            currentUser = session.user;
+            document.getElementById('session_info').textContent = 
+                `${session.user.email} (${session.user.id.substring(0, 8)}...)`;
+            
+            // Get user role from metadata
+            currentRole = session.user.user_metadata?.role || 
+                         session.user.app_metadata?.role;
+            
+            // Special cases for existing users without roles
+            if (!currentRole) {
+                if (session.user.email === 'admin@pulse.com') {
+                    currentRole = 'admin';
+                    console.log('Setting admin role for existing admin user');
+                } else if (session.user.email === 'tamu@pulse.com') {
+                    currentRole = 'pharmacist';
+                    console.log('Setting pharmacist role for existing tamu user');
+                } else {
+                    currentRole = 'patient'; // Default to patient (lowest privilege)
+                }
+            }
+            
+            document.getElementById('role_info').textContent = currentRole;
+            
+            // Show/hide panels based on role
+            console.log('Setting panel visibility for role:', currentRole);
+            console.log('Is admin?', currentRole === 'admin');
+            console.log('Can manage pharmacy?', ['admin', 'pharmacist'].includes(currentRole));
+            
+            toggleElement('admin_panel', currentRole === 'admin'); // Only admin sees user management
+            toggleElement('pharmacy_panel', true); // Everyone can see pharmacy products
+            toggleElement('product_form', ['admin', 'pharmacist'].includes(currentRole)); // Only admin/pharmacist can add products
+            
+            // Force show product form for pharmacist and admin
+            if (currentRole === 'pharmacist' || currentRole === 'admin') {
+                document.getElementById('product_form').style.display = 'block';
+                document.getElementById('product_form').classList.remove('hidden');
+            }
+        } else {
+            currentUser = null;
+            currentRole = null;
+            document.getElementById('session_info').textContent = 'No active session';
+            document.getElementById('role_info').textContent = '-';
+            
+            // Hide all panels when logged out
+            toggleElement('admin_panel', false);
+            toggleElement('pharmacy_panel', false);
+            toggleElement('product_form', false);
+        }
+        
+        console.log('✅ Session display updated');
+    } catch (error) {
+        console.error('❌ Update session exception:', error);
+        document.getElementById('session_info').textContent = `Error: ${error.message}`;
+    }
+}
+
+// Login function
+document.getElementById('btn_login').addEventListener('click', async () => {
+    const email = document.getElementById('login_email').value.trim();
+    const password = document.getElementById('login_password').value;
+    
+    console.log('🔐 Attempting login for:', email);
+    
+    if (!email || !password) {
+        showAlert('Please enter both email and password', 'error');
+        return;
+    }
+    
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+        
+        console.log('Login response:', { data, error });
+        
+        if (error) {
+            console.error('❌ Login error:', error);
+            showAlert(`Login failed: ${error.message}`, 'error');
+            return;
+        }
+        
+        if (data?.user) {
+            console.log('✅ Login successful:', data.user.email);
+            showAlert('Login successful!', 'success');
+            
+            // Clear form
+            document.getElementById('login_email').value = '';
+            document.getElementById('login_password').value = '';
+        }
+    } catch (error) {
+        console.error('❌ Login exception:', error);
+        showAlert(`Login error: ${error.message}`, 'error');
+    }
+});
+
+// Logout function
+document.getElementById('btn_logout').addEventListener('click', async () => {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            showAlert(`Logout error: ${error.message}`, 'error');
+        } else {
+            showAlert('Logged out successfully', 'success');
+        }
+    } catch (error) {
+        console.error('❌ Logout exception:', error);
+        showAlert(`Logout error: ${error.message}`, 'error');
+    }
+});
+
+// Test connection function
+document.getElementById('btn_test_connection').addEventListener('click', async () => {
+    console.log('🔧 Testing connection...');
+    showAlert('Testing connection...', 'info');
+    
+    try {
+        // Test basic connection
+        const { data, error } = await supabase.auth.getUser();
+        
+        if (error && error.message !== 'Invalid JWT: string is malformed') {
+            throw error;
+        }
+        
+        // Test auth connection
+        const { data: testUsers, error: authError } = await adminSupabase.auth.admin.listUsers();
+        
+        if (authError) {
+            showAlert(`Auth connection failed: ${authError.message}`, 'error');
+        } else {
+            console.log('Auth test passed, testing database...');
+            
+            // Test database connection with pharmacy table
+            try {
+                const { data: pharmacyTest, error: dbError } = await supabase
+                    .from('pulse_pharmacy')
+                    .select('count')
+                    .limit(1);
+                
+                if (dbError) {
+                    showAlert(`Database test failed: ${dbError.message}. Creating table may be needed.`, 'error');
+                } else {
+                    showAlert(`Full connection test successful! ✅ Auth: ${testUsers.users?.length || 0} users, DB: Connected`, 'success');
+                }
+            } catch (dbErr) {
+                showAlert(`Database test failed: ${dbErr.message}`, 'error');
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Connection test failed:', error);
+        showAlert(`Connection test failed: ${error.message}`, 'error');
+    }
+});
+
+// Role management functions
+async function fetchRoles() {
+    try {
+        console.log('📋 Fetching roles...');
+        
+        const { data, error } = await adminSupabase
+            .from('roles')
+            .select('*')
+            .order('name');
+        
+        const roleSelect = document.getElementById('new_user_role');
+        roleSelect.innerHTML = '<option value="">Select a role...</option>';
+        
+        // Default roles to show even if table doesn't exist
+        const defaultRoles = [
+            { name: 'admin', description: 'System Administrator' },
+            { name: 'pharmacist', description: 'Pharmacy Manager' },
+            { name: 'doctor', description: 'Medical Doctor' },
+            { name: 'nurse', description: 'Nursing Staff' },
+            { name: 'receptionist', description: 'Front Desk' },
+            { name: 'accountant', description: 'Finance Team' },
+            { name: 'staff', description: 'General Staff' },
+            { name: 'patient', description: 'Patient User' }
+        ];
+        
+        let rolesToShow = defaultRoles;
+        
+        if (error) {
+            console.warn('⚠️ Roles table not found, using defaults:', error.message);
+            document.getElementById('roles_list').innerHTML = `<div class="alert alert-error">Using default roles. Roles table not created yet.</div>`;
+        } else if (data && data.length > 0) {
+            rolesToShow = data;
+            console.log('✅ Roles fetched from database');
+        } else {
+            console.log('📋 Using default roles');
+        }
+        
+        // Update dropdowns
+        const manageRoleSelect = document.getElementById('manage_user_role');
+        if (manageRoleSelect) {
+            manageRoleSelect.innerHTML = '<option value="">Select new role...</option>';
+        }
+        
+        rolesToShow.forEach(role => {
+            // Update new user role dropdown
+            const option = document.createElement('option');
+            option.value = role.name;
+            option.textContent = `${role.name} - ${role.description || 'No description'}`;
+            roleSelect.appendChild(option);
+            
+            // Update manage user role dropdown
+            if (manageRoleSelect) {
+                const manageOption = document.createElement('option');
+                manageOption.value = role.name;
+                manageOption.textContent = `${role.name} - ${role.description || 'No description'}`;
+                manageRoleSelect.appendChild(manageOption);
+            }
+        });
+        
+        // Display roles list
+        let html = '';
+        rolesToShow.forEach(role => {
+            html += `
+                <div class="role-item">
+                    <strong>${role.name}</strong>
+                    <br><small>${role.description || 'No description provided'}</small>
+                </div>
+            `;
+        });
+        document.getElementById('roles_list').innerHTML = html;
+        
+        console.log('✅ Roles loaded successfully');
+    } catch (error) {
+        console.error('❌ Roles fetch exception:', error);
+        document.getElementById('roles_list').innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+    }
+}
+
+// Create role function
+document.getElementById('btn_create_role').addEventListener('click', async () => {
+    const name = document.getElementById('new_role_name').value.trim();
+    const description = document.getElementById('new_role_desc').value.trim();
+    
+    if (!name) {
+        showAlert('Please enter a role name', 'error');
+        return;
+    }
+    
+    try {
+        console.log('👥 Creating role:', name);
+        
+        const { data, error } = await adminSupabase
+            .from('roles')
+            .insert([{ name, description }]);
+        
+        if (error) {
+            console.error('❌ Role creation error:', error);
+            showAlert(`Error creating role: ${error.message}`, 'error');
+            return;
+        }
+        
+        showAlert('Role created successfully!', 'success');
+        document.getElementById('new_role_name').value = '';
+        document.getElementById('new_role_desc').value = '';
+        fetchRoles();
+        
+    } catch (error) {
+        console.error('❌ Role creation exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Fetch roles button
+document.getElementById('btn_fetch_roles').addEventListener('click', fetchRoles);
+
+// Create user function
+document.getElementById('btn_create_user').addEventListener('click', async () => {
+    const email = document.getElementById('new_user_email').value.trim();
+    const password = document.getElementById('new_user_password').value;
+    const role = document.getElementById('new_user_role').value;
+    
+    if (!email || !password || !role) {
+        showAlert('Please fill in all fields', 'error');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showAlert('Password must be at least 6 characters long', 'error');
+        return;
+    }
+    
+    try {
+        console.log('👤 Creating user:', email);
+        
+        // Create user
+        const { data: userData, error: userError } = await adminSupabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true
+        });
+        
+        if (userError) {
+            console.error('❌ User creation error:', userError);
+            showAlert(`Error creating user: ${userError.message}`, 'error');
+            return;
+        }
+        
+        // Store role in user metadata instead of separate table
+        const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
+            userData.user.id,
+            { 
+                user_metadata: { role: role },
+                app_metadata: { role: role }
+            }
+        );
+        
+        if (updateError) {
+            console.error('❌ Role assignment error:', updateError);
+            showAlert(`User created but role assignment failed: ${updateError.message}`, 'error');
+        } else {
+            showAlert(`User created successfully with role: ${role}`, 'success');
+        }
+        
+        // Clear form
+        document.getElementById('new_user_email').value = '';
+        document.getElementById('new_user_password').value = '';
+        document.getElementById('new_user_role').value = '';
+        
+        fetchUsers();
+        
+    } catch (error) {
+        console.error('❌ User creation exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Fetch users function
+async function fetchUsers() {
+    try {
+        console.log('👥 Fetching users...');
+        
+        const { data: { users }, error } = await adminSupabase.auth.admin.listUsers();
+        
+        if (error) {
+            console.error('❌ Users fetch error:', error);
+            document.getElementById('users_output').innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            return;
+        }
+        
+        if (users && users.length > 0) {
+            let html = '<div>';
+            const roleGroups = {};
+            
+            // Group by role
+            users.forEach(user => {
+                const role = user.user_metadata?.role || user.app_metadata?.role || 'no-role';
+                if (!roleGroups[role]) {
+                    roleGroups[role] = [];
+                }
+                roleGroups[role].push(user);
+            });
+            
+            // Display grouped users
+            Object.keys(roleGroups).forEach(role => {
+                html += `
+                    <div class="role-item">
+                        <strong>${role.toUpperCase()}</strong> (${roleGroups[role].length} users)
+                        <br><small>Emails: ${roleGroups[role].map(u => u.email).join(', ')}</small>
+                        <br><small>User IDs: ${roleGroups[role].map(u => u.id.substring(0, 8) + '...').join(', ')}</small>
+                        <br><small>Created: ${roleGroups[role].map(u => new Date(u.created_at).toLocaleDateString()).join(', ')}</small>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('users_output').innerHTML = html;
+        } else {
+            document.getElementById('users_output').innerHTML = '<div class="alert alert-error">No users found. Create some users first.</div>';
+        }
+        
+    } catch (error) {
+        console.error('❌ Users fetch exception:', error);
+        document.getElementById('users_output').innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+    }
+}
+
+// Fetch users button
+document.getElementById('btn_fetch_users').addEventListener('click', fetchUsers);
+
+// Test user login function
+document.getElementById('btn_test_user_login').addEventListener('click', async () => {
+    const email = document.getElementById('test_user_email').value.trim();
+    const password = document.getElementById('test_user_password').value;
+    
+    if (!email || !password) {
+        showAlert('Please enter both email and password for testing', 'error');
+        return;
+    }
+    
+    try {
+        console.log('🧪 Testing user login:', email);
+        
+        // Create a separate client for testing
+        const testClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        const { data, error } = await testClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+        
+        if (error) {
+            showAlert(`Test login failed: ${error.message}`, 'error');
+            return;
+        }
+        
+        if (data?.user) {
+            const userRole = data.user.user_metadata?.role || data.user.app_metadata?.role || 'no-role';
+            showAlert(`✅ Test login successful! User: ${data.user.email}, Role: ${userRole}`, 'success');
+            
+            // Sign out the test user
+            await testClient.auth.signOut();
+        }
+        
+    } catch (error) {
+        console.error('❌ Test login exception:', error);
+        showAlert(`Test login error: ${error.message}`, 'error');
+    }
+});
+
+// Fix user role function
+document.getElementById('btn_fix_user_role').addEventListener('click', async () => {
+    if (!currentUser) {
+        showAlert('Please login first', 'error');
+        return;
+    }
+    
+    let roleToSet = 'patient';
+    if (currentUser.email === 'admin@pulse.com') {
+        roleToSet = 'admin';
+    } else if (currentUser.email === 'tamu@pulse.com') {
+        roleToSet = 'pharmacist';
+    }
+    
+    try {
+        console.log('🔧 Fixing role for current user:', currentUser.email, 'to', roleToSet);
+        
+        const { error } = await adminSupabase.auth.admin.updateUserById(
+            currentUser.id,
+            { 
+                user_metadata: { role: roleToSet },
+                app_metadata: { role: roleToSet }
+            }
+        );
+        
+        if (error) {
+            showAlert(`Error fixing user role: ${error.message}`, 'error');
+            return;
+        }
+        
+        showAlert(`Role fixed! You are now ${roleToSet}. Please refresh the page.`, 'success');
+        
+        // Update current session
+        currentRole = roleToSet;
+        document.getElementById('role_info').textContent = roleToSet;
+        
+        // Update UI
+        toggleElement('admin_panel', roleToSet === 'admin');
+        toggleElement('pharmacy_panel', true);
+        toggleElement('product_form', ['admin', 'pharmacist'].includes(roleToSet));
+        
+    } catch (error) {
+        console.error('❌ Fix user role exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Update user role function
+document.getElementById('btn_update_user_role').addEventListener('click', async () => {
+    const email = document.getElementById('manage_user_email').value.trim();
+    const newRole = document.getElementById('manage_user_role').value;
+    
+    if (!email || !newRole) {
+        showAlert('Please enter both email and new role', 'error');
+        return;
+    }
+    
+    try {
+        console.log('🔄 Updating user role:', email, 'to', newRole);
+        
+        // Get user by email
+        const { data: { users }, error: listError } = await adminSupabase.auth.admin.listUsers();
+        
+        if (listError) {
+            showAlert(`Error fetching users: ${listError.message}`, 'error');
+            return;
+        }
+        
+        const user = users.find(u => u.email === email);
+        if (!user) {
+            showAlert('User not found with that email', 'error');
+            return;
+        }
+        
+        // Update user metadata
+        const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
+            user.id,
+            { 
+                user_metadata: { role: newRole },
+                app_metadata: { role: newRole }
+            }
+        );
+        
+        if (updateError) {
+            showAlert(`Error updating user role: ${updateError.message}`, 'error');
+            return;
+        }
+        
+        showAlert(`User role updated successfully! ${email} is now ${newRole}`, 'success');
+        document.getElementById('manage_user_email').value = '';
+        document.getElementById('manage_user_role').value = '';
+        fetchUsers();
+        
+    } catch (error) {
+        console.error('❌ Update user role exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Delete user function
+document.getElementById('btn_delete_user').addEventListener('click', async () => {
+    const email = document.getElementById('manage_user_email').value.trim();
+    
+    if (!email) {
+        showAlert('Please enter user email', 'error');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete user: ${email}?`)) {
+        return;
+    }
+    
+    try {
+        console.log('🗑️ Deleting user:', email);
+        
+        // Get user by email
+        const { data: { users }, error: listError } = await adminSupabase.auth.admin.listUsers();
+        
+        if (listError) {
+            showAlert(`Error fetching users: ${listError.message}`, 'error');
+            return;
+        }
+        
+        const user = users.find(u => u.email === email);
+        if (!user) {
+            showAlert('User not found with that email', 'error');
+            return;
+        }
+        
+        // Delete user
+        const { error: deleteError } = await adminSupabase.auth.admin.deleteUser(user.id);
+        
+        if (deleteError) {
+            showAlert(`Error deleting user: ${deleteError.message}`, 'error');
+            return;
+        }
+        
+        showAlert(`User deleted successfully: ${email}`, 'success');
+        document.getElementById('manage_user_email').value = '';
+        fetchUsers();
+        
+    } catch (error) {
+        console.error('❌ Delete user exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Create pharmacy table if it doesn't exist
+async function createPharmacyTable() {
+    try {
+        console.log('🏗️ Creating pulse_pharmacy table...');
+        
+        // Note: In production, you would create this table through Supabase dashboard
+        // This is just to show the expected structure
+        showAlert('Please create the "pulse_pharmacy" table in your Supabase dashboard with these columns: id (int8, primary key), product_name (text), packing (text), company (text), batch_no (text), quantity (int4), expiry_date (date), mrp (numeric), created_at (timestamp)', 'error');
+        
+    } catch (error) {
+        console.error('❌ Create table error:', error);
+        showAlert(`Error creating table: ${error.message}`, 'error');
+    }
+}
+
+// Pharmacy functions
+function collectProductForm() {
+    return {
+        product_name: document.getElementById('p_name').value.trim(),
+        packing: document.getElementById('p_packing').value.trim(),
+        company: document.getElementById('p_company').value.trim(),
+        batch_no: document.getElementById('p_batch').value.trim(),
+        quantity: parseInt(document.getElementById('p_qty').value) || 0,
+        expiry_date: document.getElementById('p_expiry').value,
+        mrp: parseFloat(document.getElementById('p_mrp').value) || 0
+    };
+}
+
+function clearProductForm() {
+    ['p_name', 'p_packing', 'p_company', 'p_batch', 'p_qty', 'p_expiry', 'p_mrp', 'p_edit_id'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+}
+
+// Create product
+document.getElementById('btn_create_product').addEventListener('click', async () => {
+    if (!['admin', 'pharmacist'].includes(currentRole)) {
+        showAlert('Access denied: Only admin and pharmacist can create products', 'error');
+        return;
+    }
+    
+    const productData = collectProductForm();
+    
+    if (!productData.product_name || !productData.company) {
+        showAlert('Please fill in at least product name and company', 'error');
+        return;
+    }
+    
+    try {
+        console.log('💊 Creating product:', productData);
+        
+        // Use admin client to bypass RLS
+        const { data, error } = await adminSupabase
+            .from('pulse_pharmacy')
+            .insert([productData])
+            .select();
+        
+        if (error) {
+            console.error('❌ Product creation error:', error);
+            showAlert(`Error creating product: ${error.message}`, 'error');
+            
+            // If table doesn't exist, create it
+            if (error.message.includes('relation "pulse_pharmacy" does not exist')) {
+                showAlert('Creating pharmacy table...', 'info');
+                await createPharmacyTable();
+                return;
+            }
+            return;
+        }
+        
+        console.log('✅ Product created:', data);
+        showAlert('Product created successfully!', 'success');
+        clearProductForm();
+        fetchProducts();
+        
+    } catch (error) {
+        console.error('❌ Product creation exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Update product
+document.getElementById('btn_update_product').addEventListener('click', async () => {
+    if (!['admin', 'pharmacist'].includes(currentRole)) {
+        showAlert('Access denied: Only admin and pharmacist can update products', 'error');
+        return;
+    }
+    
+    const id = document.getElementById('p_edit_id').value;
+    
+    if (!id) {
+        showAlert('No product selected for update', 'error');
+        return;
+    }
+    
+    const productData = collectProductForm();
+    
+    try {
+        console.log('💊 Updating product:', id);
+        
+        const { data, error } = await adminSupabase
+            .from('pulse_pharmacy')
+            .update(productData)
+            .eq('id', id)
+            .select();
+        
+        if (error) {
+            console.error('❌ Product update error:', error);
+            showAlert(`Error updating product: ${error.message}`, 'error');
+            return;
+        }
+        
+        showAlert('Product updated successfully!', 'success');
+        clearProductForm();
+        fetchProducts();
+        
+    } catch (error) {
+        console.error('❌ Product update exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+});
+
+// Cancel edit
+document.getElementById('btn_cancel_edit').addEventListener('click', () => {
+    clearProductForm();
+    showAlert('Edit cancelled', 'info');
+});
+
+// Fetch products
+async function fetchProducts() {
+    try {
+        console.log('💊 Fetching products...');
+        
+        const filter = document.getElementById('filter_company').value.trim();
+        let query = adminSupabase
+            .from('pulse_pharmacy')
+            .select('*')
+            .order('id', { ascending: false })
+            .limit(100);
+        
+        if (filter) {
+            query = query.ilike('company', `%${filter}%`);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+            console.error('❌ Products fetch error:', error);
+            document.getElementById('products_table').innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+            return;
+        }
+        
+        if (data && data.length > 0) {
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Product Name</th>
+                            <th>Company</th>
+                            <th>Batch</th>
+                            <th>Quantity</th>
+                            <th>Expiry</th>
+                            <th>MRP (₹)</th>
+                            ${['admin', 'pharmacist'].includes(currentRole) ? '<th>Actions</th>' : '<th>Access</th>'}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(product => {
+                const expiryDate = product.expiry_date ? new Date(product.expiry_date).toLocaleDateString() : 'N/A';
+                const isExpired = product.expiry_date && new Date(product.expiry_date) < new Date();
+                
+                html += `
+                    <tr ${isExpired ? 'style="background-color: #fed7d7;"' : ''}>
+                        <td>${product.id}</td>
+                        <td>${product.product_name}</td>
+                        <td>${product.company}</td>
+                        <td>${product.batch_no || 'N/A'}</td>
+                        <td>${product.quantity}</td>
+                        <td>${expiryDate}</td>
+                        <td>₹${product.mrp?.toFixed(2) || '0.00'}</td>
+                        ${['admin', 'pharmacist'].includes(currentRole) ? `
+                            <td>
+                                <button class="action-btn edit-btn" onclick="editProduct(${product.id})">Edit</button>
+                                <button class="action-btn delete-btn" onclick="deleteProduct(${product.id})">Delete</button>
+                            </td>
+                        ` : '<td>View Only</td>'}
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('products_table').innerHTML = html;
+        } else {
+            document.getElementById('products_table').innerHTML = '<div class="alert alert-error">No products found</div>';
+        }
+        
+        console.log('✅ Products fetched successfully');
+        
+    } catch (error) {
+        console.error('❌ Products fetch exception:', error);
+        document.getElementById('products_table').innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+    }
+}
+
+// Edit product function (global)
+window.editProduct = async function(id) {
+    if (!['admin', 'pharmacist'].includes(currentRole)) {
+        showAlert('Access denied: Only admin and pharmacist can edit products', 'error');
+        return;
+    }
+    
+    try {
+        const { data, error } = await adminSupabase
+            .from('pulse_pharmacy')
+            .select('*')
+            .eq('id', id)
+            .single();
+        
+        if (error) {
+            showAlert(`Error fetching product: ${error.message}`, 'error');
+            return;
+        }
+        
+        // Populate form
+        document.getElementById('p_edit_id').value = data.id;
+        document.getElementById('p_name').value = data.product_name || '';
+        document.getElementById('p_packing').value = data.packing || '';
+        document.getElementById('p_company').value = data.company || '';
+        document.getElementById('p_batch').value = data.batch_no || '';
+        document.getElementById('p_qty').value = data.quantity || '';
+        document.getElementById('p_expiry').value = data.expiry_date ? data.expiry_date.split('T')[0] : '';
+        document.getElementById('p_mrp').value = data.mrp || '';
+        
+        showAlert('Product loaded for editing', 'info');
+        
+    } catch (error) {
+        console.error('❌ Edit product exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+};
+
+// Delete product function (global)
+window.deleteProduct = async function(id) {
+    if (!['admin', 'pharmacist'].includes(currentRole)) {
+        showAlert('Access denied: Only admin and pharmacist can delete products', 'error');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this product?')) {
+        return;
+    }
+    
+    try {
+        const { error } = await adminSupabase
+            .from('pulse_pharmacy')
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            showAlert(`Error deleting product: ${error.message}`, 'error');
+            return;
+        }
+        
+        showAlert('Product deleted successfully', 'success');
+        fetchProducts();
+        
+    } catch (error) {
+        console.error('❌ Delete product exception:', error);
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+};
+
+// Fetch products button
+document.getElementById('btn_fetch_products').addEventListener('click', fetchProducts);
+
+// Initialize application
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Application starting...');
+    
+    let isInitializing = false;
+    
+    // Set up auth state listener
+    supabase.auth.onAuthStateChange((event, session) => {
+        console.log('🔐 Auth state changed:', event, session?.user?.email);
+        
+        if (isInitializing && event === 'INITIAL_SESSION') {
+            return; // Skip duplicate initial session
+        }
+        
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            isInitializing = true;
+            setTimeout(() => {
+                updateSessionDisplay().then(() => {
+                    if (session?.user) {
+                        console.log('Auth state change - currentRole:', currentRole);
+                        if (currentRole === 'admin') {
+                            fetchRoles();
+                            fetchUsers();
+                        }
+                        
+                        if (['admin', 'pharmacist'].includes(currentRole)) {
+                            fetchProducts();
+                            
+                            // Ensure product form is visible for pharmacist and admin
+                            setTimeout(() => {
+                                const productForm = document.getElementById('product_form');
+                                if (productForm) {
+                                    productForm.style.display = 'block';
+                                    productForm.classList.remove('hidden');
+                                    console.log('Product form made visible for role:', currentRole);
+                                }
+                            }, 100);
+                        }
+                    }
+                    isInitializing = false;
+                });
+            }, 100);
+        }
+    });
+    
+    // Initial session check (only if not already initializing)
+    if (!isInitializing) {
+        setTimeout(() => {
+            updateSessionDisplay().then(() => {
+                // Load initial data if user is already logged in
+                console.log('Initial load - currentRole:', currentRole);
+                if (currentUser && currentRole === 'admin') {
+                    fetchRoles();
+                    fetchUsers();
+                }
+                
+                if (currentUser && ['admin', 'pharmacist'].includes(currentRole)) {
+                    fetchProducts();
+                    
+                    // Ensure product form is visible for pharmacist and admin
+                    setTimeout(() => {
+                        const productForm = document.getElementById('product_form');
+                        if (productForm) {
+                            productForm.style.display = 'block';
+                            productForm.classList.remove('hidden');
+                            console.log('Initial load - Product form made visible for role:', currentRole);
+                        }
+                    }, 100);
+                }
+            });
+        }, 50);
+    }
+    
+    console.log('✅ Application initialized');
+});
+
+console.log('📱 Script loaded successfully');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Schema Generator Test</title>
+</head>
+<body>
+    <h1>SEO Schema Generator Test</h1>
+    
+    <form id="testForm">
+        <div>
+            <label>Schema Type:</label>
+            <select id="schemaType">
+                <option value="article">Article Schema</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>Content Type:</label>
+            <select id="contentType">
+                <option value="blog-post">Blog Post</option>
+            </select>
+        </div>
+        
+        <div>
+            <label>URL:</label>
+            <input type="url" id="urlInput" value="https://example.com" required>
+        </div>
+        
+        <button type="button" id="generateBtn" onclick="testGenerate()">Test Generate</button>
+        <button type="button" onclick="testAPI()">Test API Connection</button>
+    </form>
+    
+    <div id="status" style="margin: 20px 0; padding: 10px; border: 1px solid #ccc;">
+        Ready to test...
+    </div>
+    
+    <div id="result" style="margin: 20px 0; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap;">
+        Results will appear here...
+    </div>
+
+    <script>
+        function setStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('Status:', message);
+        }
+        
+        function setResult(content) {
+            document.getElementById('result').textContent = content;
+            console.log('Result:', content);
+        }
+        
+        async function testAPI() {
+            setStatus('Testing API connection...');
+            try {
+                const response = await fetch('/api/status');
+                const result = await response.json();
+                setStatus('API Status: ' + result.status);
+                setResult(JSON.stringify(result, null, 2));
+            } catch (error) {
+                setStatus('API Connection Error: ' + error.message);
+                setResult('Error: ' + error.stack);
+            }
+        }
+        
+        async function testGenerate() {
+            console.log('Test Generate button clicked!');
+            setStatus('Testing schema generation...');
+            
+            const schemaType = document.getElementById('schemaType').value;
+            const contentType = document.getElementById('contentType').value;
+            const url = document.getElementById('urlInput').value;
+            
+            console.log('Form values:', { schemaType, contentType, url });
+            
+            if (!url) {
+                setStatus('Please enter a URL');
+                return;
+            }
+            
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Testing...';
+            
+            try {
+                const response = await fetch('/api/generate-schema', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        schemaType,
+                        contentType,
+                        url
+                    })
+                });
+                
+                console.log('Response status:', response.status);
+                const result = await response.json();
+                console.log('Response data:', result);
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to generate schema');
+                }
+                
+                setStatus('Schema generated successfully!');
+                setResult(JSON.stringify(result.schema, null, 2));
+                
+            } catch (error) {
+                console.error('Error:', error);
+                setStatus('Error: ' + error.message);
+                setResult('Error details: ' + error.stack);
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Test Generate';
+            }
+        }
+        
+        console.log('Test page loaded successfully!');
+    </script>
+</body>
+</html>
