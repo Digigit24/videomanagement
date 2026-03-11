@@ -164,6 +164,8 @@ export default function VideoDetail() {
   const [loadingShareToken, setLoadingShareToken] = useState(false);
 
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
+  const [playerFailed, setPlayerFailed] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
 
   const [sidebarTab, setSidebarTab] = useState<'feedback' | 'chat' | 'activity'>('chat');
 
@@ -349,6 +351,23 @@ export default function VideoDetail() {
   const handleProgress = useCallback((state: { played: number; playedSeconds: number }) => {
     setCurrentTime(state.playedSeconds);
   }, []);
+
+  const handleReprocess = async () => {
+    if (!video || !currentBucket) return;
+    setReprocessing(true);
+    try {
+      await videoService.reprocessVideo(video.id, currentBucket);
+      setPlayerFailed(false);
+      // Reload the video so hls_ready resets and processing UI shows
+      const updated = await videoService.getVideo(video.id, currentBucket);
+      if (updated) setVideo(updated);
+    } catch (err: any) {
+      console.error('Reprocess failed:', err);
+      alert(err?.response?.data?.error || 'Failed to trigger reprocessing. Please try re-uploading.');
+    } finally {
+      setReprocessing(false);
+    }
+  };
 
   const handleSeekTo = useCallback((time: number) => {
     if (video?.hls_ready && hlsPlayerControls) {
@@ -756,14 +775,48 @@ export default function VideoDetail() {
                 />
               </div>
             ) : video.hls_ready ? (
-              <HLSPlayer
-                hlsUrl={hlsUrl}
-                fallbackUrl={streamUrl}
-                downloadUrl={downloadUrl}
-                onProgress={handleProgress}
-                onPlayerRef={(ref) => setHlsPlayerControls(ref)}
-                onPlayingChange={setIsVideoPlaying}
-              />
+              <div className="relative">
+                <HLSPlayer
+                  hlsUrl={hlsUrl}
+                  fallbackUrl={streamUrl}
+                  downloadUrl={downloadUrl}
+                  onProgress={handleProgress}
+                  onPlayerRef={(ref) => setHlsPlayerControls(ref)}
+                  onPlayingChange={setIsVideoPlaying}
+                  onPlayerError={() => setPlayerFailed(true)}
+                />
+                {playerFailed && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-950/95 rounded-lg z-20">
+                    <div className="text-center px-6 max-w-sm">
+                      <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <p className="text-red-400 text-sm font-medium mb-1">Video failed to load</p>
+                      <p className="text-gray-500 text-xs mb-4">The video files may be missing or corrupted. Try reprocessing to rebuild them from the original.</p>
+                      <div className="flex flex-col gap-2">
+                        {['admin', 'project_manager', 'video_editor'].includes(userRole || '') ? (
+                          <button
+                            onClick={handleReprocess}
+                            disabled={reprocessing}
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-60"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${reprocessing ? 'animate-spin' : ''}`} />
+                            {reprocessing ? 'Queuing...' : 'Reprocess Video'}
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={() => setShowUploadModal(true)}
+                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gray-700 text-white text-xs font-medium rounded-lg hover:bg-gray-600 transition-colors"
+                        >
+                          Upload New Version
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="w-full aspect-video bg-gray-950 rounded-lg flex items-center justify-center">
                 <div className="text-center px-6 w-full max-w-sm">

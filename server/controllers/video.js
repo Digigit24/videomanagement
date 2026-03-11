@@ -522,20 +522,60 @@ export async function streamVideo(req, res) {
 
     if (!video.hls_ready) {
       return res.status(202).json({
-        error:
-          "Video is still being processed. Please use the HLS endpoint once ready.",
+        error: "Video is still being processed. Please use the HLS endpoint once ready.",
       });
     }
 
-    const hlsMasterKey = video.hls_path;
-    if (hlsMasterKey) {
-      const stream = await getVideoStream(req.bucket, hlsMasterKey);
+    // Try to serve original file directly as an inline video stream.
+    // This allows the <video> element (fallback path in HLSPlayer) to play natively in Chrome.
+    if (video.object_key) {
+      try {
+        const ext = (video.filename || "").split(".").pop()?.toLowerCase() || "mp4";
+        const mimeTypes = {
+          mp4: "video/mp4",
+          mov: "video/quicktime",
+          webm: "video/webm",
+          avi: "video/x-msvideo",
+          mkv: "video/x-matroska",
+          flv: "video/x-flv",
+          wmv: "video/x-ms-wmv",
+          "3gp": "video/3gpp",
+        };
+        const mimeType = mimeTypes[ext] || "video/mp4";
+
+        // Forward Range header to S3 for proper video seeking
+        const rangeHeader = req.headers.range;
+        let s3Stream;
+        if (rangeHeader) {
+          const parts = rangeHeader.replace(/bytes=/, "").split("-");
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : undefined;
+          s3Stream = await getVideoStream(req.bucket, video.object_key, start, end ?? null);
+        } else {
+          s3Stream = await getVideoStream(req.bucket, video.object_key);
+        }
+
+        res.setHeader("Content-Type", mimeType);
+        res.setHeader("Accept-Ranges", "bytes");
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        if (rangeHeader) {
+          res.status(206);
+        }
+        return s3Stream.pipe(res);
+      } catch (_) {
+        // Original file not in S3 — fall through to HLS
+      }
+    }
+
+    // Fallback: serve HLS master playlist (works natively in Safari)
+    if (video.hls_path) {
+      const stream = await getVideoStream(req.bucket, video.hls_path);
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
       res.setHeader("Cache-Control", "public, max-age=3600");
-      stream.pipe(res);
-    } else {
-      return res.status(404).json({ error: "Video stream not available" });
+      return stream.pipe(res);
     }
+
+    return res.status(404).json({ error: "Video stream not available" });
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to stream video" });

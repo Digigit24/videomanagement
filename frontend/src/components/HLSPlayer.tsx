@@ -9,9 +9,10 @@ interface HLSPlayerProps {
   onProgress?: (state: { played: number; playedSeconds: number }) => void;
   onPlayerRef?: (ref: { seekTo: (time: number) => void; pause: () => void }) => void;
   onPlayingChange?: (playing: boolean) => void;
+  onPlayerError?: () => void;
 }
 
-export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress, onPlayerRef, onPlayingChange }: HLSPlayerProps) {
+export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress, onPlayerRef, onPlayingChange, onPlayerError }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [error, setError] = useState(false);
@@ -274,6 +275,8 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         onError={() => {
           setError(true);
           setLoading(false);
+          // Notify parent that both HLS and fallback have failed
+          if (onPlayerError) onPlayerError();
         }}
       />
 

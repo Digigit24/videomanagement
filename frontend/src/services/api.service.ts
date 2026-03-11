@@ -337,6 +337,11 @@ export const videoService = {
     return `${API_BASE_URL}/photo/${id}?token=${token}`;
   },
 
+  reprocessVideo: async (videoId: string, bucket: string) => {
+    const { data } = await api.post(`/video/${videoId}/reprocess`, null, { params: { bucket } });
+    return data;
+  },
+
   getVersionHistory: async (videoId: string, bucket: string) => {
     const { data } = await api.get(`/video/${videoId}/versions`, {
       params: { bucket },
