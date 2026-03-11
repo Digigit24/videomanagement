@@ -324,7 +324,19 @@ export async function processVideoToHLS(
         console.log(
           `[FFmpeg] Step 8: Uploading original to S3: ${permanentKey}`,
         );
-        await uploadFileToS3(bucket, permanentKey, localInputPath, "video/mp4");
+        const ext = path.extname(originalFilename).toLowerCase().slice(1);
+        const mimeTypes = {
+          mp4: "video/mp4",
+          mov: "video/quicktime",
+          webm: "video/webm",
+          avi: "video/x-msvideo",
+          mkv: "video/x-matroska",
+          flv: "video/x-flv",
+          wmv: "video/x-ms-wmv",
+          "3gp": "video/3gpp",
+        };
+        const mimeType = mimeTypes[ext] || "video/mp4";
+        await uploadFileToS3(bucket, permanentKey, localInputPath, mimeType);
         await getPool().query(
           "UPDATE videos SET object_key = $1 WHERE id = $2",
           [permanentKey, videoId],

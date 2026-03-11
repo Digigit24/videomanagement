@@ -576,6 +576,68 @@ export async function streamHLS(req, res) {
   }
 }
 
+// Trigger reprocessing of a video whose original file already exists in S3
+// Used when a video is stuck (hls_ready=false) but the original was already uploaded
+export async function reprocessVideo(req, res) {
+  try {
+    const { id } = req.params;
+
+    const allowedRoles = ["admin", "project_manager", "video_editor"];
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Insufficient permissions to reprocess videos" });
+    }
+
+    const video = await getVideoById(id, req.bucket);
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    if (video.media_type !== "video") {
+      return res.status(400).json({ error: "Only videos can be reprocessed" });
+    }
+
+    if (video.hls_ready) {
+      return res.status(400).json({ error: "Video is already processed" });
+    }
+
+    // Check if already queued or processing
+    const currentInfo = await processingQueue.getProcessingInfo(id);
+    if (currentInfo && (currentInfo.processing_status === "queued" || currentInfo.processing_status === "processing")) {
+      return res.status(400).json({ error: "Video is already queued for processing" });
+    }
+
+    // Find the original file in S3
+    const { s3ObjectExists, resolveBucket: resolve } = await import("../services/storage.js");
+    const { prefix } = resolve(req.bucket);
+    const safeName = video.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const permanentKey = `${prefix}videos/${id}/${safeName}`;
+
+    let sourceKey = null;
+
+    // Check permanent location first
+    if (await s3ObjectExists(req.bucket, permanentKey)) {
+      sourceKey = permanentKey;
+    } else if (video.object_key && await s3ObjectExists(req.bucket, video.object_key)) {
+      // Fall back to whatever object_key is in the DB
+      sourceKey = video.object_key;
+    }
+
+    if (!sourceKey) {
+      return res.status(404).json({
+        error: "Original video file not found in storage. Please re-upload the video.",
+      });
+    }
+
+    console.log(`[Reprocess] Queuing video ${id} for reprocessing from S3 key: ${sourceKey}`);
+    await processingQueue.enqueue(id, sourceKey, req.bucket, safeName);
+
+    res.json({ message: "Video queued for reprocessing", sourceKey });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to trigger reprocessing" });
+  }
+}
+
 // Get processing status for a video (queue position, progress, step)
 export async function getProcessingStatus(req, res) {
   try {

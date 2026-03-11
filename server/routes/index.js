@@ -15,6 +15,7 @@ import {
   removeVideo,
   getProcessingStatus,
   permanentDeleteVideo,
+  reprocessVideo,
 } from "../controllers/video.js";
 import {
   listFolders,
@@ -248,6 +249,9 @@ router.delete("/video/:id", authenticate, validateBucket, removeVideo);
 
 // Video processing status (queue position, progress, step)
 router.get("/video/:id/processing", authenticate, getProcessingStatus);
+
+// Re-trigger HLS processing for a video whose original file exists in S3
+router.post("/video/:id/reprocess", authenticate, validateBucket, reprocessVideo);
 
 // Video versioning
 router.get(
