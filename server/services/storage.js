@@ -114,6 +114,35 @@ export async function getVideoStream(
   }
 }
 
+/**
+ * Like getVideoStream but also returns ContentLength, ContentType, and
+ * ContentRange so callers can forward those headers to the HTTP response.
+ */
+export async function getVideoStreamWithMeta(bucketName, objectKey, rangeHeader = null) {
+  try {
+    const { bucket } = resolveBucket(bucketName);
+    const commandParams = { Bucket: bucket, Key: objectKey };
+    if (rangeHeader) {
+      commandParams.Range = rangeHeader;
+    }
+    const command = new GetObjectCommand(commandParams);
+    const response = await getS3Client().send(command);
+    return {
+      stream: response.Body,
+      contentLength: response.ContentLength,
+      contentType: response.ContentType,
+      contentRange: response.ContentRange,
+    };
+  } catch (error) {
+    if (error.Code === "NoSuchKey") {
+      console.warn(`Video not found in S3: ${objectKey}`);
+    } else {
+      console.error("Error getting video stream with meta:", error);
+    }
+    throw new Error("Failed to get video stream");
+  }
+}
+
 export async function getObjectStream(bucketName, objectKey) {
   try {
     const { bucket } = resolveBucket(bucketName);

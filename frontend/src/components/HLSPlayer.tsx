@@ -65,11 +65,13 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
 
     if (Hls.isSupported()) {
       let mediaErrorRecovered = false;
+      // Flag set BEFORE hls.destroy() so the error handler ignores
+      // the network-abort that HLS.js fires during intentional cleanup.
+      let isCleaningUp = false;
 
       const hls = new Hls({
         enableWorker: true,
         startLevel: -1, // auto
-        // Limit retries so we don't loop forever on 404/500
         manifestLoadingMaxRetry: 2,
         levelLoadingMaxRetry: 2,
         fragLoadingMaxRetry: 3,
@@ -85,6 +87,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       const loadingTimeout = setTimeout(() => {
         if (video.readyState === 0) {
           console.warn('HLS manifest load timeout, falling back to direct stream');
+          isCleaningUp = true;
           hls.destroy();
           video.src = fallbackUrl;
           setLoading(false);
@@ -96,6 +99,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+        if (isCleaningUp) return;
         clearTimeout(loadingTimeout);
         setLoading(false);
         const qualityLevels = data.levels
@@ -105,22 +109,24 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
             bitrate: level.bitrate,
             index,
           }))
-          .sort((a, b) => b.height - a.height); // Sort highest first
+          .sort((a, b) => b.height - a.height);
         setLevels(qualityLevels);
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+        if (isCleaningUp) return;
         setCurrentLevel(data.level);
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
+        // Ignore errors triggered by intentional cleanup — they're not real failures
+        if (isCleaningUp) return;
         console.error('HLS error:', data.type, data.details, data.fatal);
         if (data.fatal) {
           clearTimeout(loadingTimeout);
+          isCleaningUp = true;
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Don't call startLoad() on manifest errors — it loops forever.
-              // Fall back to the direct stream URL instead.
               console.warn('HLS fatal network error, falling back to direct stream');
               hls.destroy();
               video.src = fallbackUrl;
@@ -128,12 +134,13 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
               setLevels([]);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              isCleaningUp = false; // allow recovery attempt
               if (!mediaErrorRecovered) {
                 console.warn('HLS media error, attempting one recovery');
                 mediaErrorRecovered = true;
                 hls.recoverMediaError();
               } else {
-                // Recovery already tried — fall back
+                isCleaningUp = true;
                 console.error('HLS media error unrecoverable, falling back to direct stream');
                 hls.destroy();
                 video.src = fallbackUrl;
@@ -155,6 +162,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       hlsRef.current = hls;
 
       return () => {
+        isCleaningUp = true; // must be set BEFORE hls.destroy()
         clearTimeout(loadingTimeout);
         hls.destroy();
         hlsRef.current = null;

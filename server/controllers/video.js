@@ -13,7 +13,7 @@ import {
   deleteVideo,
   permanentlyDeleteVideo,
 } from "../services/video.js";
-import { getVideoStream, resolveBucket } from "../services/storage.js";
+import { getVideoStream, getVideoStreamWithMeta, resolveBucket } from "../services/storage.js";
 import { uploadFileToS3 } from "../services/upload.js";
 import processingQueue from "../services/processingQueue.js";
 import { apiError } from "../utils/logger.js";
@@ -543,25 +543,25 @@ export async function streamVideo(req, res) {
         };
         const mimeType = mimeTypes[ext] || "video/mp4";
 
-        // Forward Range header to S3 for proper video seeking
-        const rangeHeader = req.headers.range;
-        let s3Stream;
-        if (rangeHeader) {
-          const parts = rangeHeader.replace(/bytes=/, "").split("-");
-          const start = parseInt(parts[0], 10);
-          const end = parts[1] ? parseInt(parts[1], 10) : undefined;
-          s3Stream = await getVideoStream(req.bucket, video.object_key, start, end ?? null);
-        } else {
-          s3Stream = await getVideoStream(req.bucket, video.object_key);
-        }
+        // Forward Range header to S3 for proper video seeking and duration detection.
+        const rangeHeader = req.headers.range || null;
+        const { stream, contentLength, contentRange } = await getVideoStreamWithMeta(
+          req.bucket,
+          video.object_key,
+          rangeHeader,
+        );
 
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Accept-Ranges", "bytes");
         res.setHeader("Cache-Control", "public, max-age=3600");
+        if (contentLength != null) {
+          res.setHeader("Content-Length", contentLength);
+        }
         if (rangeHeader) {
+          if (contentRange) res.setHeader("Content-Range", contentRange);
           res.status(206);
         }
-        return s3Stream.pipe(res);
+        return stream.pipe(res);
       } catch (_) {
         // Original file not in S3 — fall through to HLS
       }
