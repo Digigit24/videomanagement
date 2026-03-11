@@ -49,7 +49,7 @@ export default function Dashboard() {
       const ws = await workspaceService.getWorkspaces();
 
       if (userRole === 'client' && ws.length === 1) {
-        navigate(`/workspace/${ws[0].bucket}`);
+        navigate(`/workspace/${ws[0].bucket}`, { replace: true });
         return;
       }
 
