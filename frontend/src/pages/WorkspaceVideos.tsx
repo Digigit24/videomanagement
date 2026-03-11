@@ -229,7 +229,7 @@ export default function WorkspaceVideos() {
     <div className="space-y-4 sm:space-y-5 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
           <ArrowLeft className="h-4 w-4 mr-1" />
           <span className="hidden sm:inline">Back</span>
         </Button>
