@@ -10,7 +10,7 @@ import { checkPermission } from "../services/permissions.js";
 import { apiError } from "../utils/logger.js";
 import archiver from "archiver";
 import { getPool } from "../db/index.js";
-import { getObjectStream, getVideoStream, resolveBucket } from "../services/storage.js";
+import { getObjectStream } from "../services/storage.js";
 
 export async function listFolders(req, res) {
   try {
@@ -110,9 +110,9 @@ function deduplicateFilename(name, usedNames) {
 }
 
 // Helper: pipe a single file from S3 into an archiver zip
+// Note: getObjectStream already calls resolveBucket internally, so pass the workspace bucket directly
 async function appendFileToArchive(archive, bucketName, objectKey, filename) {
-  const { bucket: physicalBucket } = resolveBucket(bucketName);
-  const stream = await getObjectStream(physicalBucket, objectKey);
+  const stream = await getObjectStream(bucketName, objectKey);
   archive.append(stream, { name: filename });
 }
 
@@ -287,8 +287,7 @@ export async function downloadBulkFolders(req, res) {
       const usedNames = folderUsedNames.get(folderName);
       const fname = deduplicateFilename(file.filename, usedNames);
       try {
-        const { bucket: physicalBucket } = resolveBucket(file.bucket);
-        const stream = await getObjectStream(physicalBucket, file.object_key);
+        const stream = await getObjectStream(file.bucket, file.object_key);
         archive.append(stream, { name: `${folderName}/${fname}` });
       } catch (err) {
         console.warn(`[BulkFolderDownload] Skipping file ${file.id}: ${err.message}`);
