@@ -224,6 +224,25 @@ export const folderService = {
     const token = localStorage.getItem("token");
     return `${API_BASE_URL}/folder/${folderId}/download?token=${encodeURIComponent(token || "")}`;
   },
+
+  downloadBulkFoldersAsZip: async (folderIds: string[]) => {
+    const response = await api.post("/download/bulk-folders", { folderIds }, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "folders.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  getFolderFileIds: async (folderIds: string[]) => {
+    const { data } = await api.post("/download/folder-files", { folderIds });
+    return data.files as { id: string; bucket: string }[];
+  },
 };
 
 export const permissionService = {

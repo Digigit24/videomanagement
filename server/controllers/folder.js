@@ -230,3 +230,99 @@ export async function downloadBulk(req, res) {
     }
   }
 }
+
+// Download multiple folders as a single zip (POST with { folderIds: [...] })
+export async function downloadBulkFolders(req, res) {
+  try {
+    const { folderIds } = req.body;
+
+    if (!folderIds || !Array.isArray(folderIds) || folderIds.length === 0) {
+      return res.status(400).json({ error: "No folders selected" });
+    }
+
+    const pool = getPool();
+
+    // Get folder info
+    const folderPlaceholders = folderIds.map((_, i) => `$${i + 1}`).join(",");
+    const foldersResult = await pool.query(
+      `SELECT f.id, f.name FROM folders f WHERE f.id IN (${folderPlaceholders})`,
+      folderIds,
+    );
+    const folderMap = new Map(foldersResult.rows.map(f => [f.id, f.name]));
+
+    if (folderMap.size === 0) {
+      return res.status(400).json({ error: "No valid folders found" });
+    }
+
+    // Get all files across these folders
+    const filesResult = await pool.query(
+      `SELECT id, filename, object_key, bucket, media_type, folder_id FROM videos WHERE folder_id IN (${folderPlaceholders}) AND is_active_version = TRUE AND deleted_at IS NULL ORDER BY folder_id, created_at`,
+      folderIds,
+    );
+    const files = filesResult.rows;
+
+    if (files.length === 0) {
+      return res.status(400).json({ error: "Selected folders are empty — nothing to download" });
+    }
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="folders.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 5 } });
+    archive.on("error", (err) => {
+      console.error("[BulkFolderDownload] Archive error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to create zip" });
+      }
+    });
+    archive.pipe(res);
+
+    // Track used names per folder subdirectory
+    const folderUsedNames = new Map();
+    for (const file of files) {
+      const folderName = (folderMap.get(file.folder_id) || "unknown").replace(/[^a-zA-Z0-9._-]/g, "_");
+      if (!folderUsedNames.has(folderName)) {
+        folderUsedNames.set(folderName, new Set());
+      }
+      const usedNames = folderUsedNames.get(folderName);
+      const fname = deduplicateFilename(file.filename, usedNames);
+      try {
+        const { bucket: physicalBucket } = resolveBucket(file.bucket);
+        const stream = await getObjectStream(physicalBucket, file.object_key);
+        archive.append(stream, { name: `${folderName}/${fname}` });
+      } catch (err) {
+        console.warn(`[BulkFolderDownload] Skipping file ${file.id}: ${err.message}`);
+      }
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    apiError(req, error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to download folders" });
+    }
+  }
+}
+
+// Get all video IDs in given folders (for "download original" of folders)
+export async function getFolderFileIds(req, res) {
+  try {
+    const { folderIds } = req.body;
+
+    if (!folderIds || !Array.isArray(folderIds) || folderIds.length === 0) {
+      return res.status(400).json({ error: "No folders selected" });
+    }
+
+    const pool = getPool();
+    const placeholders = folderIds.map((_, i) => `$${i + 1}`).join(",");
+    const result = await pool.query(
+      `SELECT id, bucket FROM videos WHERE folder_id IN (${placeholders}) AND is_active_version = TRUE AND deleted_at IS NULL ORDER BY created_at`,
+      folderIds,
+    );
+
+    res.json({ files: result.rows });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to get folder files" });
+  }
+}
