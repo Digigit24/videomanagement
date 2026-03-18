@@ -219,6 +219,11 @@ export const folderService = {
   deleteFolder: async (folderId: string) => {
     await api.delete(`/folder/${folderId}`);
   },
+
+  getFolderDownloadUrl: (folderId: string) => {
+    const token = localStorage.getItem("token");
+    return `${API_BASE_URL}/folder/${folderId}/download?token=${encodeURIComponent(token || "")}`;
+  },
 };
 
 export const permissionService = {
@@ -388,6 +393,20 @@ export const videoService = {
   getProcessingStatus: async (videoId: string) => {
     const { data } = await api.get(`/video/${videoId}/processing`);
     return data as ProcessingStatus;
+  },
+
+  downloadBulkAsZip: async (videoIds: string[]) => {
+    const response = await api.post("/download/bulk", { videoIds }, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "selected-files.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   },
 };
 

@@ -4,11 +4,14 @@ import { formatBytes, formatDate } from '@/lib/utils';
 import { videoService } from '@/services/api.service';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { FileVideo, Search, User, Calendar, Play, Link2, Check, Loader2 } from 'lucide-react';
+import { FileVideo, Search, User, Calendar, Play, Link2, Check, Loader2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface VideoTableProps {
   videos: Video[];
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 const statusColors: Record<VideoStatus, string> = {
@@ -209,7 +212,7 @@ function CopyLinkButton({ videoId }: { videoId: string }) {
   );
 }
 
-export default function VideoTable({ videos }: VideoTableProps) {
+export default function VideoTable({ videos, selectMode, selectedIds, onToggleSelect }: VideoTableProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const navigate = useNavigate();
@@ -260,10 +263,33 @@ export default function VideoTable({ videos }: VideoTableProps) {
           filteredVideos.map((video) => (
             <div
               key={video.id}
-              onClick={() => navigate(`/workspace/${video.bucket}/video/${video.id}`)}
-              className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group"
+              onClick={() => {
+                if (selectMode && onToggleSelect) {
+                  onToggleSelect(video.id);
+                } else {
+                  navigate(`/workspace/${video.bucket}/video/${video.id}`);
+                }
+              }}
+              className={`bg-white border rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group ${
+                selectMode && selectedIds?.has(video.id) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
+              }`}
             >
-              <div className="p-3">
+              <div className="p-3 relative">
+                {selectMode && (
+                  <div
+                    className={`absolute top-4 left-4 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                      selectedIds?.has(video.id)
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-white/80 border-gray-300 backdrop-blur-sm'
+                    }`}
+                  >
+                    {selectedIds?.has(video.id) && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                )}
                 <VideoThumbnail video={video} />
 
                 <div className="flex items-center gap-1.5 mb-1">
@@ -293,7 +319,20 @@ export default function VideoTable({ videos }: VideoTableProps) {
                   ) : (
                     <div />
                   )}
-                  <CopyLinkButton videoId={video.id} />
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const url = videoService.getDownloadUrl(video.id, video.bucket);
+                        window.open(url, '_blank');
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200 transition-all"
+                      title="Download file"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                    <CopyLinkButton videoId={video.id} />
+                  </div>
                 </div>
               </div>
             </div>

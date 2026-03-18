@@ -22,6 +22,8 @@ import {
   createNewFolder,
   updateFolderName,
   removeFolder,
+  downloadFolder,
+  downloadBulk,
 } from "../controllers/folder.js";
 import {
   getUserPermissions,
@@ -283,6 +285,10 @@ router.get("/workspace/:workspaceId/folders", authenticate, listFolders);
 router.post("/workspace/:workspaceId/folders", authenticate, createNewFolder);
 router.patch("/folder/:id", authenticate, updateFolderName);
 router.delete("/folder/:id", authenticate, removeFolder);
+
+// Folder & bulk download (zip)
+router.get("/folder/:folderId/download", authenticateStream, downloadFolder);
+router.post("/download/bulk", authenticate, downloadBulk);
 
 // Per-workspace permissions
 router.get(
