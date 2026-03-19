@@ -96,7 +96,6 @@ export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef, o
           file: {
             attributes: {
               controlsList: 'nodownload',
-              crossOrigin: 'anonymous'
             }
           }
         }}

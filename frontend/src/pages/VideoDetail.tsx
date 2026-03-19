@@ -528,7 +528,10 @@ export default function VideoDetail() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (currentBucket) {
+              // Use browser history if available for proper back navigation
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else if (currentBucket) {
                 navigate(`/workspace/${currentBucket}`);
               } else {
                 navigate('/');
