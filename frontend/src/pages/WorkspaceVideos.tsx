@@ -11,6 +11,7 @@ import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
 import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ export default function WorkspaceVideos() {
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [folderSelectMode, setFolderSelectMode] = useState(false);
   const [folderBulkDownloading, setFolderBulkDownloading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const userRole = localStorage.getItem('userRole') || 'member';
   const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
   const canDeleteFolder = ['admin', 'project_manager', 'social_media_manager'].includes(userRole);
@@ -164,6 +166,7 @@ export default function WorkspaceVideos() {
 
   const handleFolderDownloadZip = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    setToast({ message: 'Preparing ZIP download — this may take a moment...', type: 'success' });
     const url = folderService.getFolderDownloadUrl(folderId);
     window.open(url, '_blank');
   };
@@ -188,10 +191,13 @@ export default function WorkspaceVideos() {
   const handleDownloadSelectedZip = async () => {
     if (selectedVideoIds.size === 0) return;
     setBulkDownloading(true);
+    setToast({ message: 'Compressing files into ZIP — please wait...', type: 'success' });
     try {
       await videoService.downloadBulkAsZip(Array.from(selectedVideoIds));
+      setToast({ message: 'ZIP download started!', type: 'success' });
     } catch (error) {
       console.error('Bulk download failed:', error);
+      setToast({ message: 'Download failed. Please try again.', type: 'error' });
     } finally {
       setBulkDownloading(false);
     }
@@ -235,10 +241,13 @@ export default function WorkspaceVideos() {
   const handleDownloadSelectedFoldersZip = async () => {
     if (selectedFolderIds.size === 0) return;
     setFolderBulkDownloading(true);
+    setToast({ message: 'Compressing folders into ZIP — please wait...', type: 'success' });
     try {
       await folderService.downloadBulkFoldersAsZip(Array.from(selectedFolderIds));
+      setToast({ message: 'ZIP download started!', type: 'success' });
     } catch (error) {
       console.error('Bulk folder download failed:', error);
+      setToast({ message: 'Download failed. Please try again.', type: 'error' });
     } finally {
       setFolderBulkDownloading(false);
     }
@@ -966,6 +975,8 @@ export default function WorkspaceVideos() {
           onClose={() => { setShowManageMembers(false); loadWorkspaceInfo(); }}
         />
       )}
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
