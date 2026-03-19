@@ -332,6 +332,22 @@ export const videoService = {
     return `${API_BASE_URL}/video/${id}/download?bucket=${bucket}&token=${encodeURIComponent(token || "")}`;
   },
 
+  downloadZip: async (ids: string[], bucket: string) => {
+    const response = await api.post('/videos/download-zip', { ids }, {
+      params: { bucket },
+      responseType: 'blob',
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement('a');
+    a.href = url;
+    const date = new Date().toISOString().slice(0, 10);
+    a.download = `download-${date}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
+
   getPhotoUrl: (id: string) => {
     const token = localStorage.getItem("token");
     return `${API_BASE_URL}/photo/${id}?token=${token}`;

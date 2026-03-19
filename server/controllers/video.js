@@ -448,6 +448,57 @@ export async function downloadVideo(req, res) {
   }
 }
 
+// Download multiple videos as a zip file
+export async function downloadVideosZip(req, res) {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No video IDs provided" });
+    }
+    if (ids.length > 50) {
+      return res.status(400).json({ error: "Maximum 50 files per zip download" });
+    }
+
+    const archiver = (await import("archiver")).default;
+    const archive = archiver("zip", { zlib: { level: 5 } });
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="download-${timestamp}.zip"`);
+
+    archive.pipe(res);
+
+    archive.on("error", (err) => {
+      console.error("Archive error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to create zip" });
+      }
+    });
+
+    const { getObjectStream, resolveBucket: resolve } = await import("../services/storage.js");
+
+    for (const id of ids) {
+      try {
+        const video = await getVideoById(id, req.bucket);
+        if (!video) continue;
+
+        const { bucket: physicalBucket } = resolve(video.bucket);
+        const stream = await getObjectStream(physicalBucket, video.object_key);
+        archive.append(stream, { name: video.filename });
+      } catch (err) {
+        console.warn(`Skipping video ${id} in zip: ${err.message}`);
+      }
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    apiError(req, error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to create zip download" });
+    }
+  }
+}
+
 // Delete a video (soft delete to backup)
 export async function removeVideo(req, res) {
   try {

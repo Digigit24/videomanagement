@@ -12,6 +12,7 @@ import {
   listDeletedVideos,
   restoreVideo,
   downloadVideo,
+  downloadVideosZip,
   removeVideo,
   getProcessingStatus,
   permanentDeleteVideo,
@@ -267,6 +268,14 @@ router.get(
   authenticateStream,
   validateBucket,
   downloadVideo,
+);
+
+// Zip download multiple videos
+router.post(
+  "/videos/download-zip",
+  authenticate,
+  validateBucket,
+  downloadVideosZip,
 );
 
 // Deleted videos (backup)
