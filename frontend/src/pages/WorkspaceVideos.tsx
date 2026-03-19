@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { videoService, workspaceService, folderService } from '@/services/api.service';
+import { API_BASE_URL } from '@/lib/api';
 import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics, Folder } from '@/types';
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';
@@ -11,7 +12,8 @@ import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Link2, Share2, Copy, Check } from 'lucide-react';
+import { Toast } from '@/components/ui/toast';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
@@ -34,8 +36,14 @@ export default function WorkspaceVideos() {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('all');
-  const [downloadingFolder, setDownloadingFolder] = useState<string | null>(null);
-
+  const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
+  const [folderSelectMode, setFolderSelectMode] = useState(false);
+  const [folderBulkDownloading, setFolderBulkDownloading] = useState(false);
+  const [folderDownloading, setFolderDownloading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'loading'; persistent?: boolean } | null>(null);
   const userRole = localStorage.getItem('userRole') || 'member';
   const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
   const canDeleteFolder = ['admin', 'project_manager', 'social_media_manager'].includes(userRole);
@@ -72,6 +80,8 @@ export default function WorkspaceVideos() {
 
   useEffect(() => {
     filterVideos();
+    setSelectedVideoIds(new Set());
+    setSelectMode(false);
   }, [videos, dateFilter, statusFilter, selectedFolder, mediaTypeFilter]);
 
   const loadVideos = async () => {
@@ -156,6 +166,140 @@ export default function WorkspaceVideos() {
     }
   };
 
+  const handleFolderDownloadZip = async (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (folderDownloading) return;
+    setFolderDownloading(true);
+    setToast({ message: 'Compressing folder into ZIP — please wait...', type: 'loading', persistent: true });
+    try {
+      await folderService.downloadFolderAsZip(folderId);
+      setToast({ message: 'ZIP download started!', type: 'success' });
+    } catch (error) {
+      console.error('Folder download failed:', error);
+      setToast({ message: 'Download failed. Please try again.', type: 'error' });
+    } finally {
+      setFolderDownloading(false);
+    }
+  };
+
+  const handleToggleSelect = (videoId: string) => {
+    setSelectedVideoIds(prev => {
+      const next = new Set(prev);
+      if (next.has(videoId)) next.delete(videoId);
+      else next.add(videoId);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedVideoIds.size === filteredVideos.length) {
+      setSelectedVideoIds(new Set());
+    } else {
+      setSelectedVideoIds(new Set(filteredVideos.map(v => v.id)));
+    }
+  };
+
+  const handleDownloadSelectedZip = async () => {
+    if (selectedVideoIds.size === 0) return;
+    setBulkDownloading(true);
+    setToast({ message: 'Compressing files into ZIP — please wait...', type: 'loading', persistent: true });
+    try {
+      await videoService.downloadBulkAsZip(Array.from(selectedVideoIds));
+      setToast({ message: 'ZIP download started!', type: 'success' });
+    } catch (error) {
+      console.error('Bulk download failed:', error);
+      setToast({ message: 'Download failed. Please try again.', type: 'error' });
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
+  const handleDownloadSelectedOriginal = () => {
+    if (selectedVideoIds.size === 0 || !bucket) return;
+    const ids = Array.from(selectedVideoIds);
+    // Download each file individually with a small delay to avoid browser blocking
+    ids.forEach((id, i) => {
+      setTimeout(() => {
+        const url = videoService.getDownloadUrl(id, bucket);
+        window.open(url, '_blank');
+      }, i * 300);
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedVideoIds(new Set());
+  };
+
+  // --- Folder selection handlers ---
+  const handleToggleFolderSelect = (folderId: string) => {
+    setSelectedFolderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  };
+
+  const handleSelectAllFolders = () => {
+    if (selectedFolderIds.size === folders.length) {
+      setSelectedFolderIds(new Set());
+    } else {
+      setSelectedFolderIds(new Set(folders.map(f => f.id)));
+    }
+  };
+
+  const handleDownloadSelectedFoldersZip = async () => {
+    if (selectedFolderIds.size === 0) return;
+    setFolderBulkDownloading(true);
+    setToast({ message: 'Compressing folders into ZIP — please wait...', type: 'loading', persistent: true });
+    try {
+      await folderService.downloadBulkFoldersAsZip(Array.from(selectedFolderIds));
+      setToast({ message: 'ZIP download started!', type: 'success' });
+    } catch (error) {
+      console.error('Bulk folder download failed:', error);
+      setToast({ message: 'Download failed. Please try again.', type: 'error' });
+    } finally {
+      setFolderBulkDownloading(false);
+    }
+  };
+
+  const handleDownloadSelectedFoldersOriginal = async () => {
+    if (selectedFolderIds.size === 0 || !bucket) return;
+    try {
+      const files = await folderService.getFolderFileIds(Array.from(selectedFolderIds));
+      if (files.length === 0) return;
+      files.forEach((file, i) => {
+        setTimeout(() => {
+          const url = videoService.getDownloadUrl(file.id, bucket);
+          window.open(url, '_blank');
+        }, i * 300);
+      });
+    } catch (error) {
+      console.error('Folder original download failed:', error);
+    }
+  };
+
+  const handleFolderDownloadOriginal = (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Get all files in this folder and download them individually
+    const folderVideos = videos.filter(v => v.folder_id === folderId);
+    if (folderVideos.length === 0) return;
+    folderVideos.forEach((video, i) => {
+      setTimeout(() => {
+        if (bucket) {
+          const url = videoService.getDownloadUrl(video.id, bucket);
+          window.open(url, '_blank');
+        }
+      }, i * 300);
+    });
+  };
+
+  const exitFolderSelectMode = () => {
+    setFolderSelectMode(false);
+    setSelectedFolderIds(new Set());
+  };
+
   const loadAnalytics = async () => {
     if (!bucket) return;
     try {
@@ -214,20 +358,6 @@ export default function WorkspaceVideos() {
   const totalVideoCount = videos.filter(v => (v.media_type || 'video') === 'video').length;
   const totalPhotoCount = videos.filter(v => (v.media_type || 'video') === 'photo').length;
   const selectedFolderObj = folders.find(f => f.id === selectedFolder);
-
-  const handleDownloadFolder = async (folderId?: string) => {
-    const targetFolder = folderId || selectedFolder;
-    if (!targetFolder || !bucket) return;
-    const folderVids = videos.filter(v => v.folder_id === targetFolder);
-    if (folderVids.length === 0) return;
-    setDownloadingFolder(targetFolder);
-    try {
-      await videoService.downloadZip(folderVids.map(v => v.id), bucket);
-    } catch (err) {
-      console.error('Folder zip download failed:', err);
-    }
-    setDownloadingFolder(null);
-  };
 
   const activeFilters = (dateFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (mediaTypeFilter !== 'all' ? 1 : 0);
 
@@ -329,27 +459,80 @@ export default function WorkspaceVideos() {
       {/* FOLDERS TAB */}
       {activeTab === 'folders' && !selectedFolder && (
         <div className="animate-fade-in space-y-4">
-          {/* Create Folder */}
-          {canCreateFolder && (
-            <div className="flex items-center gap-2">
-              {showNewFolder ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={newFolderName}
-                    onChange={e => setNewFolderName(e.target.value)}
-                    placeholder="Folder name..."
-                    className="h-9 w-48 text-sm"
-                    autoFocus
-                    onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); } }}
-                  />
-                  <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()} className="h-9 text-xs">Create</Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setShowNewFolder(false); setNewFolderName(''); }} className="h-9 text-xs">Cancel</Button>
-                </div>
-              ) : (
-                <Button variant="outline" size="sm" onClick={() => setShowNewFolder(true)} className="gap-1.5 h-9 text-xs">
-                  <FolderPlus className="h-3.5 w-3.5" />
-                  New Folder
-                </Button>
+          {/* Folder Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {canCreateFolder && (
+              <>
+                {showNewFolder ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newFolderName}
+                      onChange={e => setNewFolderName(e.target.value)}
+                      placeholder="Folder name..."
+                      className="h-9 w-48 text-sm"
+                      autoFocus
+                      onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); } }}
+                    />
+                    <Button size="sm" onClick={handleCreateFolder} disabled={!newFolderName.trim()} className="h-9 text-xs">Create</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowNewFolder(false); setNewFolderName(''); }} className="h-9 text-xs">Cancel</Button>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setShowNewFolder(true)} className="gap-1.5 h-9 text-xs">
+                    <FolderPlus className="h-3.5 w-3.5" />
+                    New Folder
+                  </Button>
+                )}
+              </>
+            )}
+            <div className="flex-1" />
+            {folders.length > 0 && (
+              <Button
+                variant={folderSelectMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => folderSelectMode ? exitFolderSelectMode() : setFolderSelectMode(true)}
+                className="gap-1.5 h-9 text-xs"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                {folderSelectMode ? 'Cancel' : 'Select'}
+              </Button>
+            )}
+          </div>
+
+          {/* Folder Selection Toolbar */}
+          {folderSelectMode && folders.length > 0 && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex-wrap">
+              <button
+                onClick={handleSelectAllFolders}
+                className="text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
+              >
+                {selectedFolderIds.size === folders.length && folders.length > 0 ? 'Deselect All' : 'Select All'}
+              </button>
+              <span className="text-xs text-blue-500">
+                {selectedFolderIds.size} of {folders.length} folders selected
+              </span>
+              <div className="flex-1" />
+              {selectedFolderIds.size > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadSelectedFoldersZip}
+                    disabled={folderBulkDownloading}
+                    className="gap-1.5 h-7 text-xs bg-white"
+                  >
+                    <Archive className="h-3 w-3" />
+                    {folderBulkDownloading ? 'Zipping...' : 'Download ZIP'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadSelectedFoldersOriginal}
+                    className="gap-1.5 h-7 text-xs bg-white"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download Original
+                  </Button>
+                </>
               )}
             </div>
           )}
@@ -373,37 +556,76 @@ export default function WorkspaceVideos() {
                 const folderVideos = videos.filter(v => v.folder_id === folder.id);
                 const folderVideoCount = folderVideos.filter(v => (v.media_type || 'video') === 'video').length;
                 const folderPhotoCount = folderVideos.filter(v => (v.media_type || 'video') === 'photo').length;
+                const isFolderSelected = selectedFolderIds.has(folder.id);
                 return (
                   <div
                     key={folder.id}
-                    onClick={() => setSelectedFolder(folder.id)}
-                    className="group bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer animate-fade-in-up"
+                    onClick={() => {
+                      if (folderSelectMode) {
+                        handleToggleFolderSelect(folder.id);
+                      } else {
+                        setSelectedFolder(folder.id);
+                      }
+                    }}
+                    className={`group bg-white border rounded-xl p-4 hover:shadow-md transition-all cursor-pointer animate-fade-in-up relative ${
+                      folderSelectMode && isFolderSelected
+                        ? 'border-blue-400 ring-2 ring-blue-100'
+                        : 'border-gray-200 hover:border-blue-300'
+                    }`}
                     style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}
                   >
+                    {/* Selection checkbox */}
+                    {folderSelectMode && (
+                      <div
+                        className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                          isFolderSelected
+                            ? 'bg-blue-600 border-blue-600'
+                            : 'bg-white border-gray-300'
+                        }`}
+                      >
+                        {isFolderSelected && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                         <FolderOpen className="h-5 w-5 text-blue-600" />
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        {/* Download folder as zip */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDownloadFolder(folder.id); }}
-                          disabled={downloadingFolder === folder.id || folderVideos.length === 0}
-                          className="p-1.5 text-gray-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-all disabled:opacity-30"
-                          title="Download folder as .zip"
-                        >
-                          <Download className={`h-3.5 w-3.5 ${downloadingFolder === folder.id ? 'animate-bounce' : ''}`} />
-                        </button>
-                        {canDeleteFolder && (
+                      {!folderSelectMode && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                           <button
-                            onClick={(e) => handleDeleteFolder(folder.id, e)}
-                            className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all"
-                            title="Delete folder"
+                            onClick={(e) => handleFolderDownloadZip(folder.id, e)}
+                            disabled={folderDownloading}
+                            className="p-1.5 text-gray-300 hover:text-blue-600 transition-all rounded-lg hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Download folder as ZIP"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {folderDownloading ? (
+                              <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                            ) : (
+                              <Archive className="h-3.5 w-3.5" />
+                            )}
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={(e) => handleFolderDownloadOriginal(folder.id, e)}
+                            className="p-1.5 text-gray-300 hover:text-green-600 transition-all rounded-lg hover:bg-green-50"
+                            title="Download all files (Original)"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                          {canDeleteFolder && (
+                            <button
+                              onClick={(e) => handleDeleteFolder(folder.id, e)}
+                              className="p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
+                              title="Delete folder"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <h3 className="text-sm font-semibold text-gray-900 truncate mb-1 group-hover:text-blue-600 transition-colors">
                       {folder.name}
@@ -503,16 +725,33 @@ export default function WorkspaceVideos() {
 
             <div className="flex-1" />
 
-            {/* Download folder as zip */}
+            {/* Download Folder as ZIP */}
+            {selectedFolder && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => handleFolderDownloadZip(selectedFolder, e)}
+                disabled={folderDownloading}
+                className="gap-1.5 flex-shrink-0 h-8 text-xs"
+              >
+                {folderDownloading ? (
+                  <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                ) : (
+                  <Archive className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">{folderDownloading ? 'Zipping...' : 'ZIP'}</span>
+              </Button>
+            )}
+
+            {/* Select mode toggle */}
             <Button
-              variant="outline"
+              variant={selectMode ? "default" : "outline"}
               size="sm"
-              onClick={() => handleDownloadFolder()}
-              disabled={!!downloadingFolder || filteredVideos.length === 0}
-              className="gap-1.5 flex-shrink-0 h-8 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+              className="gap-1.5 flex-shrink-0 h-8 text-xs"
             >
-              <Download className={`h-3.5 w-3.5 ${downloadingFolder ? 'animate-bounce' : ''}`} />
-              <span className="hidden sm:inline">{downloadingFolder ? 'Creating .zip...' : 'Download All (.zip)'}</span>
+              <CheckSquare className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{selectMode ? 'Cancel' : 'Select'}</span>
             </Button>
 
             <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-1.5 flex-shrink-0 h-8 text-xs">
@@ -533,6 +772,45 @@ export default function WorkspaceVideos() {
             posted: filteredVideos.filter(v => v.status === 'Posted').length,
           }} totalEverPosted={analytics?.historical.totalEverPosted} />
 
+          {/* Selection Toolbar */}
+          {selectMode && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <button
+                onClick={handleSelectAll}
+                className="text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
+              >
+                {selectedVideoIds.size === filteredVideos.length && filteredVideos.length > 0 ? 'Deselect All' : 'Select All'}
+              </button>
+              <span className="text-xs text-blue-500">
+                {selectedVideoIds.size} of {filteredVideos.length} selected
+              </span>
+              <div className="flex-1" />
+              {selectedVideoIds.size > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadSelectedZip}
+                    disabled={bulkDownloading}
+                    className="gap-1.5 h-7 text-xs bg-white"
+                  >
+                    <Archive className="h-3 w-3" />
+                    {bulkDownloading ? 'Zipping...' : 'Download ZIP'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadSelectedOriginal}
+                    className="gap-1.5 h-7 text-xs bg-white"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download Original
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Media Grid */}
           {filteredVideos.length === 0 ? (
             <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
@@ -549,7 +827,12 @@ export default function WorkspaceVideos() {
           ) : view === 'calendar' ? (
             <CalendarView videos={filteredVideos} />
           ) : view === 'list' ? (
-            <VideoTable videos={filteredVideos} />
+            <VideoTable
+              videos={filteredVideos}
+              selectMode={selectMode}
+              selectedIds={selectedVideoIds}
+              onToggleSelect={handleToggleSelect}
+            />
           ) : (
             <KanbanBoard videos={filteredVideos} onVideoUpdate={handleOptimisticUpdate} />
           )}
@@ -715,6 +998,8 @@ export default function WorkspaceVideos() {
           onClose={() => { setShowManageMembers(false); loadWorkspaceInfo(); }}
         />
       )}
+
+      {toast && <Toast message={toast.message} type={toast.type} persistent={toast.persistent} onClose={() => setToast(null)} />}
     </div>
   );
 }

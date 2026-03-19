@@ -219,6 +219,45 @@ export const folderService = {
   deleteFolder: async (folderId: string) => {
     await api.delete(`/folder/${folderId}`);
   },
+
+  getFolderDownloadUrl: (folderId: string) => {
+    const token = localStorage.getItem("token");
+    return `${API_BASE_URL}/folder/${folderId}/download?token=${encodeURIComponent(token || "")}`;
+  },
+
+  downloadFolderAsZip: async (folderId: string) => {
+    const token = localStorage.getItem("token");
+    const response = await api.get(`/folder/${folderId}/download?token=${encodeURIComponent(token || "")}`, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "folder.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  downloadBulkFoldersAsZip: async (folderIds: string[]) => {
+    const response = await api.post("/download/bulk-folders", { folderIds }, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "folders.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  getFolderFileIds: async (folderIds: string[]) => {
+    const { data } = await api.post("/download/folder-files", { folderIds });
+    return data.files as { id: string; bucket: string }[];
+  },
 };
 
 export const permissionService = {
@@ -404,6 +443,20 @@ export const videoService = {
   getProcessingStatus: async (videoId: string) => {
     const { data } = await api.get(`/video/${videoId}/processing`);
     return data as ProcessingStatus;
+  },
+
+  downloadBulkAsZip: async (videoIds: string[]) => {
+    const response = await api.post("/download/bulk", { videoIds }, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "selected-files.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   },
 };
 

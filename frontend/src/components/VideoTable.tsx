@@ -4,12 +4,14 @@ import { formatBytes, formatDate } from '@/lib/utils';
 import { videoService } from '@/services/api.service';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Button } from './ui/button';
-import { FileVideo, Search, User, Calendar, Play, Link2, Check, Loader2, Download, Share2, CheckSquare, Square, X } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { FileVideo, Search, User, Calendar, Play, Link2, Check, Loader2, Download } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface VideoTableProps {
   videos: Video[];
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 const statusColors: Record<VideoStatus, string> = {
@@ -150,78 +152,18 @@ function VideoThumbnail({ video }: { video: Video }) {
   );
 }
 
-function ActionButton({ icon: Icon, label, onClick, loading, variant = 'default' }: {
-  icon: any;
-  label: string;
-  onClick: (e: React.MouseEvent) => void;
-  loading?: boolean;
-  variant?: 'default' | 'success';
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-        variant === 'success'
-          ? 'bg-emerald-100 text-emerald-700'
-          : 'bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200'
-      } disabled:opacity-50`}
-      title={label}
-    >
-      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
-      {label}
-    </button>
-  );
-}
+function CopyLinkButton({ videoId }: { videoId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'copied'>('idle');
 
-export default function VideoTable({ videos }: VideoTableProps) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [zipDownloading, setZipDownloading] = useState(false);
-  const [copyStates, setCopyStates] = useState<Record<string, 'idle' | 'loading' | 'copied'>>({});
-  const navigate = useNavigate();
-  const { bucket } = useParams<{ bucket: string }>();
-
-  const filteredVideos = videos.filter((video) => {
-    const matchesSearch = video.filename.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || video.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const allSelected = filteredVideos.length > 0 && filteredVideos.every(v => selected.has(v.id));
-
-  const toggleSelect = (id: string, e: React.MouseEvent) => {
+  const handleCopyLink = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+    if (state === 'loading' || state === 'copied') return;
 
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filteredVideos.map(v => v.id)));
-    }
-  };
-
-  const handleDownloadSingle = (video: Video, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!bucket) return;
-    const url = videoService.getDownloadUrl(video.id, bucket);
-    window.open(url, '_blank');
-  };
-
-  const handleShareSingle = async (videoId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (copyStates[videoId] === 'loading' || copyStates[videoId] === 'copied') return;
-    setCopyStates(prev => ({ ...prev, [videoId]: 'loading' }));
+    setState('loading');
     try {
       const token = await videoService.getShareToken(videoId);
       const reviewUrl = `${window.location.origin}/v/${videoId}/review?token=${token}`;
+
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(reviewUrl);
       } else {
@@ -229,47 +171,59 @@ export default function VideoTable({ videos }: VideoTableProps) {
         textarea.value = reviewUrl;
         textarea.style.position = 'fixed';
         textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
         document.body.appendChild(textarea);
+        textarea.focus();
         textarea.select();
         document.execCommand('copy');
         document.body.removeChild(textarea);
       }
-      setCopyStates(prev => ({ ...prev, [videoId]: 'copied' }));
-      setTimeout(() => setCopyStates(prev => ({ ...prev, [videoId]: 'idle' })), 2000);
-    } catch {
-      setCopyStates(prev => ({ ...prev, [videoId]: 'idle' }));
-    }
-  };
 
-  const handleZipDownload = async () => {
-    if (selected.size === 0 || !bucket) return;
-    setZipDownloading(true);
-    try {
-      await videoService.downloadZip(Array.from(selected), bucket);
-    } catch (err) {
-      console.error('Zip download failed:', err);
-    } finally {
-      setZipDownloading(false);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    if (!bucket) return;
-    setZipDownloading(true);
-    try {
-      await videoService.downloadZip(filteredVideos.map(v => v.id), bucket);
-    } catch (err) {
-      console.error('Zip download failed:', err);
-    } finally {
-      setZipDownloading(false);
+      setState('copied');
+      setTimeout(() => setState('idle'), 2000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      setState('idle');
     }
   };
 
   return (
+    <button
+      onClick={handleCopyLink}
+      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+        state === 'copied'
+          ? 'bg-emerald-100 text-emerald-700'
+          : 'bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200'
+      }`}
+      title={state === 'copied' ? 'Link copied!' : 'Copy share link'}
+    >
+      {state === 'loading' ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : state === 'copied' ? (
+        <Check className="h-3 w-3" />
+      ) : (
+        <Link2 className="h-3 w-3" />
+      )}
+      {state === 'copied' ? 'Copied!' : 'Share'}
+    </button>
+  );
+}
+
+export default function VideoTable({ videos, selectMode, selectedIds, onToggleSelect }: VideoTableProps) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const navigate = useNavigate();
+
+  const filteredVideos = videos.filter((video) => {
+    const matchesSearch = video.filename.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || video.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  return (
     <div className="space-y-4">
-      {/* Search + Filter + Bulk Actions */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-[180px]">
+      <div className="flex gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-300" />
           <Input
             placeholder="Search media..."
@@ -279,7 +233,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px] h-9 text-sm border-gray-200">
+          <SelectTrigger className="w-[160px] h-9 text-sm border-gray-200">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
@@ -293,57 +247,7 @@ export default function VideoTable({ videos }: VideoTableProps) {
             <SelectItem value="Posted">Posted</SelectItem>
           </SelectContent>
         </Select>
-
-        {/* Select All toggle */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleSelectAll}
-          className="h-9 text-xs gap-1.5"
-        >
-          {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-blue-600" /> : <Square className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">{allSelected ? 'Deselect All' : 'Select All'}</span>
-        </Button>
-
-        {/* Download all as zip */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownloadAll}
-          disabled={zipDownloading || filteredVideos.length === 0}
-          className="h-9 text-xs gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-        >
-          <Download className={`h-3.5 w-3.5 ${zipDownloading ? 'animate-bounce' : ''}`} />
-          <span className="hidden sm:inline">Download All (.zip)</span>
-        </Button>
       </div>
-
-      {/* Bulk Selection Bar */}
-      {selected.size > 0 && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 animate-fade-in">
-          <span className="text-xs font-semibold text-blue-700">{selected.size} selected</span>
-          <div className="flex-1" />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleZipDownload}
-            disabled={zipDownloading}
-            className="h-7 text-xs gap-1 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-          >
-            <Download className={`h-3 w-3 ${zipDownloading ? 'animate-bounce' : ''}`} />
-            {zipDownloading ? 'Creating zip...' : 'Download Selected (.zip)'}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setSelected(new Set())}
-            className="h-7 text-xs gap-1 text-gray-500"
-          >
-            <X className="h-3 w-3" />
-            Clear
-          </Button>
-        </div>
-      )}
 
       {/* Video Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -353,77 +257,84 @@ export default function VideoTable({ videos }: VideoTableProps) {
             <p className="text-sm text-gray-400">No media found</p>
           </div>
         ) : (
-          filteredVideos.map((video) => {
-            const isSelected = selected.has(video.id);
-            const copyState = copyStates[video.id] || 'idle';
-
-            return (
-              <div
-                key={video.id}
-                onClick={() => navigate(`/workspace/${video.bucket}/video/${video.id}`)}
-                className={`bg-white border rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer group relative ${
-                  isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
+          filteredVideos.map((video) => (
+            <div
+              key={video.id}
+              onClick={() => {
+                if (selectMode && onToggleSelect) {
+                  onToggleSelect(video.id);
+                } else {
+                  navigate(`/workspace/${video.bucket}/video/${video.id}`);
+                }
+              }}
+              className={`bg-white border rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group ${
+                selectMode && selectedIds?.has(video.id) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
+              }`}
+            >
+              <div className="p-3 relative">
                 {/* Selection checkbox */}
-                <button
-                  onClick={(e) => toggleSelect(video.id, e)}
-                  className="absolute top-2 left-2 z-[2] w-6 h-6 rounded-md bg-white/90 border border-gray-300 flex items-center justify-center shadow-sm hover:border-blue-400 transition-colors"
-                >
-                  {isSelected ? (
-                    <Check className="h-3.5 w-3.5 text-blue-600" />
-                  ) : (
-                    <span className="w-3.5 h-3.5" />
-                  )}
-                </button>
-
-                <div className="p-3">
-                  <VideoThumbnail video={video} />
-
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <h3 className="text-sm font-medium text-gray-900 truncate flex-1">{video.filename}</h3>
-                    {(video.media_type || 'video') === 'photo' && (
-                      <span className="text-[9px] px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded font-bold uppercase flex-shrink-0">Photo</span>
+                {selectMode && (
+                  <div
+                    className={`absolute top-4 left-4 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                      selectedIds?.has(video.id)
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-white/80 border-gray-300 backdrop-blur-sm'
+                    }`}
+                  >
+                    {selectedIds?.has(video.id) && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
                     )}
                   </div>
+                )}
+                <VideoThumbnail video={video} />
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <Calendar className="h-3 w-3" />
-                      <span>{formatDate(video.created_at)}</span>
-                    </div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <h3 className="text-sm font-medium text-gray-900 truncate flex-1">{video.filename}</h3>
+                  {(video.media_type || 'video') === 'photo' && (
+                    <span className="text-[9px] px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded font-bold uppercase flex-shrink-0">Photo</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <Calendar className="h-3 w-3" />
+                    <span>{formatDate(video.created_at)}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
                     <span className="text-[10px] text-gray-400">{formatBytes(video.size)}</span>
                   </div>
+                </div>
 
-                  {/* Action buttons row */}
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                    {video.uploaded_by_name ? (
-                      <div className="flex items-center gap-1 text-[10px] text-gray-400 min-w-0">
-                        <User className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{video.uploaded_by_name}</span>
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <ActionButton
-                        icon={Download}
-                        label="Download"
-                        onClick={(e) => handleDownloadSingle(video, e)}
-                      />
-                      <ActionButton
-                        icon={copyState === 'copied' ? Check : Link2}
-                        label={copyState === 'copied' ? 'Copied!' : 'Share'}
-                        onClick={(e) => handleShareSingle(video.id, e)}
-                        loading={copyState === 'loading'}
-                        variant={copyState === 'copied' ? 'success' : 'default'}
-                      />
+                <div className="flex items-center justify-between mt-1.5">
+                  {video.uploaded_by_name ? (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <User className="h-3 w-3" />
+                      <span>{video.uploaded_by_name}</span>
                     </div>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const url = videoService.getDownloadUrl(video.id, video.bucket);
+                        window.open(url, '_blank');
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200 transition-all"
+                      title="Download original file"
+                    >
+                      <Download className="h-3 w-3" />
+                      Download
+                    </button>
+                    <CopyLinkButton videoId={video.id} />
                   </div>
                 </div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
     </div>

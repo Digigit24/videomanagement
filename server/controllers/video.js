@@ -348,13 +348,12 @@ export async function downloadVideo(req, res) {
 
     // Photos: serve the original file directly from S3
     if (video.media_type === "photo") {
-      const { getObjectStream, resolveBucket: resolve } =
-        await import("../services/storage.js");
-      const { bucket: physicalBucket } = resolve(video.bucket);
+      const { getObjectStream } = await import("../services/storage.js");
       const objectKey = video.object_key;
 
       try {
-        const stream = await getObjectStream(physicalBucket, objectKey);
+        // getObjectStream already calls resolveBucket internally
+        const stream = await getObjectStream(video.bucket, objectKey);
         const ext = video.filename.split(".").pop()?.toLowerCase() || "jpg";
         const contentTypes = {
           jpg: "image/jpeg",
