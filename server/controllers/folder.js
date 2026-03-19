@@ -134,7 +134,7 @@ export async function downloadFolder(req, res) {
 
     // Get all active files in this folder
     const videosResult = await pool.query(
-      `SELECT id, filename, object_key, bucket, media_type, size FROM videos WHERE folder_id = $1 AND is_active_version = TRUE AND deleted_at IS NULL ORDER BY created_at`,
+      `SELECT id, filename, object_key, bucket, media_type, size FROM videos WHERE folder_id = $1 AND is_active_version = TRUE ORDER BY created_at`,
       [folderId],
     );
     const files = videosResult.rows;
@@ -191,7 +191,7 @@ export async function downloadBulk(req, res) {
     const pool = getPool();
     const placeholders = videoIds.map((_, i) => `$${i + 1}`).join(",");
     const result = await pool.query(
-      `SELECT id, filename, object_key, bucket, media_type, size FROM videos WHERE id IN (${placeholders}) AND is_active_version = TRUE AND deleted_at IS NULL ORDER BY created_at`,
+      `SELECT id, filename, object_key, bucket, media_type, size FROM videos WHERE id IN (${placeholders}) AND is_active_version = TRUE ORDER BY created_at`,
       videoIds,
     );
     const files = result.rows;
@@ -256,7 +256,7 @@ export async function downloadBulkFolders(req, res) {
 
     // Get all files across these folders
     const filesResult = await pool.query(
-      `SELECT id, filename, object_key, bucket, media_type, folder_id FROM videos WHERE folder_id IN (${folderPlaceholders}) AND is_active_version = TRUE AND deleted_at IS NULL ORDER BY folder_id, created_at`,
+      `SELECT id, filename, object_key, bucket, media_type, folder_id FROM videos WHERE folder_id IN (${folderPlaceholders}) AND is_active_version = TRUE ORDER BY folder_id, created_at`,
       folderIds,
     );
     const files = filesResult.rows;
@@ -315,7 +315,7 @@ export async function getFolderFileIds(req, res) {
     const pool = getPool();
     const placeholders = folderIds.map((_, i) => `$${i + 1}`).join(",");
     const result = await pool.query(
-      `SELECT id, bucket FROM videos WHERE folder_id IN (${placeholders}) AND is_active_version = TRUE AND deleted_at IS NULL ORDER BY created_at`,
+      `SELECT id, bucket FROM videos WHERE folder_id IN (${placeholders}) AND is_active_version = TRUE ORDER BY created_at`,
       folderIds,
     );
 
