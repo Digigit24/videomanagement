@@ -225,6 +225,21 @@ export const folderService = {
     return `${API_BASE_URL}/folder/${folderId}/download?token=${encodeURIComponent(token || "")}`;
   },
 
+  downloadFolderAsZip: async (folderId: string) => {
+    const token = localStorage.getItem("token");
+    const response = await api.get(`/folder/${folderId}/download?token=${encodeURIComponent(token || "")}`, {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(response.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "folder.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
   downloadBulkFoldersAsZip: async (folderIds: string[]) => {
     const response = await api.post("/download/bulk-folders", { folderIds }, {
       responseType: "blob",

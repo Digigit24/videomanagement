@@ -41,7 +41,8 @@ export default function WorkspaceVideos() {
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [folderSelectMode, setFolderSelectMode] = useState(false);
   const [folderBulkDownloading, setFolderBulkDownloading] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [folderDownloading, setFolderDownloading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'loading'; persistent?: boolean } | null>(null);
   const userRole = localStorage.getItem('userRole') || 'member';
   const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
   const canDeleteFolder = ['admin', 'project_manager', 'social_media_manager'].includes(userRole);
@@ -164,11 +165,20 @@ export default function WorkspaceVideos() {
     }
   };
 
-  const handleFolderDownloadZip = (folderId: string, e: React.MouseEvent) => {
+  const handleFolderDownloadZip = async (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setToast({ message: 'Preparing ZIP download — this may take a moment...', type: 'success' });
-    const url = folderService.getFolderDownloadUrl(folderId);
-    window.open(url, '_blank');
+    if (folderDownloading) return;
+    setFolderDownloading(true);
+    setToast({ message: 'Compressing folder into ZIP — please wait...', type: 'loading', persistent: true });
+    try {
+      await folderService.downloadFolderAsZip(folderId);
+      setToast({ message: 'ZIP download started!', type: 'success' });
+    } catch (error) {
+      console.error('Folder download failed:', error);
+      setToast({ message: 'Download failed. Please try again.', type: 'error' });
+    } finally {
+      setFolderDownloading(false);
+    }
   };
 
   const handleToggleSelect = (videoId: string) => {
@@ -191,7 +201,7 @@ export default function WorkspaceVideos() {
   const handleDownloadSelectedZip = async () => {
     if (selectedVideoIds.size === 0) return;
     setBulkDownloading(true);
-    setToast({ message: 'Compressing files into ZIP — please wait...', type: 'success' });
+    setToast({ message: 'Compressing files into ZIP — please wait...', type: 'loading', persistent: true });
     try {
       await videoService.downloadBulkAsZip(Array.from(selectedVideoIds));
       setToast({ message: 'ZIP download started!', type: 'success' });
@@ -241,7 +251,7 @@ export default function WorkspaceVideos() {
   const handleDownloadSelectedFoldersZip = async () => {
     if (selectedFolderIds.size === 0) return;
     setFolderBulkDownloading(true);
-    setToast({ message: 'Compressing folders into ZIP — please wait...', type: 'success' });
+    setToast({ message: 'Compressing folders into ZIP — please wait...', type: 'loading', persistent: true });
     try {
       await folderService.downloadBulkFoldersAsZip(Array.from(selectedFolderIds));
       setToast({ message: 'ZIP download started!', type: 'success' });
@@ -587,10 +597,15 @@ export default function WorkspaceVideos() {
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                           <button
                             onClick={(e) => handleFolderDownloadZip(folder.id, e)}
-                            className="p-1.5 text-gray-300 hover:text-blue-600 transition-all rounded-lg hover:bg-blue-50"
+                            disabled={folderDownloading}
+                            className="p-1.5 text-gray-300 hover:text-blue-600 transition-all rounded-lg hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Download folder as ZIP"
                           >
-                            <Archive className="h-3.5 w-3.5" />
+                            {folderDownloading ? (
+                              <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                            ) : (
+                              <Archive className="h-3.5 w-3.5" />
+                            )}
                           </button>
                           <button
                             onClick={(e) => handleFolderDownloadOriginal(folder.id, e)}
@@ -715,10 +730,15 @@ export default function WorkspaceVideos() {
                 variant="outline"
                 size="sm"
                 onClick={(e) => handleFolderDownloadZip(selectedFolder, e)}
+                disabled={folderDownloading}
                 className="gap-1.5 flex-shrink-0 h-8 text-xs"
               >
-                <Archive className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">ZIP</span>
+                {folderDownloading ? (
+                  <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                ) : (
+                  <Archive className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">{folderDownloading ? 'Zipping...' : 'ZIP'}</span>
               </Button>
             )}
 
@@ -976,7 +996,7 @@ export default function WorkspaceVideos() {
         />
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} persistent={toast.persistent} onClose={() => setToast(null)} />}
     </div>
   );
 }
