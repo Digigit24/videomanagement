@@ -1,18 +1,18 @@
 import axios from "axios";
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "https://video.celiyo.com/api";
-
-export const APP_URL =
-  import.meta.env.VITE_APP_URL || "https://videomanagement.celiyo.com";
-
-
-
 // export const API_BASE_URL =
-//   import.meta.env.VITE_API_URL || "http://localhost:4011";
+//   import.meta.env.VITE_API_URL || "https://video.celiyo.com/api";
 
 // export const APP_URL =
-//   import.meta.env.VITE_APP_URL || "http://localhost:4011";
+//   import.meta.env.VITE_APP_URL || "https://videomanagement.celiyo.com";
+
+
+
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:4011";
+
+export const APP_URL =
+  import.meta.env.VITE_APP_URL || "http://localhost:4011";
 
 
 const api = axios.create({
