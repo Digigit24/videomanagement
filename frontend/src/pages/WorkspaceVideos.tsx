@@ -5,12 +5,13 @@ import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics, Fold
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';
 import KanbanBoard from '@/components/KanbanBoard';
+import CalendarView from '@/components/CalendarView';
 import ViewSwitcher from '@/components/ViewSwitcher';
 import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Link2, Share2, Copy, Check } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
@@ -33,11 +34,13 @@ export default function WorkspaceVideos() {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('all');
+  const [downloadingFolder, setDownloadingFolder] = useState<string | null>(null);
+
   const userRole = localStorage.getItem('userRole') || 'member';
   const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
   const canDeleteFolder = ['admin', 'project_manager', 'social_media_manager'].includes(userRole);
-  const [view, setView] = useState<'list' | 'kanban'>(() => {
-    return (localStorage.getItem('viewMode') as 'list' | 'kanban') || 'list';
+  const [view, setView] = useState<'list' | 'kanban' | 'calendar'>(() => {
+    return (localStorage.getItem('viewMode') as 'list' | 'kanban' | 'calendar') || 'list';
   });
   const [stats, setStats] = useState<DashboardStats>({
     total: 0, draft: 0, pending: 0, underReview: 0,
@@ -46,7 +49,7 @@ export default function WorkspaceVideos() {
 
   const pollHashRef = useRef<{ count: number; lastUpdated: string | null; lastCreated: string | null } | null>(null);
 
-  const handleViewChange = (newView: 'list' | 'kanban') => {
+  const handleViewChange = (newView: 'list' | 'kanban' | 'calendar') => {
     setView(newView);
     localStorage.setItem('viewMode', newView);
   };
@@ -211,6 +214,19 @@ export default function WorkspaceVideos() {
   const totalVideoCount = videos.filter(v => (v.media_type || 'video') === 'video').length;
   const totalPhotoCount = videos.filter(v => (v.media_type || 'video') === 'photo').length;
   const selectedFolderObj = folders.find(f => f.id === selectedFolder);
+
+  const handleDownloadFolder = async () => {
+    if (!selectedFolder || !bucket) return;
+    const folderVids = videos.filter(v => v.folder_id === selectedFolder);
+    if (folderVids.length === 0) return;
+    setDownloadingFolder(selectedFolder);
+    for (const v of folderVids) {
+      const url = videoService.getDownloadUrl(v.id, bucket);
+      window.open(url, '_blank');
+      await new Promise(r => setTimeout(r, 500));
+    }
+    setDownloadingFolder(null);
+  };
 
   const activeFilters = (dateFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (mediaTypeFilter !== 'all' ? 1 : 0);
 
@@ -475,6 +491,18 @@ export default function WorkspaceVideos() {
 
             <div className="flex-1" />
 
+            {/* Download folder */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadFolder}
+              disabled={!!downloadingFolder || filteredVideos.length === 0}
+              className="gap-1.5 flex-shrink-0 h-8 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+            >
+              <Download className={`h-3.5 w-3.5 ${downloadingFolder ? 'animate-bounce' : ''}`} />
+              <span className="hidden sm:inline">{downloadingFolder ? 'Downloading...' : 'Download All'}</span>
+            </Button>
+
             <Button onClick={() => setUploadModalOpen(true)} size="sm" className="gap-1.5 flex-shrink-0 h-8 text-xs">
               <Upload className="h-3.5 w-3.5" />
               Upload
@@ -506,6 +534,8 @@ export default function WorkspaceVideos() {
                 Upload Media
               </Button>
             </div>
+          ) : view === 'calendar' ? (
+            <CalendarView videos={filteredVideos} />
           ) : view === 'list' ? (
             <VideoTable videos={filteredVideos} />
           ) : (

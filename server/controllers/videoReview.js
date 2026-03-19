@@ -37,8 +37,9 @@ export async function generateShareToken(req, res) {
       });
     }
 
-    const token = await getOrCreateShareToken(videoId, req.user.id);
-    res.json({ token: token.token, videoId });
+    const requireLogin = req.body.requireLogin === true;
+    const token = await getOrCreateShareToken(videoId, req.user.id, requireLogin);
+    res.json({ token: token.token, videoId, requireLogin: token.require_login });
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to generate share token" });
@@ -64,6 +65,7 @@ export async function validateShareToken(req, res) {
         hls_path: data.hls_path,
         size: data.size,
         status: data.status,
+        require_login: data.require_login || false,
       },
     });
   } catch (error) {

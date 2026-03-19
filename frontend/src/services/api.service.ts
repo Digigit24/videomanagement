@@ -380,8 +380,8 @@ export const videoService = {
     return data.viewers as VideoViewer[];
   },
 
-  getShareToken: async (videoId: string) => {
-    const { data } = await api.post(`/video/${videoId}/share-token`);
+  getShareToken: async (videoId: string, requireLogin: boolean = false) => {
+    const { data } = await api.post(`/video/${videoId}/share-token`, { requireLogin });
     return data.token as string;
   },
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
 import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw } from 'lucide-react';
@@ -40,7 +40,9 @@ const EMOJI_CATEGORIES = [
 export default function VideoReview() {
   const { videoId } = useParams<{ videoId: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const token = searchParams.get('token') || undefined;
+  const [requiresLogin, setRequiresLogin] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -77,6 +79,7 @@ export default function VideoReview() {
   const [isPortrait, setIsPortrait] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -164,6 +167,16 @@ export default function VideoReview() {
     }
     try {
       const data = await publicVideoService.getVideoInfo(videoId!, token);
+      // Check if login is required and user is not authenticated
+      if (data.require_login) {
+        const userToken = localStorage.getItem('token');
+        if (!userToken) {
+          setRequiresLogin(true);
+          setVideo(data);
+          setLoading(false);
+          return;
+        }
+      }
       setVideo(data);
       if (!data.hls_ready) {
         setProcessing(true);
@@ -532,6 +545,28 @@ export default function VideoReview() {
     );
   }
 
+  // Login required screen
+  if (requiresLogin) {
+    return (
+      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-sm text-center">
+          <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+            <ShieldX className="h-7 w-7 text-amber-500" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900 mb-2">Account Required</h1>
+          <p className="text-sm text-gray-500 mb-1">You need to log in to view this video.</p>
+          <p className="text-xs text-gray-400 mb-6 truncate">{video?.filename}</p>
+          <button
+            onClick={() => navigate('/login')}
+            className="w-full py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-all duration-200 active:scale-[0.98]"
+          >
+            Log In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Name entry screen
   if (!nameSet) {
     return (
@@ -580,6 +615,21 @@ export default function VideoReview() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowChat(!showChat)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
+              showChat
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+            )}
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            Feedback
+            {reviews.length > 0 && (
+              <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{reviews.length}</span>
+            )}
+          </button>
           <div className="flex items-center gap-1.5 bg-gray-100 rounded-full pl-1 pr-3 py-1 border border-gray-200">
             <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-[9px] text-white font-bold shadow-sm">
               {reviewerName.charAt(0).toUpperCase()}
@@ -590,16 +640,18 @@ export default function VideoReview() {
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row min-h-0 relative">
-        {/* Video Player Section */}
+        {/* Video Player Section — immersive by default */}
         <div
           ref={playerContainerRef}
           className={cn(
-            "w-full md:flex-1 bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group transition-all duration-300",
+            "w-full bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group transition-all duration-300",
             isFullscreen
               ? ""
-              : isPortrait
-                ? "h-[75vh] sm:h-[80vh] md:h-full"
-                : "h-[40vh] sm:h-[45vh] md:h-full"
+              : showChat
+                ? isPortrait
+                  ? "h-[60vh] sm:h-[70vh] md:flex-1 md:h-full"
+                  : "h-[40vh] sm:h-[45vh] md:flex-1 md:h-full"
+                : "flex-1 h-full"
           )}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
@@ -797,8 +849,29 @@ export default function VideoReview() {
           )}
         </div>
 
-        {/* Chat/Feedback Section */}
-        <div className="flex-1 md:flex-none md:w-80 lg:w-96 flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-200 h-full min-h-0 relative z-0">
+        {/* Floating chat toggle */}
+        {!showChat && (
+          <button
+            onClick={() => setShowChat(true)}
+            className="absolute bottom-6 right-6 z-30 w-12 h-12 rounded-full bg-white shadow-xl border border-gray-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+            title="Open feedback"
+          >
+            <MessageCircle className="h-5 w-5 text-gray-700" />
+            {reviews.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {reviews.length}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Chat/Feedback Section — collapsible */}
+        <div className={cn(
+          "flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-200 min-h-0 relative z-0 transition-all duration-300",
+          showChat
+            ? "flex-1 md:flex-none md:w-80 lg:w-96 h-full"
+            : "hidden"
+        )}>
 
           {/* Messages List */}
           <div

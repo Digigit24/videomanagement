@@ -11,7 +11,7 @@ import TimestampPanel from '@/components/TimestampPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Trash2, Clock, Sparkles, Link2, Copy, Check, MessageSquare, MessageCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Trash2, Clock, Link2, Copy, Check, MessageSquare, MessageCircle, RefreshCw } from 'lucide-react';
 import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ReactPlayer from 'react-player';
@@ -162,6 +162,7 @@ export default function VideoDetail() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [loadingShareToken, setLoadingShareToken] = useState(false);
+  const [requireLogin, setRequireLogin] = useState(false);
 
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
   const [playerFailed, setPlayerFailed] = useState(false);
@@ -447,7 +448,7 @@ export default function VideoDetail() {
       setLoadingShareToken(true);
       setShareError(false);
       try {
-        const token = await videoService.getShareToken(video.id);
+        const token = await videoService.getShareToken(video.id, requireLogin);
         setShareToken(token);
       } catch (error: any) {
         console.error('Failed to generate share token:', error);
@@ -455,6 +456,19 @@ export default function VideoDetail() {
       } finally {
         setLoadingShareToken(false);
       }
+    }
+  };
+
+  const handleRequireLoginToggle = async () => {
+    const newValue = !requireLogin;
+    setRequireLogin(newValue);
+    if (video && shareToken) {
+      // Regenerate token with updated setting
+      try {
+        setShareToken(null);
+        const token = await videoService.getShareToken(video.id, newValue);
+        setShareToken(token);
+      } catch {}
     }
   };
 
@@ -517,7 +531,6 @@ export default function VideoDetail() {
   const hlsUrl = videoService.getHLSUrl(video.id, currentBucket);
   const downloadUrl = videoService.getDownloadUrl(video.id, currentBucket);
   const timestampComments = comments.filter(c => c.video_timestamp !== null);
-  const isNew = isRecentUpload(video.uploaded_at || video.created_at);
 
   return (
     <div className="space-y-0 animate-fade-in">
@@ -640,6 +653,20 @@ export default function VideoDetail() {
                         <p className="text-[10px] text-gray-400 mt-1.5">Client can review and give feedback</p>
                       </div>
 
+                      {/* Require Login Toggle */}
+                      <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 mt-2">
+                        <div>
+                          <p className="text-xs font-medium text-gray-700">Require account</p>
+                          <p className="text-[10px] text-gray-400">Client must log in before viewing</p>
+                        </div>
+                        <button
+                          onClick={handleRequireLoginToggle}
+                          className={`relative w-9 h-5 rounded-full transition-colors ${requireLogin ? 'bg-blue-600' : 'bg-gray-300'}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${requireLogin ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+
                       <p className="text-[10px] text-gray-400 mt-3 text-center">Only people with this link can access</p>
                     </>
                   )}
@@ -754,20 +781,6 @@ export default function VideoDetail() {
         <div className="lg:col-span-8 space-y-4 sm:space-y-6">
           {/* Video Player Section */}
           <div className="relative bg-gray-950 rounded-xl overflow-hidden shadow-2xl animate-fade-in-up">
-            {/* Upload Time Capsule Badge */}
-            <div className="absolute top-2 sm:top-3 right-2 sm:right-3 z-10 flex items-center gap-1.5 sm:gap-2">
-              {isNew && (
-                <span className="flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] sm:text-[10px] font-bold rounded-full shadow-lg animate-pulse">
-                  <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                  NEW
-                </span>
-              )}
-              <span className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 bg-black/70 backdrop-blur-sm text-white text-[9px] sm:text-[10px] font-medium rounded-full shadow-lg">
-                <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-blue-400" />
-                {formatDistanceToNow(new Date(video.uploaded_at || video.created_at), { addSuffix: true })}
-              </span>
-            </div>
-
             {(video.media_type || 'video') === 'photo' ? (
               <div className="w-full flex items-center justify-center bg-gray-950 p-4" style={{ minHeight: '300px' }}>
                 <img
@@ -908,39 +921,17 @@ export default function VideoDetail() {
             )}
           </div>
 
-          {/* Video Metadata Panel */}
-          <div className="bg-white border border-gray-200 rounded-xl p-3 sm:p-5 shadow-sm animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
-              <div className="min-w-0">
-                <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate mb-1">
-                  {video.filename}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500">
-                  <span>{formatBytes(video.size)}</span>
-                  <span className="w-1 h-1 rounded-full bg-gray-300" />
-                  <span>{formatDate(video.created_at)}</span>
-                  {video.uploaded_by_name && (
-                    <>
-                      <span className="w-1 h-1 rounded-full bg-gray-300" />
-                      <span>by {video.uploaded_by_name}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50">
-                  <Download className="h-3.5 w-3.5 mr-1" />
-                  Download
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="text-[9px] sm:text-[10px] text-gray-300 font-mono uppercase tracking-wider truncate">
-                ID: {video.id}
-              </div>
-            </div>
+          {/* Video Info Bar */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500 px-1">
+            <span>{formatBytes(video.size)}</span>
+            <span className="w-1 h-1 rounded-full bg-gray-300" />
+            <span>{formatDate(video.created_at)}</span>
+            {video.uploaded_by_name && (
+              <>
+                <span className="w-1 h-1 rounded-full bg-gray-300" />
+                <span>by {video.uploaded_by_name}</span>
+              </>
+            )}
           </div>
         </div>
 

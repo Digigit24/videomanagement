@@ -3,12 +3,12 @@ import crypto from "crypto";
 
 // === Share Tokens ===
 
-export async function createShareToken(videoId, createdBy) {
+export async function createShareToken(videoId, createdBy, requireLogin = false) {
   const token = crypto.randomBytes(32).toString("hex");
   const result = await getPool().query(
-    `INSERT INTO video_share_tokens (video_id, token, created_by)
-     VALUES ($1, $2, $3) RETURNING *`,
-    [videoId, token, createdBy],
+    `INSERT INTO video_share_tokens (video_id, token, created_by, require_login)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [videoId, token, createdBy, requireLogin],
   );
   return result.rows[0];
 }
@@ -24,14 +24,24 @@ export async function getShareToken(token) {
   return result.rows[0] || null;
 }
 
-export async function getOrCreateShareToken(videoId, createdBy) {
+export async function getOrCreateShareToken(videoId, createdBy, requireLogin = false) {
   // Check if an active token already exists for this video
   const existing = await getPool().query(
     `SELECT * FROM video_share_tokens WHERE video_id = $1 AND active = true LIMIT 1`,
     [videoId],
   );
-  if (existing.rows[0]) return existing.rows[0];
-  return createShareToken(videoId, createdBy);
+  if (existing.rows[0]) {
+    // Update require_login if changed
+    if (existing.rows[0].require_login !== requireLogin) {
+      await getPool().query(
+        `UPDATE video_share_tokens SET require_login = $1 WHERE id = $2`,
+        [requireLogin, existing.rows[0].id],
+      );
+      existing.rows[0].require_login = requireLogin;
+    }
+    return existing.rows[0];
+  }
+  return createShareToken(videoId, createdBy, requireLogin);
 }
 
 // === Video Reviews ===
