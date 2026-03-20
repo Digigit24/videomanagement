@@ -663,7 +663,7 @@ export default function WorkspaceChat({ workspaceId, className }: WorkspaceChatP
         <div key={att.id} className="mt-2 text-left">
           <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${
             isMe ? "bg-white/10" : "bg-gray-50 border border-gray-200"
-          }`} style={{ minWidth: "220px", maxWidth: "300px" }}>
+          }`} style={{ minWidth: "180px", maxWidth: "300px" }}>
             <button
               onClick={() => setPlayingAudio(playingAudio === att.id ? null : att.id)}
               className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -993,7 +993,7 @@ return (
         {showEmojiPicker && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-            <div className="absolute bottom-full left-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-80 overflow-hidden">
+            <div className="absolute bottom-full left-0 sm:left-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-[calc(100vw-3rem)] sm:w-80 overflow-hidden">
               {/* Category tabs */}
               <div className="flex border-b border-gray-100 px-1 pt-1 gap-0.5 overflow-x-auto scrollbar-hide">
                 {EMOJI_CATEGORIES.map((cat, idx) => (

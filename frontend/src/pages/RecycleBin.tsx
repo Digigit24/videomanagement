@@ -304,30 +304,33 @@ export default function RecycleBin() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 mt-4 border-t border-gray-50 pt-3">
-                  <div className="text-xs text-gray-400 flex-1">
+                <div className="flex flex-wrap items-center gap-2 mt-4 border-t border-gray-50 pt-3">
+                  <div className="text-xs text-gray-400 flex-1 min-w-[100px]">
                     Deleted: {formatDate(video.deleted_at)}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 h-7 text-xs"
-                    onClick={() => handleRestoreVideo(video.id, video.filename)}
-                    disabled={restoring === video.id}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${restoring === video.id ? 'animate-spin' : ''}`} />
-                    Restore
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1 h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                    onClick={() => handlePermanentDeleteVideo(video.id, video.filename)}
-                    disabled={deleting === video.id}
-                  >
-                    <AlertTriangle className={`h-3 w-3 ${deleting === video.id ? 'animate-pulse' : ''}`} />
-                    Delete Forever
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 h-7 text-xs"
+                      onClick={() => handleRestoreVideo(video.id, video.filename)}
+                      disabled={restoring === video.id}
+                    >
+                      <RefreshCw className={`h-3 w-3 ${restoring === video.id ? 'animate-spin' : ''}`} />
+                      Restore
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      onClick={() => handlePermanentDeleteVideo(video.id, video.filename)}
+                      disabled={deleting === video.id}
+                    >
+                      <AlertTriangle className={`h-3 w-3 ${deleting === video.id ? 'animate-pulse' : ''}`} />
+                      <span className="hidden sm:inline">Delete Forever</span>
+                      <span className="sm:hidden">Delete</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

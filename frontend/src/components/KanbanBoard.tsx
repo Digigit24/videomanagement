@@ -172,7 +172,7 @@ function StatusColumn({ status, videos, canDrag, onVideoClick }: StatusColumnPro
   });
 
   return (
-    <div className="flex-shrink-0 w-64">
+    <div className="flex-shrink-0 w-56 sm:w-64">
       <div className={`rounded-lg border ${statusColors[status]} ${isOver ? 'ring-2 ring-blue-400 shadow-md' : ''} transition-all`}>
         <div className="px-3 py-2.5 border-b border-gray-200/50">
           <div className="flex items-center justify-between">

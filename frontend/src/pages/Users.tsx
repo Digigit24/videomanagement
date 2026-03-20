@@ -296,12 +296,12 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">Add New User</h2>
           <p className="text-xs text-gray-400 mt-0.5">Create a new team member account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-5 space-y-4">
           {error && (
             <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
               {error}
@@ -378,12 +378,17 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
           </div>
         </form>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Creating...' : 'Create User'}
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Creating...
+              </span>
+            ) : 'Create User'}
           </Button>
         </div>
       </div>

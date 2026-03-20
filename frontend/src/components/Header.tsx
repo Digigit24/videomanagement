@@ -195,7 +195,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
       {showLogoutConfirm && (
         <>
           <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[2px]" onClick={() => setShowLogoutConfirm(false)} />
-          <div className="fixed z-[201] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-[340px] animate-scale-in">
+          <div className="fixed z-[201] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-[calc(100vw-2rem)] max-w-[340px] animate-scale-in">
             <h3 className="text-base font-semibold text-gray-900 mb-2">Sign out?</h3>
             <p className="text-sm text-gray-500 mb-5">Are you sure you want to log out of your account?</p>
             <div className="flex gap-2">

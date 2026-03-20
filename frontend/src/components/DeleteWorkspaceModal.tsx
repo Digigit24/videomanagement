@@ -64,7 +64,12 @@ export default function DeleteWorkspaceModal({ workspaceId, workspaceName, onClo
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
             <Button type="submit" variant="destructive" size="sm" disabled={loading || !password}>
-              {loading ? 'Deleting...' : 'Delete Workspace'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Deleting...
+                </span>
+              ) : 'Delete Workspace'}
             </Button>
           </div>
         </form>

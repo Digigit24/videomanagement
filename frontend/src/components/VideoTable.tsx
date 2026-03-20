@@ -234,7 +234,7 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] h-9 text-sm border-gray-200">
+          <SelectTrigger className="w-[120px] sm:w-[160px] h-9 text-sm border-gray-200">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>

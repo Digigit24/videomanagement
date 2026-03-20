@@ -146,7 +146,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
         {[
           { label: 'Workspaces', value: workspaces.length },
           { label: 'Total Videos', value: totalVideos },
@@ -166,7 +166,7 @@ export default function Dashboard() {
           <span className="text-gray-400 font-normal ml-2">{filteredWorkspaces.length}</span>
         </h2>
         {workspaces.length > 3 && (
-          <div className="relative w-56">
+          <div className="relative w-40 sm:w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"

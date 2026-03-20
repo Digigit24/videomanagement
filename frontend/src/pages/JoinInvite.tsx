@@ -170,7 +170,12 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Joining...' : 'Join Workspace'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Joining...
+                </span>
+              ) : 'Join Workspace'}
             </Button>
 
             <div className="text-center text-sm text-gray-600">

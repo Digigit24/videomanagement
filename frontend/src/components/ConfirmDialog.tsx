@@ -63,7 +63,7 @@ export default function ConfirmDialog({
 
       <div
         ref={dialogRef}
-        className="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 animate-in fade-in zoom-in-95"
+        className="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-4 sm:p-6 animate-in fade-in zoom-in-95"
       >
         <h3 className="text-base font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-sm text-gray-500 mb-5 leading-relaxed">{message}</p>
