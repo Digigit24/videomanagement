@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FolderOpen, Play, Image, Lock, ArrowLeft } from 'lucide-react';
+import { FolderOpen, Play, Image, Lock } from 'lucide-react';
 import api, { API_BASE_URL } from '@/lib/api';
 
 interface SharedVideo {

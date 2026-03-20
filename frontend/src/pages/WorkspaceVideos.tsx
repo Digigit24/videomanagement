@@ -425,7 +425,7 @@ export default function WorkspaceVideos() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 animate-fade-in">
+    <div className="space-y-5 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700 flex-shrink-0 h-8 w-8 p-0">
@@ -635,6 +635,13 @@ export default function WorkspaceVideos() {
                             title="Share folder"
                           >
                             <Share2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleFolderDownloadOriginal(folder.id, e)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50"
+                            title="Download original files"
+                          >
+                            <Download className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={(e) => handleFolderDownloadZip(folder.id, e)}

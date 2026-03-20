@@ -3,23 +3,38 @@ import { useNavigate } from 'react-router-dom';
 import { workspaceService } from '@/services/api.service';
 import { Workspace } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
 import {
   FolderOpen, Plus, Users, Video,
   Link as LinkIcon, ExternalLink, MoreHorizontal,
-  Trash2, ChevronRight, ArrowRight
+  Trash2, TrendingUp, Layers, Search
 } from 'lucide-react';
 import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
 import DeleteWorkspaceModal from '@/components/DeleteWorkspaceModal';
-import { Toast } from '@/components/ui/toast';
 import { getApiUrl } from '@/lib/utils';
+
+// Gradient palette for workspace avatars
+const GRADIENTS = [
+  'from-blue-500 to-indigo-600',
+  'from-violet-500 to-purple-600',
+  'from-pink-500 to-rose-600',
+  'from-emerald-500 to-teal-600',
+  'from-amber-500 to-orange-600',
+  'from-cyan-500 to-blue-600',
+  'from-fuchsia-500 to-pink-600',
+  'from-lime-500 to-green-600',
+  'from-sky-500 to-indigo-600',
+  'from-red-500 to-rose-600',
+];
 
 export default function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'loading'; persistent?: boolean } | null>(null);
   const [contextMenu, setContextMenu] = useState<string | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   const userRole = localStorage.getItem('userRole') || 'member';
@@ -34,7 +49,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Close context menu on outside click
   useEffect(() => {
     if (!contextMenu) return;
     const handler = (e: MouseEvent) => {
@@ -84,6 +98,12 @@ export default function Dashboard() {
   const totalVideos = workspaces.reduce((sum, w) => sum + (Number(w.video_count) || 0), 0);
   const totalMembers = workspaces.reduce((sum, w) => sum + (Number(w.member_count) || 0), 0);
 
+  const filteredWorkspaces = searchQuery
+    ? workspaces.filter(w => w.client_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : workspaces;
+
+  const getGradient = (index: number) => GRADIENTS[index % GRADIENTS.length];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -93,87 +113,148 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 animate-fade-in">
-      {/* Hero section */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-2">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            Hi, {userName}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {isOrgRole
-              ? `${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'} \u00b7 ${totalVideos} video${totalVideos === 1 ? '' : 's'}`
-              : `${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'} available`
-            }
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => navigate('/users')} className="text-xs h-9">
-                <Users className="h-3.5 w-3.5 mr-1.5" /> Team
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate('/recycle-bin')} className="text-xs h-9">
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Bin
-              </Button>
-            </>
-          )}
-          {canCreateWorkspace && (
-            <Button onClick={() => setShowCreateModal(true)} size="sm" className="text-xs h-9">
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> New Client
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Workspaces', value: workspaces.length, color: 'text-blue-600' },
-          { label: 'Total Videos', value: totalVideos, color: 'text-violet-600' },
-          { label: 'Team Members', value: totalMembers, color: 'text-emerald-600' },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white border border-gray-100 rounded-xl p-4 text-center">
-            <p className={`text-2xl sm:text-3xl font-bold ${stat.color}`}>{stat.value}</p>
-            <p className="text-[11px] text-gray-400 font-medium mt-0.5">{stat.label}</p>
+    <div className="space-y-6 animate-fade-in">
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 rounded-2xl p-6 sm:p-8">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
+        <div className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <p className="text-blue-300 text-xs font-medium tracking-wider uppercase mb-1">Welcome back</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">
+              {userName}
+            </h1>
+            <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5 text-blue-200 text-sm">
+                <Layers className="h-4 w-4" />
+                <span className="font-semibold">{workspaces.length}</span>
+                <span className="text-blue-300/70">workspaces</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-blue-200 text-sm">
+                <Video className="h-4 w-4" />
+                <span className="font-semibold">{totalVideos}</span>
+                <span className="text-blue-300/70">videos</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-blue-200 text-sm">
+                <Users className="h-4 w-4" />
+                <span className="font-semibold">{totalMembers}</span>
+                <span className="text-blue-300/70">members</span>
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
-
-      {/* Workspaces */}
-      <div>
-        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          {isOrgRole ? 'Client Workspaces' : 'Your Workspaces'}
-        </h2>
-
-        {workspaces.length === 0 ? (
-          <div className="bg-white border border-dashed border-gray-200 rounded-xl p-12 text-center">
-            <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-200" />
-            <p className="text-sm text-gray-500 mb-1">No workspaces yet</p>
-            <p className="text-xs text-gray-400 mb-4">
-              {canCreateWorkspace ? 'Create your first workspace to get started' : 'You\'ll see workspaces here once added'}
-            </p>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => navigate('/users')} className="text-xs h-9 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white">
+                  <Users className="h-3.5 w-3.5 mr-1.5" /> Team
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/recycle-bin')} className="text-xs h-9 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white">
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Bin
+                </Button>
+              </>
+            )}
             {canCreateWorkspace && (
-              <Button onClick={() => setShowCreateModal(true)} size="sm">
-                <Plus className="h-4 w-4 mr-1" /> Create Workspace
+              <Button onClick={() => setShowCreateModal(true)} size="sm" className="text-xs h-9 bg-white text-gray-900 hover:bg-gray-100">
+                <Plus className="h-3.5 w-3.5 mr-1.5" /> New Client
               </Button>
             )}
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {workspaces.map((workspace, i) => (
-              <div
-                key={workspace.id}
-                className="group bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer relative animate-fade-in-up"
-                style={{ animationDelay: `${i * 40}ms`, animationFillMode: 'both' }}
-                onClick={() => navigate(`/workspace/${workspace.bucket}`)}
-              >
+        </div>
+      </div>
+
+      {/* Quick Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+              <Layers className="h-4 w-4 text-blue-600" />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Workspaces</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{workspaces.length}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+              <Video className="h-4 w-4 text-violet-600" />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Total Videos</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{totalVideos}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <Users className="h-4 w-4 text-emerald-600" />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Team Members</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{totalMembers}</p>
+        </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-amber-600" />
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Avg Videos</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">
+            {workspaces.length > 0 ? Math.round(totalVideos / workspaces.length) : 0}
+          </p>
+        </div>
+      </div>
+
+      {/* Workspace Header + Search */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-gray-900">
+          {isOrgRole ? 'Client Workspaces' : 'Your Workspaces'}
+        </h2>
+        {workspaces.length > 5 && (
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search workspaces..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-9 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Workspaces Grid */}
+      {workspaces.length === 0 ? (
+        <div className="bg-white border border-dashed border-gray-200 rounded-xl p-12 text-center">
+          <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-200" />
+          <p className="text-sm text-gray-500 mb-1">No workspaces yet</p>
+          <p className="text-xs text-gray-400 mb-4">
+            {canCreateWorkspace ? 'Create your first workspace to get started' : 'You\'ll see workspaces here once added'}
+          </p>
+          {canCreateWorkspace && (
+            <Button onClick={() => setShowCreateModal(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Create Workspace
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {filteredWorkspaces.map((workspace, i) => (
+            <div
+              key={workspace.id}
+              className="group bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-200 hover:shadow-lg transition-all cursor-pointer relative animate-fade-in-up"
+              style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'both' }}
+              onClick={() => navigate(`/workspace/${workspace.bucket}`)}
+            >
+              {/* Colored top strip */}
+              <div className={`h-1.5 bg-gradient-to-r ${getGradient(i)}`} />
+
+              <div className="p-4">
                 <div className="flex items-start gap-3">
                   {/* Avatar */}
                   {workspace.client_logo ? (
-                    <img src={getApiUrl(workspace.client_logo)} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0" />
+                    <img src={getApiUrl(workspace.client_logo)} alt="" className="w-11 h-11 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
                   ) : (
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getGradient(i)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm`}>
                       {workspace.client_name.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -182,7 +263,7 @@ export default function Dashboard() {
                     <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
                       {workspace.client_name}
                     </h3>
-                    <div className="flex items-center gap-2.5 mt-1 text-xs text-gray-400">
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
                       <span className="flex items-center gap-1">
                         <Video className="h-3 w-3" /> {workspace.video_count}
                       </span>
@@ -192,7 +273,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions menu */}
                   {canCreateWorkspace && (
                     <div className="context-menu-container flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
@@ -203,42 +284,49 @@ export default function Dashboard() {
                       </button>
 
                       {contextMenu === workspace.id && (
-                        <div className="absolute right-3 top-12 w-44 bg-white border border-gray-200 rounded-xl shadow-xl z-20 py-1 animate-scale-in">
+                        <div className="absolute right-3 top-14 w-48 bg-white border border-gray-200 rounded-xl shadow-2xl z-20 py-1 animate-scale-in">
                           <button
                             onClick={() => handleCreateInvitation(workspace.id)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                           >
-                            <LinkIcon className="h-3.5 w-3.5" /> Copy Invite Link
+                            <LinkIcon className="h-3.5 w-3.5 text-gray-400" /> Copy Invite Link
                           </button>
                           <button
                             onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                           >
-                            <ExternalLink className="h-3.5 w-3.5" /> Open
+                            <ExternalLink className="h-3.5 w-3.5 text-gray-400" /> Open Workspace
                           </button>
                           {isAdmin && (
-                            <button
-                              onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" /> Delete
-                            </button>
+                            <>
+                              <div className="border-t border-gray-100 my-1" />
+                              <button
+                                onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Delete Workspace
+                              </button>
+                            </>
                           )}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-
-                {/* Subtle arrow on hover */}
-                <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowRight className="h-4 w-4 text-gray-300" />
-                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Search empty state */}
+      {searchQuery && filteredWorkspaces.length === 0 && workspaces.length > 0 && (
+        <div className="text-center py-8">
+          <Search className="h-8 w-8 mx-auto mb-2 text-gray-200" />
+          <p className="text-sm text-gray-500">No workspaces match "{searchQuery}"</p>
+          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 hover:text-blue-700 mt-1">Clear search</button>
+        </div>
+      )}
 
       {showCreateModal && (
         <CreateWorkspaceModal
@@ -264,7 +352,7 @@ export default function Dashboard() {
         />
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} persistent={toast.persistent} onClose={() => setToast(null)} />}
     </div>
   );
 }
