@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw, SkipForward, SkipBack } from 'lucide-react';
+import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw, SkipForward, SkipBack, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +42,7 @@ export default function VideoReview() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token') || undefined;
+  const isFromFolder = searchParams.get('folder') === '1';
   const [requiresLogin, setRequiresLogin] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -634,6 +635,15 @@ export default function VideoReview() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-shrink-0 z-10 shadow-sm relative">
         <div className="flex items-center gap-3 min-w-0">
+          {isFromFolder && token && (
+            <button
+              onClick={() => navigate(`/shared/folder/${token}`)}
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              title="Back to folder"
+            >
+              <ArrowLeft className="h-4 w-4 text-gray-500" />
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-900 tracking-tight">Review</span>
             <span className="text-gray-300">|</span>

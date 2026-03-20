@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FolderOpen, Play, Image, Lock } from 'lucide-react';
-import api from '@/lib/api';
+import { FolderOpen, Play, Image, Lock, ArrowLeft } from 'lucide-react';
+import api, { API_BASE_URL } from '@/lib/api';
 
 interface SharedVideo {
   id: string;
@@ -88,27 +88,44 @@ export default function SharedFolder() {
             {videos.map((video) => (
               <button
                 key={video.id}
-                onClick={() => navigate(`/v/${video.id}?token=${token}`)}
-                className="bg-white border border-gray-100 rounded-xl p-4 text-left hover:border-gray-200 hover:shadow-sm transition-all group"
+                onClick={() => navigate(`/v/${video.id}?token=${token}&folder=1`)}
+                className="bg-white border border-gray-100 rounded-xl overflow-hidden text-left hover:border-gray-200 hover:shadow-md transition-all group"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-50 transition-colors">
-                    {(video.media_type || 'video') === 'photo' ? (
-                      <Image className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
-                    ) : (
-                      <Play className="h-5 w-5 text-gray-400 group-hover:text-blue-500" />
+                {/* Thumbnail */}
+                {video.thumbnail_key ? (
+                  <div className="aspect-video bg-gray-100 relative overflow-hidden">
+                    <img
+                      src={`${API_BASE_URL}/public/video/${video.id}/thumbnail?token=${token}`}
+                      alt={video.filename}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    {(video.media_type || 'video') !== 'photo' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+                        </div>
+                      </div>
                     )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                      {video.filename}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {(video.media_type || 'video') === 'photo' ? 'Photo' : 'Video'}
-                      {' \u00b7 '}
-                      {new Date(video.created_at).toLocaleDateString()}
-                    </p>
+                ) : (
+                  <div className="aspect-video bg-gray-50 flex items-center justify-center">
+                    {(video.media_type || 'video') === 'photo' ? (
+                      <Image className="h-8 w-8 text-gray-300" />
+                    ) : (
+                      <Play className="h-8 w-8 text-gray-300" />
+                    )}
                   </div>
+                )}
+                <div className="p-3">
+                  <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                    {video.filename}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {(video.media_type || 'video') === 'photo' ? 'Photo' : 'Video'}
+                    {' \u00b7 '}
+                    {new Date(video.created_at).toLocaleDateString()}
+                  </p>
                 </div>
               </button>
             ))}

@@ -528,6 +528,7 @@ router.get(
 );
 
 // Share token validation middleware for public endpoints
+// Supports both video share tokens and folder share tokens
 async function validateShareAccess(req, res, next) {
   const token = req.query.token || req.headers["x-share-token"];
   const videoId = req.params.videoId || req.params.id;
@@ -540,26 +541,91 @@ async function validateShareAccess(req, res, next) {
   }
 
   try {
+    // First try video share token
     const { getShareToken } = await import("../services/videoReview.js");
     const shareData = await getShareToken(token);
 
-    if (!shareData) {
-      return res.status(403).json({ error: "Invalid or expired share link" });
+    if (shareData && shareData.video_id === videoId) {
+      req.shareToken = shareData;
+      return next();
     }
 
-    // Ensure token matches the requested video
-    if (shareData.video_id !== videoId) {
-      return res
-        .status(403)
-        .json({ error: "Share token does not match this video" });
+    // Then try folder share token — check if video belongs to the shared folder
+    const pool = (await import("../db/index.js")).getPool();
+    const folderTokenResult = await pool.query(
+      `SELECT fst.*, f.name as folder_name
+       FROM folder_share_tokens fst
+       JOIN folders f ON fst.folder_id = f.id
+       WHERE fst.token = $1 AND fst.active = true`,
+      [token],
+    );
+
+    if (folderTokenResult.rows[0]) {
+      const folderShare = folderTokenResult.rows[0];
+      // Verify the video belongs to this folder
+      const videoCheck = await pool.query(
+        `SELECT id, bucket, filename, hls_ready, hls_path, size, status
+         FROM videos WHERE id = $1 AND folder_id = $2 AND is_active_version = TRUE`,
+        [videoId, folderShare.folder_id],
+      );
+
+      if (videoCheck.rows[0]) {
+        req.shareToken = {
+          ...folderShare,
+          video_id: videoId,
+          bucket: videoCheck.rows[0].bucket,
+          filename: videoCheck.rows[0].filename,
+          hls_ready: videoCheck.rows[0].hls_ready,
+          hls_path: videoCheck.rows[0].hls_path,
+          size: videoCheck.rows[0].size,
+          status: videoCheck.rows[0].status,
+        };
+        return next();
+      }
     }
 
-    req.shareToken = shareData;
-    next();
+    return res.status(403).json({ error: "Invalid or expired share link" });
   } catch (error) {
     return res.status(500).json({ error: "Failed to validate share access" });
   }
 }
+
+// Public thumbnail for shared videos (requires valid share token)
+router.get("/public/video/:videoId/thumbnail", validateShareAccess, async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const result = await pool.query(
+      "SELECT thumbnail_key, bucket, media_type, filename FROM videos WHERE id = $1",
+      [req.params.videoId],
+    );
+    if (!result.rows[0]?.thumbnail_key) {
+      return res.status(404).json({ error: "Thumbnail not available" });
+    }
+    const { getObjectStream, resolveBucket: resolve } =
+      await import("../services/storage.js");
+    const { bucket } = resolve(result.rows[0].bucket);
+    const stream = await getObjectStream(bucket, result.rows[0].thumbnail_key);
+
+    const isPhoto = result.rows[0].media_type === "photo";
+    if (isPhoto) {
+      const ext = (result.rows[0].filename || result.rows[0].thumbnail_key)
+        .split(".")
+        .pop()
+        ?.toLowerCase();
+      const contentTypes = {
+        jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+        gif: "image/gif", webp: "image/webp",
+      };
+      res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
+    } else {
+      res.setHeader("Content-Type", "image/jpeg");
+    }
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    stream.pipe(res);
+  } catch (error) {
+    res.status(404).json({ error: "Thumbnail not found" });
+  }
+});
 
 // Public Video & Review endpoints (requires valid share token)
 router.get("/public/video/:videoId", validateShareAccess, getPublicVideoInfo);

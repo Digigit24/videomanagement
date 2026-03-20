@@ -85,6 +85,11 @@ export async function getPublicVideoInfo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
+    // Include require_login from the share token (works for both video and folder tokens)
+    if (req.shareToken && req.shareToken.require_login) {
+      video.require_login = true;
+    }
+
     res.json({ video });
   } catch (error) {
     apiError(req, error);
