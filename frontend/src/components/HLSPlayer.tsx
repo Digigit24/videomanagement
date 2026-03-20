@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Settings, Check, Download, Play, Pause, Maximize, Minimize, Volume2, VolumeX, SkipForward, SkipBack } from 'lucide-react';
+import { Settings, Check, Download, Play, Pause, Maximize, Minimize, Volume2, VolumeX, SkipForward, SkipBack, RotateCcw, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HLSPlayerProps {
@@ -18,6 +18,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const progressBarRef = useRef<HTMLDivElement>(null);
 
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -36,6 +37,17 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
   const [isPortrait, setIsPortrait] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [introShown, setIntroShown] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [isLandscapeLocked, setIsLandscapeLocked] = useState(true);
+
+  // Double-tap state
+  const [skipIndicator, setSkipIndicator] = useState<{ side: 'left' | 'right'; key: number } | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
+
+  const isMobile = useRef(false);
+  useEffect(() => {
+    isMobile.current = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+  }, []);
 
   const seekTo = useCallback((time: number) => {
     if (videoRef.current) {
@@ -225,7 +237,14 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
 
   // Fullscreen change listener
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    const handler = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      // Unlock orientation when exiting fullscreen
+      if (!fs && screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch {}
+      }
+    };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
@@ -250,6 +269,17 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     }, 3000);
   }, [isPlaying]);
 
+  const enterFullscreen = useCallback(async () => {
+    if (!containerRef.current || document.fullscreenElement) return;
+    try {
+      await containerRef.current.requestFullscreen();
+      // Lock to landscape on mobile
+      if (isMobile.current && isLandscapeLocked && screen.orientation && 'lock' in screen.orientation) {
+        try { await screen.orientation.lock('landscape'); } catch {}
+      }
+    } catch {}
+  }, [isLandscapeLocked]);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -257,17 +287,21 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       if (!introShown) {
         setShowIntro(true);
         setIntroShown(true);
+        // Auto-enter fullscreen on first play
+        enterFullscreen();
         setTimeout(() => {
           setShowIntro(false);
           v.play();
-        }, 1500);
+        }, 3000);
       } else {
         v.play();
+        // Auto-enter fullscreen on play
+        enterFullscreen();
       }
     } else {
       v.pause();
     }
-  }, [introShown]);
+  }, [introShown, enterFullscreen]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;
@@ -310,22 +344,131 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     setIsMuted(v.muted);
   }, []);
 
-  const toggleFullscreen = useCallback(() => {
+  const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else {
-      containerRef.current.requestFullscreen();
+      try {
+        await containerRef.current.requestFullscreen();
+        if (isMobile.current && isLandscapeLocked && screen.orientation && 'lock' in screen.orientation) {
+          try { await screen.orientation.lock('landscape'); } catch {}
+        }
+      } catch {}
     }
-  }, []);
+  }, [isLandscapeLocked]);
 
-  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const toggleOrientation = useCallback(async () => {
+    if (!screen.orientation || !('lock' in screen.orientation)) return;
+    const newLocked = !isLandscapeLocked;
+    setIsLandscapeLocked(newLocked);
+    if (document.fullscreenElement) {
+      try {
+        if (newLocked) {
+          await screen.orientation.lock('landscape');
+        } else {
+          await screen.orientation.lock('portrait');
+        }
+      } catch {}
+    }
+  }, [isLandscapeLocked]);
+
+  // Progress bar seeking with drag support
+  const seekFromEvent = useCallback((clientX: number) => {
+    const bar = progressBarRef.current;
     const v = videoRef.current;
-    if (!v || !v.duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (!bar || !v || !v.duration) return;
+    const rect = bar.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     v.currentTime = percent * v.duration;
   }, []);
+
+  const handleSeekMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsSeeking(true);
+    seekFromEvent(e.clientX);
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      seekFromEvent(ev.clientX);
+    };
+    const handleMouseUp = () => {
+      setIsSeeking(false);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [seekFromEvent]);
+
+  const handleSeekTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    setIsSeeking(true);
+    seekFromEvent(e.touches[0].clientX);
+
+    const handleTouchMove = (ev: TouchEvent) => {
+      ev.preventDefault();
+      seekFromEvent(ev.touches[0].clientX);
+    };
+    const handleTouchEnd = () => {
+      setIsSeeking(false);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+  }, [seekFromEvent]);
+
+  // Double-tap to skip on mobile
+  const handleVideoTap = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    // Don't handle taps on controls area
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('.quality-panel') || target.closest('[data-controls]')) return;
+
+    const now = Date.now();
+    const touch = e.changedTouches[0];
+    const timeDiff = now - lastTapRef.current.time;
+    const xDiff = Math.abs(touch.clientX - lastTapRef.current.x);
+
+    if (timeDiff < 300 && xDiff < 50) {
+      // Double tap detected
+      e.preventDefault();
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const tapX = touch.clientX - rect.left;
+      const halfWidth = rect.width / 2;
+
+      if (tapX > halfWidth) {
+        // Right side - skip forward
+        skipForward();
+        setSkipIndicator({ side: 'right', key: now });
+      } else {
+        // Left side - skip backward
+        skipBackward();
+        setSkipIndicator({ side: 'left', key: now });
+      }
+      lastTapRef.current = { time: 0, x: 0 };
+    } else {
+      lastTapRef.current = { time: now, x: touch.clientX };
+    }
+  }, [skipForward, skipBackward]);
+
+  // Touch controls: show/hide on single tap, but wait to confirm it's not a double-tap
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout>>();
+  const handleVideoTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('.quality-panel') || target.closest('[data-controls]')) return;
+
+    handleVideoTap(e);
+
+    // Delayed single-tap action (toggle controls)
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = setTimeout(() => {
+      // Only fires if wasn't a double-tap
+      if (Date.now() - lastTapRef.current.time > 300 || lastTapRef.current.time === 0) {
+        setShowControls(prev => !prev);
+      }
+    }, 320);
+  }, [handleVideoTap]);
 
   const setQuality = (levelIndex: number) => {
     if (hlsRef.current) {
@@ -376,13 +519,14 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     <div
       ref={containerRef}
       className={cn(
-        "w-full bg-gray-950 rounded-lg overflow-hidden relative group",
+        "w-full bg-gray-950 rounded-lg overflow-hidden relative group select-none",
         isFullscreen ? "rounded-none" : "",
         isPortrait && !isFullscreen ? "max-h-[75vh]" : ""
       )}
       style={!isFullscreen ? { aspectRatio: isPortrait ? '9/16' : '16/9', maxHeight: isPortrait ? '75vh' : undefined } : undefined}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
+      onTouchEnd={handleVideoTouchEnd}
     >
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
@@ -401,7 +545,12 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         )}
         playsInline
         controlsList="nodownload"
-        onClick={togglePlay}
+        onClick={(e) => {
+          // On desktop, toggle play on click (not on mobile, handled by touch)
+          if (!isMobile.current) {
+            togglePlay();
+          }
+        }}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={() => {
           setLoading(false);
@@ -419,14 +568,47 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         }}
       />
 
-      {/* Digitech Intro Overlay */}
+      {/* Digitech Intro Overlay - 3 seconds with graphics */}
       {showIntro && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black z-30 animate-fade-in">
-          <div className="text-center">
-            <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
-              Digitech
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-30 overflow-hidden">
+          {/* Background particles */}
+          <div className="absolute inset-0">
+            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl animate-intro-particles" />
+            <div className="absolute bottom-1/3 right-1/4 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl animate-intro-particles" style={{ animationDelay: '0.3s' }} />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-3xl animate-intro-particles" style={{ animationDelay: '0.1s' }} />
+          </div>
+          <div className="text-center relative z-10">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white tracking-wider animate-intro-glow">
+              <span className="bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent">
+                Digitech
+              </span>
             </h1>
-            <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
+            <div className="mt-4 h-0.5 bg-gradient-to-r from-transparent via-white/60 to-transparent mx-auto rounded-full animate-intro-line" />
+            <p className="mt-3 text-sm sm:text-base text-white/50 tracking-[0.3em] uppercase animate-intro-subtitle">
+              Video Player
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Double-tap skip indicator */}
+      {skipIndicator && (
+        <div
+          key={skipIndicator.key}
+          className={cn(
+            "absolute top-0 bottom-0 flex items-center justify-center pointer-events-none z-25",
+            skipIndicator.side === 'right' ? 'right-0 w-1/3' : 'left-0 w-1/3'
+          )}
+        >
+          <div className="flex flex-col items-center animate-skip-ripple">
+            <div className="bg-white/20 rounded-full p-4 backdrop-blur-sm">
+              {skipIndicator.side === 'right' ? (
+                <SkipForward className="h-8 w-8 text-white" />
+              ) : (
+                <SkipBack className="h-8 w-8 text-white" />
+              )}
+            </div>
+            <span className="text-white text-sm font-bold mt-1">10s</span>
           </div>
         </div>
       )}
@@ -446,16 +628,23 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       {/* Bottom controls overlay */}
       {!error && (
         <div
+          data-controls="true"
           className={cn(
             "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-3 sm:px-4 pb-2.5 sm:pb-3 pt-12 transition-opacity duration-300 z-20",
             showControls ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
           onClick={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         >
-          {/* Progress bar */}
+          {/* Progress bar - draggable */}
           <div
-            className="w-full h-1 sm:h-1.5 bg-white/20 rounded-full mb-2.5 cursor-pointer group/bar relative"
-            onClick={handleSeek}
+            ref={progressBarRef}
+            className={cn(
+              "w-full bg-white/20 rounded-full mb-2.5 cursor-pointer group/bar relative touch-none",
+              isSeeking ? "h-2 sm:h-2.5" : "h-1 sm:h-1.5"
+            )}
+            onMouseDown={handleSeekMouseDown}
+            onTouchStart={handleSeekTouchStart}
           >
             <div
               className="absolute h-full bg-white/30 rounded-full"
@@ -466,24 +655,27 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
               style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
             />
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity"
-              style={{ left: duration ? `calc(${(currentTime / duration) * 100}% - 6px)` : '0' }}
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-white rounded-full shadow-lg transition-opacity",
+                isSeeking ? "opacity-100 scale-110" : "opacity-0 group-hover/bar:opacity-100"
+              )}
+              style={{ left: duration ? `calc(${(currentTime / duration) * 100}% - 7px)` : '0' }}
             />
           </div>
 
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-1 sm:gap-2">
             {/* Left controls */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5">
+            <div className="flex items-center gap-1 sm:gap-2.5">
               <button onClick={togglePlay} className="text-white hover:text-white/80 transition-colors p-1">
                 {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
               </button>
-              <button onClick={skipBackward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip back 10s">
+              <button onClick={skipBackward} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block" title="Skip back 10s">
                 <div className="relative">
                   <SkipBack className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
                 </div>
               </button>
-              <button onClick={skipForward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip forward 10s">
+              <button onClick={skipForward} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block" title="Skip forward 10s">
                 <div className="relative">
                   <SkipForward className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
@@ -492,18 +684,18 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
               <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block">
                 {isMuted ? <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" /> : <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" />}
               </button>
-              <span className="text-white text-[10px] sm:text-xs font-mono tabular-nums">
+              <span className="text-white text-[9px] sm:text-xs font-mono tabular-nums whitespace-nowrap">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
             </div>
 
             {/* Right controls */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-0.5 sm:gap-2">
               {/* Download */}
               {downloadUrl && (
                 <button
                   onClick={handleDownload}
-                  className="text-white hover:text-white/80 transition-colors p-1"
+                  className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block"
                   title="Download Original"
                 >
                   <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -518,16 +710,16 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
                       e.stopPropagation();
                       setShowQuality(!showQuality);
                     }}
-                    className="flex items-center gap-1 sm:gap-1.5 bg-white/10 hover:bg-white/20 text-white text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg font-medium backdrop-blur-sm transition-all"
+                    className="flex items-center gap-0.5 sm:gap-1.5 bg-white/10 hover:bg-white/20 text-white text-[9px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded-md sm:rounded-lg font-medium backdrop-blur-sm transition-all"
                   >
                     <Settings className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                    <span>{getCurrentQualityLabel()}</span>
+                    <span className="hidden xs:inline">{getCurrentQualityLabel()}</span>
                   </button>
 
                   {showQuality && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowQuality(false); }} />
-                      <div className="absolute bottom-9 sm:bottom-10 right-0 bg-gray-900/95 backdrop-blur-md rounded-lg sm:rounded-xl py-1 sm:py-1.5 min-w-[160px] sm:min-w-[200px] z-50 shadow-2xl border border-gray-700/50 overflow-hidden">
+                      <div className="absolute bottom-9 sm:bottom-10 right-0 bg-gray-900/95 backdrop-blur-md rounded-lg sm:rounded-xl py-1 sm:py-1.5 min-w-[140px] sm:min-w-[200px] z-50 shadow-2xl border border-gray-700/50 overflow-hidden max-h-[50vh] overflow-y-auto">
                         <div className="px-3 py-1 sm:py-1.5 text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-700/50 mb-0.5 sm:mb-1">
                           Video Quality
                         </div>
@@ -576,8 +768,23 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
 
               {/* Mute toggle (mobile) */}
               <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-1 sm:hidden">
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
               </button>
+
+              {/* Orientation toggle (visible in fullscreen on mobile) */}
+              {isFullscreen && (
+                <button
+                  onClick={toggleOrientation}
+                  className="text-white hover:text-white/80 transition-colors p-1"
+                  title={isLandscapeLocked ? 'Switch to portrait' : 'Switch to landscape'}
+                >
+                  {isLandscapeLocked ? (
+                    <Smartphone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  ) : (
+                    <Smartphone className="h-3.5 w-3.5 sm:h-4 sm:w-4 rotate-90" />
+                  )}
+                </button>
+              )}
 
               {/* Fullscreen */}
               <button onClick={toggleFullscreen} className="text-white hover:text-white/80 transition-colors p-1">
