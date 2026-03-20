@@ -210,28 +210,6 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     return () => clearInterval(interval);
   }, [onProgress]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.target !== document.body) return;
-      const video = videoRef.current;
-      if (!video) return;
-      if (e.code === 'Space') {
-        e.preventDefault();
-        togglePlay();
-      } else if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        skipForward();
-      } else if (e.code === 'ArrowLeft') {
-        e.preventDefault();
-        skipBackward();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [togglePlay, skipForward, skipBackward]);
-
   // Close quality menu on outside click
   useEffect(() => {
     if (!showQuality) return;
@@ -302,6 +280,28 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     if (!v) return;
     v.currentTime = Math.max(0, v.currentTime - 10);
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.target !== document.body) return;
+      const video = videoRef.current;
+      if (!video) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        skipForward();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        skipBackward();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [togglePlay, skipForward, skipBackward]);
 
   const toggleMute = useCallback(() => {
     const v = videoRef.current;
