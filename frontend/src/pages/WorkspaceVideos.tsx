@@ -607,22 +607,31 @@ export default function WorkspaceVideos() {
                     }`}
                     style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}
                   >
-                    {/* Selection checkbox */}
-                    {folderSelectMode && (
-                      <div
-                        className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                          isFolderSelected
+                    {/* Selection checkbox - visible on hover or in select mode */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!folderSelectMode) {
+                          setFolderSelectMode(true);
+                          setSelectedFolderIds(new Set([folder.id]));
+                        } else {
+                          handleToggleFolderSelect(folder.id);
+                        }
+                      }}
+                      className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${
+                        folderSelectMode
+                          ? isFolderSelected
                             ? 'bg-blue-600 border-blue-600'
-                            : 'bg-white border-gray-300'
-                        }`}
-                      >
-                        {isFolderSelected && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    )}
+                            : 'bg-white border-gray-300 hover:border-blue-400'
+                          : 'bg-white/80 border-gray-300 opacity-0 group-hover:opacity-100 hover:border-blue-400'
+                      }`}
+                    >
+                      {isFolderSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                         <FolderOpen className="h-5 w-5 text-blue-600" />
@@ -872,6 +881,10 @@ export default function WorkspaceVideos() {
               selectMode={selectMode}
               selectedIds={selectedVideoIds}
               onToggleSelect={handleToggleSelect}
+              onEnterSelectMode={(videoId) => {
+                setSelectMode(true);
+                setSelectedVideoIds(new Set([videoId]));
+              }}
             />
           ) : (
             <KanbanBoard videos={filteredVideos} onVideoUpdate={handleOptimisticUpdate} />

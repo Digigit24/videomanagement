@@ -117,8 +117,15 @@ export default function Dashboard() {
       {/* Hero Banner */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 rounded-2xl p-6 sm:p-8">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
+        {/* Digitech logo watermark - subtle background */}
+        <div className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 opacity-[0.06] pointer-events-none hidden sm:block">
+          <img src="/digitech-logo-light.svg" alt="" className="h-32 w-auto" />
+        </div>
         <div className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
+            <div className="flex items-center gap-2.5 mb-3">
+              <img src="/digitech-logo-light.svg" alt="Digitech Solutions" className="h-8 w-auto opacity-80" />
+            </div>
             <p className="text-blue-300 text-xs font-medium tracking-wider uppercase mb-1">Welcome back</p>
             <h1 className="text-2xl sm:text-3xl font-bold text-white">
               {userName}

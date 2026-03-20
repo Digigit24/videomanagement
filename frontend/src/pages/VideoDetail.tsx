@@ -11,7 +11,7 @@ import TimestampPanel from '@/components/TimestampPanel';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Eye, Download, Trash2, Clock, Link2, Copy, Check, MessageSquare, MessageCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Eye, Download, Archive, Trash2, Clock, Link2, Copy, Check, MessageSquare, MessageCircle, RefreshCw } from 'lucide-react';
 import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ReactPlayer from 'react-player';
@@ -431,6 +431,19 @@ export default function VideoDetail() {
     window.open(url, '_blank');
   };
 
+  const [zipDownloading, setZipDownloading] = useState(false);
+  const handleDownloadZip = async () => {
+    if (!video || !currentBucket || zipDownloading) return;
+    setZipDownloading(true);
+    try {
+      await videoService.downloadZip([video.id], currentBucket);
+    } catch (error) {
+      console.error('ZIP download failed:', error);
+    } finally {
+      setZipDownloading(false);
+    }
+  };
+
   const getVideoShareUrl = () => {
     if (!video || !shareToken) return '';
     return `${APP_URL}/v/${video.id}?token=${shareToken}`;
@@ -673,10 +686,20 @@ export default function VideoDetail() {
             )}
           </div>
 
-          {/* Download */}
+          {/* Download Original */}
           <Button variant="outline" size="sm" onClick={handleDownload} className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 flex-shrink-0">
             <Download className="h-3.5 w-3.5 sm:mr-1" />
             <span className="hidden sm:inline">Download</span>
+          </Button>
+
+          {/* Download ZIP */}
+          <Button variant="outline" size="sm" onClick={handleDownloadZip} disabled={zipDownloading} className="text-xs text-blue-700 border-blue-200 hover:bg-blue-50 flex-shrink-0">
+            {zipDownloading ? (
+              <div className="w-3.5 h-3.5 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin sm:mr-1" />
+            ) : (
+              <Archive className="h-3.5 w-3.5 sm:mr-1" />
+            )}
+            <span className="hidden sm:inline">{zipDownloading ? 'Zipping...' : 'ZIP'}</span>
           </Button>
 
           {/* Delete */}

@@ -12,6 +12,7 @@ interface VideoTableProps {
   selectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  onEnterSelectMode?: (videoId: string) => void;
 }
 
 const statusColors: Record<VideoStatus, string> = {
@@ -209,7 +210,7 @@ function CopyLinkButton({ videoId }: { videoId: string }) {
   );
 }
 
-export default function VideoTable({ videos, selectMode, selectedIds, onToggleSelect }: VideoTableProps) {
+export default function VideoTable({ videos, selectMode, selectedIds, onToggleSelect, onEnterSelectMode }: VideoTableProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const navigate = useNavigate();
@@ -272,22 +273,30 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
               }`}
             >
               <div className="p-3 relative">
-                {/* Selection checkbox */}
-                {selectMode && (
-                  <div
-                    className={`absolute top-4 left-4 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      selectedIds?.has(video.id)
+                {/* Selection checkbox - visible on hover or in select mode */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!selectMode && onEnterSelectMode) {
+                      onEnterSelectMode(video.id);
+                    } else if (onToggleSelect) {
+                      onToggleSelect(video.id);
+                    }
+                  }}
+                  className={`absolute top-4 left-4 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer ${
+                    selectMode
+                      ? selectedIds?.has(video.id)
                         ? 'bg-blue-600 border-blue-600'
-                        : 'bg-white/80 border-gray-300 backdrop-blur-sm'
-                    }`}
-                  >
-                    {selectedIds?.has(video.id) && (
-                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </div>
-                )}
+                        : 'bg-white/80 border-gray-300 backdrop-blur-sm hover:border-blue-400'
+                      : 'bg-white/80 border-gray-300 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:border-blue-400'
+                  }`}
+                >
+                  {selectedIds?.has(video.id) && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
                 <VideoThumbnail video={video} />
 
                 <div className="flex items-center gap-1.5 mb-1">
