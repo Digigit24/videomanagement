@@ -149,14 +149,12 @@ export default function VideoDetail() {
   const currentBucket = bucket || contextBucket;
   const navigate = useNavigate();
 
-  // Back button: navigate to workspace
+  // Back button: force full navigation to workspace
+  // Using window.location because React Router navigate() doesn't
+  // reliably unmount VideoDetail when going to sibling route
   const handleBack = useCallback(() => {
-    if (currentBucket) {
-      navigate(`/workspace/${currentBucket}`);
-    } else {
-      navigate('/');
-    }
-  }, [currentBucket, navigate]);
+    window.location.href = currentBucket ? `/workspace/${currentBucket}` : '/';
+  }, [currentBucket]);
   const playerRef = useRef<ReactPlayer>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
