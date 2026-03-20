@@ -125,6 +125,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV13);
 
+    // Run v14 migrations (folder share tokens)
+    const migrationsV14 = fs.readFileSync(
+      path.join(__dirname, "migrations_v14.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV14);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

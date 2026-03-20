@@ -148,6 +148,15 @@ export default function VideoDetail() {
   const { currentBucket: contextBucket } = useBucket();
   const currentBucket = bucket || contextBucket;
   const navigate = useNavigate();
+
+  // Back button: navigate to workspace (not browser history, which can be unreliable)
+  const handleBack = () => {
+    if (currentBucket) {
+      navigate(`/workspace/${currentBucket}`);
+    } else {
+      navigate('/');
+    }
+  };
   const playerRef = useRef<ReactPlayer>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -540,23 +549,12 @@ export default function VideoDetail() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              // Use browser history if available for proper back navigation
-              if (window.history.length > 1) {
-                navigate(-1);
-              } else if (currentBucket) {
-                navigate(`/workspace/${currentBucket}`);
-              } else {
-                navigate('/');
-              }
-            }}
-            className="text-gray-500 hover:text-gray-700 flex-shrink-0"
+            onClick={handleBack}
+            className="text-gray-400 hover:text-gray-700 flex-shrink-0 h-8 w-8 p-0"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Back</span>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="h-4 w-px bg-gray-200 hidden sm:block" />
-          <h1 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">
+          <h1 className="text-sm sm:text-base font-semibold text-gray-900 truncate">
             {video.filename}
           </h1>
         </div>

@@ -22,6 +22,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const ROLE_LABELS: Record<string, string> = {
     admin: 'Admin',
@@ -122,7 +123,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
               )}
             </div>
 
-            <Button variant="ghost" size="sm" onClick={onLogout} className="hidden sm:flex text-gray-400 hover:text-gray-600 h-8 px-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowLogoutConfirm(true)} className="hidden sm:flex text-gray-400 hover:text-gray-600 h-8 px-2">
               <LogOut className="h-3.5 w-3.5" />
             </Button>
 
@@ -181,7 +182,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
 
             {/* Logout */}
             <button
-              onClick={() => { onLogout(); setMobileMenuOpen(false); }}
+              onClick={() => { setMobileMenuOpen(false); setShowLogoutConfirm(true); }}
               className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
             >
               <LogOut className="h-4 w-4" />
@@ -189,6 +190,24 @@ export default function Header({ user, onLogout }: HeaderProps) {
             </button>
           </div>
         </div>
+      )}
+      {/* Logout Confirmation */}
+      {showLogoutConfirm && (
+        <>
+          <div className="fixed inset-0 z-[200] bg-black/30 backdrop-blur-[2px]" onClick={() => setShowLogoutConfirm(false)} />
+          <div className="fixed z-[201] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-[340px] animate-scale-in">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Sign out?</h3>
+            <p className="text-sm text-gray-500 mb-5">Are you sure you want to log out of your account?</p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowLogoutConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" size="sm" className="flex-1" onClick={() => { setShowLogoutConfirm(false); onLogout(); }}>
+                <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sign Out
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </header>
   );

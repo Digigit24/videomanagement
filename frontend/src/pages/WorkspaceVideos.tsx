@@ -13,7 +13,7 @@ import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare, Share2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
@@ -43,6 +43,11 @@ export default function WorkspaceVideos() {
   const [folderSelectMode, setFolderSelectMode] = useState(false);
   const [folderBulkDownloading, setFolderBulkDownloading] = useState(false);
   const [folderDownloading, setFolderDownloading] = useState(false);
+  const [folderShareModal, setFolderShareModal] = useState<{ folderId: string; folderName: string } | null>(null);
+  const [folderShareToken, setFolderShareToken] = useState<string | null>(null);
+  const [folderShareLoading, setFolderShareLoading] = useState(false);
+  const [folderShareRequireLogin, setFolderShareRequireLogin] = useState(false);
+  const [copiedFolderLink, setCopiedFolderLink] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'loading'; persistent?: boolean } | null>(null);
   const userRole = localStorage.getItem('userRole') || 'member';
   const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
@@ -300,6 +305,53 @@ export default function WorkspaceVideos() {
     setSelectedFolderIds(new Set());
   };
 
+  const handleOpenFolderShare = async (folderId: string, folderName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFolderShareModal({ folderId, folderName });
+    setFolderShareToken(null);
+    setFolderShareLoading(true);
+    setCopiedFolderLink(false);
+    try {
+      const token = await folderService.getShareToken(folderId, folderShareRequireLogin);
+      setFolderShareToken(token);
+    } catch {
+      setToast({ message: 'Failed to generate share link', type: 'error' });
+    } finally {
+      setFolderShareLoading(false);
+    }
+  };
+
+  const handleFolderShareRequireLoginToggle = async () => {
+    if (!folderShareModal) return;
+    const newValue = !folderShareRequireLogin;
+    setFolderShareRequireLogin(newValue);
+    setFolderShareToken(null);
+    setFolderShareLoading(true);
+    try {
+      const token = await folderService.getShareToken(folderShareModal.folderId, newValue);
+      setFolderShareToken(token);
+    } catch {} finally {
+      setFolderShareLoading(false);
+    }
+  };
+
+  const getFolderShareUrl = () => {
+    if (!folderShareToken) return '';
+    return `${window.location.origin}/shared/folder/${folderShareToken}`;
+  };
+
+  const handleCopyFolderLink = async () => {
+    const url = getFolderShareUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedFolderLink(true);
+      setTimeout(() => setCopiedFolderLink(false), 2500);
+    } catch {
+      window.prompt('Copy this link:', url);
+    }
+  };
+
   const loadAnalytics = async () => {
     if (!bucket) return;
     try {
@@ -373,60 +425,41 @@ export default function WorkspaceVideos() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-5 animate-fade-in">
+    <div className="max-w-6xl mx-auto space-y-5 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700 flex-shrink-0">
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          <span className="hidden sm:inline">Back</span>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700 flex-shrink-0 h-8 w-8 p-0">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="h-4 w-px bg-gray-200 hidden sm:block" />
-        <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{workspace?.client_name || bucket}</h1>
+        <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">{workspace?.client_name || bucket}</h1>
         {selectedFolder && selectedFolderObj && (
           <>
-            <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
-            <span className="text-sm font-medium text-blue-600 truncate">{selectedFolderObj.name}</span>
+            <ChevronRight className="h-4 w-4 text-gray-300 flex-shrink-0" />
+            <span className="text-sm font-medium text-gray-600 truncate">{selectedFolderObj.name}</span>
           </>
         )}
         <div className="flex-1" />
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <span>{folders.length} folders</span>
+          <span>&middot;</span>
+          <span>{totalVideoCount} videos</span>
+          <span>&middot;</span>
+          <span>{totalPhotoCount} photos</span>
+        </div>
         {workspace && (
-          <Button variant="outline" size="sm" onClick={() => setShowManageMembers(true)} className="gap-1.5 flex-shrink-0 h-8 text-xs">
-            <Users className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" onClick={() => setShowManageMembers(true)} className="flex-shrink-0 h-8 text-xs px-3">
+            <Users className="h-3.5 w-3.5 sm:mr-1.5" />
             <span className="hidden sm:inline">Members</span>
           </Button>
         )}
       </div>
 
-      {/* Quick Stats Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <div className="bg-white border border-gray-200 rounded-lg p-3">
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Folders</p>
-          <p className="text-xl font-bold text-gray-900">{folders.length}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-3">
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Videos</p>
-          <p className="text-xl font-bold text-gray-900">{totalVideoCount}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-3">
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Photos</p>
-          <p className="text-xl font-bold text-gray-900">{totalPhotoCount}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-3">
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Approved</p>
-          <p className="text-xl font-bold text-emerald-600">{stats.approved + stats.posted}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-3 hidden sm:block">
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Pending Review</p>
-          <p className="text-xl font-bold text-amber-600">{stats.pending + stats.underReview}</p>
-        </div>
-      </div>
-
       {/* Tab Navigation */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
         <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
           <button
             onClick={() => { setActiveTab('folders'); setSelectedFolder(null); }}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
               activeTab === 'folders' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -436,7 +469,7 @@ export default function WorkspaceVideos() {
           {workspace && (
             <button
               onClick={() => setActiveTab('chat')}
-              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 activeTab === 'chat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -446,7 +479,7 @@ export default function WorkspaceVideos() {
           )}
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-md text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
               activeTab === 'analytics' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -595,12 +628,19 @@ export default function WorkspaceVideos() {
                         <FolderOpen className="h-5 w-5 text-blue-600" />
                       </div>
                       {!folderSelectMode && (
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={(e) => handleOpenFolderShare(folder.id, folder.name, e)}
+                            className="p-1.5 text-gray-400 hover:text-violet-600 transition-colors rounded-lg hover:bg-violet-50"
+                            title="Share folder"
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             onClick={(e) => handleFolderDownloadZip(folder.id, e)}
                             disabled={folderDownloading}
-                            className="p-1.5 text-gray-300 hover:text-blue-600 transition-all rounded-lg hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                            title="Download folder as ZIP"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 disabled:opacity-40"
+                            title="Download as ZIP"
                           >
                             {folderDownloading ? (
                               <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
@@ -608,17 +648,10 @@ export default function WorkspaceVideos() {
                               <Archive className="h-3.5 w-3.5" />
                             )}
                           </button>
-                          <button
-                            onClick={(e) => handleFolderDownloadOriginal(folder.id, e)}
-                            className="p-1.5 text-gray-300 hover:text-green-600 transition-all rounded-lg hover:bg-green-50"
-                            title="Download all files (Original)"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </button>
                           {canDeleteFolder && (
                             <button
                               onClick={(e) => handleDeleteFolder(folder.id, e)}
-                              className="p-1.5 text-gray-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
+                              className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
                               title="Delete folder"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -997,6 +1030,63 @@ export default function WorkspaceVideos() {
           workspaceId={workspace.id}
           onClose={() => { setShowManageMembers(false); loadWorkspaceInfo(); }}
         />
+      )}
+
+      {/* Folder Share Modal */}
+      {folderShareModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]" onClick={() => setFolderShareModal(null)} />
+          <div className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 p-5 w-[360px] max-w-[calc(100vw-2rem)] animate-scale-in">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Share Folder</h3>
+            <p className="text-xs text-gray-500 mb-4">Share "{folderShareModal.folderName}" — recipients will only see videos in this folder.</p>
+
+            {folderShareLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                <span className="text-xs text-gray-500 ml-2">Generating link...</span>
+              </div>
+            ) : folderShareToken ? (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    readOnly
+                    value={getFolderShareUrl()}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-600 font-mono"
+                  />
+                  <button
+                    onClick={handleCopyFolderLink}
+                    className="px-3 py-2.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors flex-shrink-0"
+                  >
+                    {copiedFolderLink ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <div>
+                    <p className="text-xs font-medium text-gray-700">Require account</p>
+                    <p className="text-[10px] text-gray-400">Viewer must log in to see content</p>
+                  </div>
+                  <button
+                    onClick={handleFolderShareRequireLoginToggle}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${folderShareRequireLogin ? 'bg-blue-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${folderShareRequireLogin ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-red-500 text-center py-4">Failed to generate link. Try again.</p>
+            )}
+
+            <button
+              onClick={() => setFolderShareModal(null)}
+              className="w-full mt-3 text-xs text-gray-500 hover:text-gray-700 py-2 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </>
       )}
 
       {toast && <Toast message={toast.message} type={toast.type} persistent={toast.persistent} onClose={() => setToast(null)} />}

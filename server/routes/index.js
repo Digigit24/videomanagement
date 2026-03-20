@@ -27,6 +27,8 @@ import {
   downloadBulk,
   downloadBulkFolders,
   getFolderFileIds,
+  createFolderShareToken,
+  getSharedFolder,
 } from "../controllers/folder.js";
 import {
   getUserPermissions,
@@ -302,6 +304,10 @@ router.get("/folder/:folderId/download", authenticateStream, downloadFolder);
 router.post("/download/bulk", authenticate, downloadBulk);
 router.post("/download/bulk-folders", authenticate, downloadBulkFolders);
 router.post("/download/folder-files", authenticate, getFolderFileIds);
+
+// Folder sharing
+router.post("/folder/:folderId/share-token", authenticate, createFolderShareToken);
+router.get("/public/folder/:token", getSharedFolder);
 
 // Per-workspace permissions
 router.get(

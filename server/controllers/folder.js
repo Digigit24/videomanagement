@@ -11,6 +11,7 @@ import { apiError } from "../utils/logger.js";
 import archiver from "archiver";
 import { getPool } from "../db/index.js";
 import { getObjectStream } from "../services/storage.js";
+import crypto from "crypto";
 
 export async function listFolders(req, res) {
   try {
@@ -300,6 +301,91 @@ export async function downloadBulkFolders(req, res) {
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to download folders" });
     }
+  }
+}
+
+// === Folder Share Tokens ===
+
+export async function createFolderShareToken(req, res) {
+  try {
+    const { folderId } = req.params;
+    const { requireLogin } = req.body;
+    const pool = getPool();
+
+    const folder = await getFolderById(folderId);
+    if (!folder) {
+      return res.status(404).json({ error: "Folder not found" });
+    }
+
+    // Check for existing active token
+    const existing = await pool.query(
+      `SELECT * FROM folder_share_tokens WHERE folder_id = $1 AND active = true LIMIT 1`,
+      [folderId],
+    );
+
+    if (existing.rows[0]) {
+      // Update require_login if changed
+      if (existing.rows[0].require_login !== !!requireLogin) {
+        await pool.query(
+          `UPDATE folder_share_tokens SET require_login = $1, updated_at = NOW() WHERE id = $2`,
+          [!!requireLogin, existing.rows[0].id],
+        );
+        existing.rows[0].require_login = !!requireLogin;
+      }
+      return res.json({ token: existing.rows[0].token, folderId, requireLogin: existing.rows[0].require_login });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    await pool.query(
+      `INSERT INTO folder_share_tokens (folder_id, token, created_by, require_login) VALUES ($1, $2, $3, $4)`,
+      [folderId, token, req.user.id, !!requireLogin],
+    );
+
+    res.json({ token, folderId, requireLogin: !!requireLogin });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to create share token" });
+  }
+}
+
+// Public: get folder info + videos via share token
+export async function getSharedFolder(req, res) {
+  try {
+    const { token } = req.params;
+    const pool = getPool();
+
+    const tokenResult = await pool.query(
+      `SELECT fst.*, f.name as folder_name, f.workspace_id
+       FROM folder_share_tokens fst
+       JOIN folders f ON fst.folder_id = f.id
+       WHERE fst.token = $1 AND fst.active = true`,
+      [token],
+    );
+
+    if (!tokenResult.rows[0]) {
+      return res.status(404).json({ error: "Invalid or expired share link" });
+    }
+
+    const shareData = tokenResult.rows[0];
+
+    // Get videos in the folder
+    const videosResult = await pool.query(
+      `SELECT id, filename, media_type, size, status, hls_ready, created_at, thumbnail_key
+       FROM videos WHERE folder_id = $1 AND is_active_version = TRUE ORDER BY created_at DESC`,
+      [shareData.folder_id],
+    );
+
+    res.json({
+      folder: {
+        id: shareData.folder_id,
+        name: shareData.folder_name,
+      },
+      videos: videosResult.rows,
+      requireLogin: shareData.require_login,
+    });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to load shared folder" });
   }
 }
 

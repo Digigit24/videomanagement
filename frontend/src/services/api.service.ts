@@ -258,6 +258,11 @@ export const folderService = {
     const { data } = await api.post("/download/folder-files", { folderIds });
     return data.files as { id: string; bucket: string }[];
   },
+
+  getShareToken: async (folderId: string, requireLogin: boolean = false) => {
+    const { data } = await api.post(`/folder/${folderId}/share-token`, { requireLogin });
+    return data.token as string;
+  },
 };
 
 export const permissionService = {

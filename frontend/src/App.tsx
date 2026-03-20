@@ -12,19 +12,21 @@ import RecycleBin from '@/pages/RecycleBin';
 import SchemaGenerator from '@/pages/SchemaGenerator';
 
 import VideoReview from '@/pages/VideoReview';
+import SharedFolder from '@/pages/SharedFolder';
 
 function AppContent() {
   const { user, loading, login, logout } = useAuth();
   const location = useLocation();
 
   // Public routes - accessible without authentication
-  const isPublicRoute = location.pathname.startsWith('/v/') || location.pathname === '/schema-generator';
+  const isPublicRoute = location.pathname.startsWith('/v/') || location.pathname.startsWith('/shared/') || location.pathname === '/schema-generator';
 
   if (isPublicRoute) {
     return (
       <Routes>
         <Route path="/v/:videoId/review" element={<VideoReview />} />
         <Route path="/v/:videoId" element={<VideoReview />} />
+        <Route path="/shared/folder/:token" element={<SharedFolder />} />
         <Route path="/schema-generator" element={<SchemaGenerator />} />
       </Routes>
     );
