@@ -198,7 +198,7 @@ export default function Dashboard() {
           {filteredWorkspaces.map((workspace, i) => (
             <div
               key={workspace.id}
-              className="group bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer relative animate-fade-in-up"
+              className={`group bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer relative animate-fade-in-up ${contextMenu === workspace.id ? 'z-50' : ''}`}
               style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}
               onClick={() => navigate(`/workspace/${workspace.bucket}`)}
             >
@@ -237,31 +237,34 @@ export default function Dashboard() {
                     </button>
 
                     {contextMenu === workspace.id && (
-                      <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 animate-scale-in">
-                        <button
-                          onClick={() => handleCreateInvitation(workspace.id)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <LinkIcon className="h-3.5 w-3.5 text-gray-400" /> Copy Invite Link
-                        </button>
-                        <button
-                          onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 text-gray-400" /> Open Workspace
-                        </button>
-                        {isAdmin && (
-                          <>
-                            <div className="border-t border-gray-100 my-1" />
-                            <button
-                              onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" /> Delete Workspace
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+                        <div className="absolute right-0 top-8 w-52 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 py-1.5 animate-scale-in">
+                          <button
+                            onClick={() => handleCreateInvitation(workspace.id)}
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <LinkIcon className="h-3.5 w-3.5 text-gray-400" /> Copy Invite Link
+                          </button>
+                          <button
+                            onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5 text-gray-400" /> Open Workspace
+                          </button>
+                          {isAdmin && (
+                            <>
+                              <div className="border-t border-gray-100 my-1" />
+                              <button
+                                onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" /> Delete Workspace
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}

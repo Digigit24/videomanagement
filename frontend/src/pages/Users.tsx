@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { userService } from '@/services/api.service';
 import { User, UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users as UsersIcon, Plus, Trash2, Mail, Calendar, Building2 } from 'lucide-react';
+import { Users as UsersIcon, Plus, Trash2, Mail, Calendar, Building2, ArrowLeft } from 'lucide-react';
 import { formatDate, getApiUrl } from '@/lib/utils';
 import { Toast } from '@/components/ui/toast';
 import DeleteUserModal from '@/components/DeleteUserModal';
@@ -31,6 +32,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function UsersPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -95,21 +97,37 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <UsersIcon className="h-5 w-5 text-gray-600" />
-          <h1 className="text-lg font-semibold text-gray-900">Team Management</h1>
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{users.length} users</span>
+    <div className="space-y-6 animate-fade-in">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
+
+        <div className="relative px-6 sm:px-8 py-6 sm:py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-400 hover:text-white flex-shrink-0 h-8 w-8 p-0">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+                Team Management
+              </h1>
+              <div className="flex items-center gap-4 mt-1.5 text-sm text-gray-400">
+                <span>{users.length} users</span>
+                <span className="text-gray-600">/</span>
+                <span>{users.filter(u => u.is_org_member).length} org members</span>
+              </div>
+            </div>
+          </div>
+          <Button onClick={() => setShowAddModal(true)} size="sm" className="text-xs h-8 bg-white text-gray-900 hover:bg-gray-100 flex-shrink-0">
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add User
+          </Button>
         </div>
-        <Button onClick={() => setShowAddModal(true)} size="sm">
-          <Plus className="h-4 w-4 mr-1" />
-          Add User
-        </Button>
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-3">
+      <div className="flex gap-2 flex-wrap">
         {['admin', 'video_editor', 'project_manager', 'social_media_manager', 'client', 'member'].map(role => {
           const count = users.filter(u => u.role === role).length;
           if (count === 0) return null;
@@ -125,9 +143,9 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {users.map(user => (
-          <div key={user.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {users.map((user, i) => (
+          <div key={user.id} className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all animate-fade-in-up" style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}>
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 {user.avatar_url ? (

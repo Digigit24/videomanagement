@@ -426,32 +426,43 @@ export default function WorkspaceVideos() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700 flex-shrink-0 h-8 w-8 p-0">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">{workspace?.client_name || bucket}</h1>
-        {selectedFolder && selectedFolderObj && (
-          <>
-            <ChevronRight className="h-4 w-4 text-gray-300 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-600 truncate">{selectedFolderObj.name}</span>
-          </>
-        )}
-        <div className="flex-1" />
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-          <span>{folders.length} folders</span>
-          <span>&middot;</span>
-          <span>{totalVideoCount} videos</span>
-          <span>&middot;</span>
-          <span>{totalPhotoCount} photos</span>
+      {/* Hero Header */}
+      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl" />
+
+        <div className="relative px-6 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-400 hover:text-white flex-shrink-0 h-8 w-8 p-0">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-lg sm:text-xl font-semibold text-white tracking-tight truncate">{workspace?.client_name || bucket}</h1>
+                {selectedFolder && selectedFolderObj && (
+                  <>
+                    <ChevronRight className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-300 truncate">{selectedFolderObj.name}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-4 mt-1 text-sm text-gray-400">
+                <span>{folders.length} folders</span>
+                <span className="text-gray-600">/</span>
+                <span>{totalVideoCount} videos</span>
+                <span className="text-gray-600">/</span>
+                <span>{totalPhotoCount} photos</span>
+              </div>
+            </div>
+          </div>
+          {workspace && (
+            <Button variant="outline" size="sm" onClick={() => setShowManageMembers(true)} className="text-xs h-8 bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white flex-shrink-0">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              Members
+            </Button>
+          )}
         </div>
-        {workspace && (
-          <Button variant="outline" size="sm" onClick={() => setShowManageMembers(true)} className="flex-shrink-0 h-8 text-xs px-3">
-            <Users className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Members</span>
-          </Button>
-        )}
       </div>
 
       {/* Tab Navigation */}

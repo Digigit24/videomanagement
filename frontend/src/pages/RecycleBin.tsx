@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { recycleBinService, videoService, workspaceService } from '@/services/api.service';
 import { Workspace, User, DeletedVideo } from '@/types';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Trash2, User as UserIcon, Building2, FileVideo, AlertTriangle, X } from 'lucide-react';
+import { RefreshCw, Trash2, User as UserIcon, Building2, FileVideo, AlertTriangle, X, ArrowLeft } from 'lucide-react';
 import { formatDate, formatBytes } from '@/lib/utils';
 import { Toast } from '@/components/ui/toast';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function RecycleBin() {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [deletedWorkspaces, setDeletedWorkspaces] = useState<Workspace[]>([]);
   const [deletedUsers, setDeletedUsers] = useState<User[]>([]);
@@ -159,33 +161,48 @@ export default function RecycleBin() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Trash2 className="h-6 w-6 text-gray-500" />
-            Recycle Bin
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Items stay here until you restore or permanently delete them.
-          </p>
+    <div className="space-y-6 animate-fade-in">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-red-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl" />
+
+        <div className="relative px-6 sm:px-8 py-6 sm:py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-gray-400 hover:text-white flex-shrink-0 h-8 w-8 p-0">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+                Recycle Bin
+              </h1>
+              <div className="flex items-center gap-4 mt-1.5 text-sm text-gray-400">
+                <span>{deletedVideos.length} videos</span>
+                <span className="text-gray-600">/</span>
+                <span>{deletedWorkspaces.length} workspaces</span>
+                <span className="text-gray-600">/</span>
+                <span>{deletedUsers.length} users</span>
+              </div>
+            </div>
+          </div>
+          {isAdmin && totalItems > 0 && (
+            <Button
+              size="sm"
+              className="text-xs h-8 bg-red-600 text-white hover:bg-red-700 flex-shrink-0"
+              onClick={() => { setShowClearModal(true); setClearError(''); setClearPassword(''); }}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Clear Bin
+            </Button>
+          )}
         </div>
-        {isAdmin && totalItems > 0 && (
-          <Button
-            variant="outline"
-            className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-            onClick={() => { setShowClearModal(true); setClearError(''); setClearPassword(''); }}
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear Bin
-          </Button>
-        )}
       </div>
 
       {/* Clear Bin Password Modal */}
       {showClearModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md mx-4 p-6 animate-scale-in">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -259,17 +276,21 @@ export default function RecycleBin() {
 
       {/* Deleted Videos Section */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <FileVideo className="h-5 w-5 text-orange-500" />
-          Deleted Videos & Photos ({deletedVideos.length})
+        <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <FileVideo className="h-4 w-4 text-orange-500" />
+          Deleted Videos & Photos
+          <span className="text-gray-400 font-normal">{deletedVideos.length}</span>
         </h2>
 
         {deletedVideos.length === 0 ? (
-          <p className="text-gray-500 text-sm italic">No deleted videos or photos</p>
+          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
+            <FileVideo className="h-8 w-8 mx-auto mb-2 text-gray-200" />
+            <p className="text-sm text-gray-500">No deleted videos or photos</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {deletedVideos.map(video => (
-              <div key={video.id} className="bg-white border border-red-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {deletedVideos.map((video, i) => (
+              <div key={video.id} className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all animate-fade-in-up" style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}>
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900 text-sm truncate">{video.filename}</h3>
@@ -316,17 +337,21 @@ export default function RecycleBin() {
 
       {/* Workspaces Section */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-blue-500" />
-          Deleted Workspaces ({deletedWorkspaces.length})
+        <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-blue-500" />
+          Deleted Workspaces
+          <span className="text-gray-400 font-normal">{deletedWorkspaces.length}</span>
         </h2>
 
         {deletedWorkspaces.length === 0 ? (
-          <p className="text-gray-500 text-sm italic">No deleted workspaces</p>
+          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
+            <Building2 className="h-8 w-8 mx-auto mb-2 text-gray-200" />
+            <p className="text-sm text-gray-500">No deleted workspaces</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {deletedWorkspaces.map(ws => (
-              <div key={ws.id} className="bg-white border border-red-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {deletedWorkspaces.map((ws, i) => (
+              <div key={ws.id} className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all animate-fade-in-up" style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}>
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="font-semibold text-gray-900">{ws.client_name}</h3>
@@ -360,17 +385,21 @@ export default function RecycleBin() {
 
       {/* Users Section */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <UserIcon className="h-5 w-5 text-purple-500" />
-          Deleted Users ({deletedUsers.length})
+        <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <UserIcon className="h-4 w-4 text-purple-500" />
+          Deleted Users
+          <span className="text-gray-400 font-normal">{deletedUsers.length}</span>
         </h2>
 
         {deletedUsers.length === 0 ? (
-          <p className="text-gray-500 text-sm italic">No deleted users</p>
+          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
+            <UserIcon className="h-8 w-8 mx-auto mb-2 text-gray-200" />
+            <p className="text-sm text-gray-500">No deleted users</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {deletedUsers.map(user => (
-              <div key={user.id} className="bg-white border border-red-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {deletedUsers.map((user, i) => (
+              <div key={user.id} className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all animate-fade-in-up" style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}>
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
                     {user.avatar_url ? (

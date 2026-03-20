@@ -559,14 +559,12 @@ export default function VideoDetail() {
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={handleBack}
-            className="text-gray-400 hover:text-gray-700 flex-shrink-0 h-8 w-8 p-0"
+            className="flex items-center justify-center h-8 w-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
-          </Button>
+          </button>
           <h1 className="text-sm sm:text-base font-semibold text-gray-900 truncate">
             {video.filename}
           </h1>
