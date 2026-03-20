@@ -380,24 +380,29 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     if (!bar || !v || !v.duration) return;
     const rect = bar.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    v.currentTime = percent * v.duration;
+    const newTime = percent * v.duration;
+    v.currentTime = newTime;
+    // Update state immediately so the white line follows the cursor
+    setCurrentTime(newTime);
   }, []);
 
   const handleSeekMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsSeeking(true);
     seekFromEvent(e.clientX);
 
-    const handleMouseMove = (ev: MouseEvent) => {
+    const onMove = (ev: MouseEvent) => {
+      ev.preventDefault();
       seekFromEvent(ev.clientX);
     };
-    const handleMouseUp = () => {
+    const onUp = () => {
       setIsSeeking(false);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
     };
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   }, [seekFromEvent]);
 
   const handleSeekTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
@@ -405,17 +410,17 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     setIsSeeking(true);
     seekFromEvent(e.touches[0].clientX);
 
-    const handleTouchMove = (ev: TouchEvent) => {
+    const onMove = (ev: TouchEvent) => {
       ev.preventDefault();
       seekFromEvent(ev.touches[0].clientX);
     };
-    const handleTouchEnd = () => {
+    const onEnd = () => {
       setIsSeeking(false);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
     };
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
   }, [seekFromEvent]);
 
   // Double-tap to skip on mobile
@@ -651,7 +656,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
               style={{ width: duration ? `${(buffered / duration) * 100}%` : '0%' }}
             />
             <div
-              className="absolute h-full bg-white rounded-full transition-[width] duration-100"
+              className="absolute h-full bg-white rounded-full"
               style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
             />
             <div
