@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <defs>
+    <linearGradient id="globe-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a2744"/>
+      <stop offset="100%" style="stop-color:#1e3a5f"/>
+    </linearGradient>
+    <linearGradient id="green-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#38a169"/>
+      <stop offset="100%" style="stop-color:#68d391"/>
+    </linearGradient>
+    <linearGradient id="d-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8a317"/>
+      <stop offset="30%" style="stop-color:#dd6b20"/>
+      <stop offset="60%" style="stop-color:#38a169"/>
+      <stop offset="100%" style="stop-color:#3182ce"/>
+    </linearGradient>
+  </defs>
+  <!-- Globe arc segments (navy) -->
+  <g opacity="0.9">
+    <path d="M60 100 Q60 50 100 30 Q80 50 75 80 Q72 95 60 100Z" fill="url(#globe-grad)"/>
+    <path d="M100 25 Q130 15 160 25 Q140 30 125 50 Q110 35 100 25Z" fill="url(#globe-grad)"/>
+    <path d="M55 105 Q50 130 65 155 Q70 135 80 120 Q65 115 55 105Z" fill="url(#globe-grad)"/>
+    <path d="M70 160 Q90 175 120 180 Q105 170 95 155 Q82 165 70 160Z" fill="url(#globe-grad)"/>
+  </g>
+  <!-- Globe arc segments (green) -->
+  <g opacity="0.8">
+    <path d="M160 30 Q175 25 185 35 Q175 40 165 45 Q160 38 160 30Z" fill="url(#green-grad)"/>
+    <path d="M185 40 Q195 50 195 65 Q185 58 178 52 Q180 45 185 40Z" fill="url(#green-grad)"/>
+    <path d="M195 70 Q200 85 195 100 Q190 90 185 82 Q190 76 195 70Z" fill="url(#green-grad)"/>
+    <path d="M130 175 Q150 185 175 180 Q160 178 150 170 Q140 175 130 175Z" fill="url(#green-grad)"/>
+    <path d="M180 175 Q195 165 200 148 Q195 158 185 165 Q183 170 180 175Z" fill="url(#green-grad)"/>
+  </g>
+  <!-- Colorful D letter -->
+  <text x="115" y="135" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="110" fill="url(#d-grad)">D</text>
+  <!-- DIGITECH text -->
+  <text x="195" y="105" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="42" fill="#1a2744" letter-spacing="3">IGITECH</text>
+  <!-- SOLUTIONS text -->
+  <text x="195" y="140" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="28" fill="#d4a017" letter-spacing="5">SOLUTIONS</text>
+</svg>

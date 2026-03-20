@@ -50,6 +50,12 @@ export default {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
+        'intro-logo': {
+          '0%': { opacity: '0', transform: 'scale(0.7) translateY(10px)', filter: 'blur(8px)' },
+          '25%': { opacity: '1', transform: 'scale(1.03) translateY(0)', filter: 'blur(0px)' },
+          '65%': { opacity: '1', transform: 'scale(1) translateY(0)', filter: 'blur(0px)' },
+          '100%': { opacity: '0', transform: 'scale(1.05) translateY(-5px)', filter: 'blur(4px)' },
+        },
         'intro-glow': {
           '0%': { opacity: '0', transform: 'scale(0.8)', filter: 'blur(10px)' },
           '30%': { opacity: '1', transform: 'scale(1.05)', filter: 'blur(0px)' },
@@ -58,20 +64,20 @@ export default {
         },
         'intro-line': {
           '0%': { width: '0', opacity: '0' },
-          '20%': { opacity: '1' },
-          '50%': { width: '80px' },
-          '100%': { width: '80px', opacity: '0' },
+          '20%': { opacity: '0.6' },
+          '50%': { width: '120px' },
+          '100%': { width: '120px', opacity: '0' },
         },
         'intro-subtitle': {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
           '30%': { opacity: '1', transform: 'translateY(0)' },
           '70%': { opacity: '1' },
           '100%': { opacity: '0' },
         },
         'intro-particles': {
           '0%': { opacity: '0', transform: 'scale(0.5)' },
-          '50%': { opacity: '0.6' },
-          '100%': { opacity: '0', transform: 'scale(2)' },
+          '50%': { opacity: '0.8' },
+          '100%': { opacity: '0', transform: 'scale(2.5)' },
         },
         'skip-ripple': {
           '0%': { opacity: '0.5', transform: 'scale(0.8)' },
@@ -88,6 +94,7 @@ export default {
         'slide-up': 'slide-up 0.3s ease-out',
         'bounce-subtle': 'bounce-subtle 2s ease-in-out infinite',
         'shimmer': 'shimmer 2s linear infinite',
+        'intro-logo': 'intro-logo 3s ease-in-out forwards',
         'intro-glow': 'intro-glow 3s ease-in-out forwards',
         'intro-line': 'intro-line 3s ease-in-out forwards',
         'intro-subtitle': 'intro-subtitle 3s ease-in-out forwards',

@@ -294,21 +294,17 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       if (!introShown) {
         setShowIntro(true);
         setIntroShown(true);
-        // Auto-enter fullscreen on first play
-        enterFullscreen();
         setTimeout(() => {
           setShowIntro(false);
           v.play();
         }, 3000);
       } else {
         v.play();
-        // Auto-enter fullscreen on play
-        enterFullscreen();
       }
     } else {
       v.pause();
     }
-  }, [introShown, enterFullscreen]);
+  }, [introShown]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;
@@ -370,14 +366,21 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
   }, []);
 
   const toggleOrientation = useCallback(async () => {
-    if (!document.fullscreenElement) return;
-    const newLandscape = !isLandscapeLocked;
-    setIsLandscapeLocked(newLandscape);
+    if (!document.fullscreenElement) {
+      // If not in fullscreen, enter fullscreen first
+      if (containerRef.current) {
+        try {
+          await containerRef.current.requestFullscreen();
+        } catch { return; }
+      }
+    }
+    const goToPortrait = isLandscapeLocked; // if currently landscape, switch to portrait
+    setIsLandscapeLocked(!isLandscapeLocked);
     if (screen.orientation && 'lock' in screen.orientation) {
       try {
-        await (screen.orientation as any).lock(newLandscape ? 'landscape' : 'portrait');
+        await (screen.orientation as any).lock(goToPortrait ? 'portrait-primary' : 'landscape-primary');
       } catch {
-        // Orientation lock not supported, toggle still updates state for UI
+        // Orientation lock not supported on this device/browser
       }
     }
   }, [isLandscapeLocked]);
@@ -432,11 +435,15 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     window.addEventListener('touchend', onEnd);
   }, [seekFromEvent]);
 
-  // Double-tap to skip on mobile
-  const handleVideoTap = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    // Don't handle taps on controls area
+  // Unified mobile touch handler: single tap = play/pause, double tap = skip
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout>>();
+  const handleVideoTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('.quality-panel') || target.closest('[data-controls]')) return;
+
+    // CRITICAL: prevent browser from generating synthetic click event
+    // Without this, both touchEnd AND click fire, causing double togglePlay()
+    e.preventDefault();
 
     const now = Date.now();
     const touch = e.changedTouches[0];
@@ -444,46 +451,42 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     const xDiff = Math.abs(touch.clientX - lastTapRef.current.x);
 
     if (timeDiff < 300 && xDiff < 50) {
-      // Double tap detected
-      e.preventDefault();
+      // Double tap detected - skip forward/backward
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const tapX = touch.clientX - rect.left;
-      const halfWidth = rect.width / 2;
 
-      if (tapX > halfWidth) {
-        // Right side - skip forward
+      if (tapX > rect.width / 2) {
         skipForward();
         setSkipIndicator({ side: 'right', key: now });
       } else {
-        // Left side - skip backward
         skipBackward();
         setSkipIndicator({ side: 'left', key: now });
       }
       lastTapRef.current = { time: 0, x: 0 };
     } else {
+      // First tap - record it
       lastTapRef.current = { time: now, x: touch.clientX };
-    }
-  }, [skipForward, skipBackward]);
 
-  // Touch controls: single tap = pause/play + show controls for 4s, double tap = skip
-  const singleTapTimer = useRef<ReturnType<typeof setTimeout>>();
-  const handleVideoTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('.quality-panel') || target.closest('[data-controls]')) return;
-
-    handleVideoTap(e);
-
-    // Delayed single-tap action: toggle play/pause + show controls
-    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
-    singleTapTimer.current = setTimeout(() => {
-      // Only fires if wasn't a double-tap
-      if (Date.now() - lastTapRef.current.time > 300 || lastTapRef.current.time === 0) {
-        togglePlay();
-        showControlsWithTimer(4000);
+      // Enter fullscreen IMMEDIATELY (must be in user gesture, not setTimeout)
+      const v = videoRef.current;
+      if (v && v.paused && isMobile.current && !document.fullscreenElement) {
+        enterFullscreen();
       }
-    }, 320);
-  }, [handleVideoTap, togglePlay, showControlsWithTimer]);
+
+      // Show controls right away
+      showControlsWithTimer(4000);
+
+      // Delay play/pause to wait for possible double-tap
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      singleTapTimer.current = setTimeout(() => {
+        if (Date.now() - lastTapRef.current.time > 300 || lastTapRef.current.time === 0) {
+          togglePlay();
+        }
+      }, 320);
+    }
+  }, [skipForward, skipBackward, togglePlay, showControlsWithTimer, enterFullscreen]);
 
   const setQuality = (levelIndex: number) => {
     if (hlsRef.current) {
@@ -561,9 +564,10 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         playsInline
         controlsList="nodownload"
         onClick={() => {
-          // On desktop, toggle play on click (not on mobile, handled by touch)
+          // On desktop only — mobile is handled entirely by onTouchEnd
           if (!isMobile.current) {
             togglePlay();
+            enterFullscreen();
             showControlsWithTimer(4000);
           }
         }}
@@ -584,26 +588,38 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         }}
       />
 
-      {/* Digitech Intro Overlay - 3 seconds with graphics */}
+      {/* Digitech Solutions Premium Intro - 3 seconds */}
       {showIntro && (
         <div className="absolute inset-0 flex items-center justify-center bg-black z-30 overflow-hidden">
-          {/* Background particles */}
+          {/* Animated background gradient orbs */}
           <div className="absolute inset-0">
-            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl animate-intro-particles" />
-            <div className="absolute bottom-1/3 right-1/4 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl animate-intro-particles" style={{ animationDelay: '0.3s' }} />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-3xl animate-intro-particles" style={{ animationDelay: '0.1s' }} />
+            <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-blue-600/15 rounded-full blur-[80px] animate-intro-particles" />
+            <div className="absolute bottom-1/4 right-1/6 w-56 h-56 bg-emerald-500/12 rounded-full blur-[80px] animate-intro-particles" style={{ animationDelay: '0.2s' }} />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-500/8 rounded-full blur-[100px] animate-intro-particles" style={{ animationDelay: '0.4s' }} />
+            {/* Subtle grid overlay */}
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
           </div>
-          <div className="text-center relative z-10">
-            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white tracking-wider animate-intro-glow">
-              <span className="bg-gradient-to-r from-white via-blue-200 to-white bg-clip-text text-transparent">
-                Digitech
-              </span>
-            </h1>
-            <div className="mt-4 h-0.5 bg-gradient-to-r from-transparent via-white/60 to-transparent mx-auto rounded-full animate-intro-line" />
-            <p className="mt-3 text-sm sm:text-base text-white/50 tracking-[0.3em] uppercase animate-intro-subtitle">
-              Video Player
+          {/* Logo + Text */}
+          <div className="flex flex-col items-center relative z-10">
+            {/* Logo image */}
+            <div className="animate-intro-logo">
+              <img
+                src="/digitech-logo.svg"
+                alt="Digitech Solutions"
+                className="h-16 sm:h-20 md:h-24 w-auto drop-shadow-2xl"
+                style={{ filter: 'brightness(0) invert(1) drop-shadow(0 0 30px rgba(59,130,246,0.3))' }}
+              />
+            </div>
+            {/* Animated underline */}
+            <div className="mt-5 h-[1px] bg-gradient-to-r from-transparent via-blue-400/50 to-transparent rounded-full animate-intro-line" />
+            {/* Tagline */}
+            <p className="mt-3 text-[10px] sm:text-xs text-white/30 tracking-[0.4em] uppercase font-light animate-intro-subtitle">
+              Premium Video Experience
             </p>
           </div>
+          {/* Corner accents */}
+          <div className="absolute top-6 left-6 w-8 h-8 border-l border-t border-white/10 animate-intro-subtitle" />
+          <div className="absolute bottom-6 right-6 w-8 h-8 border-r border-b border-white/10 animate-intro-subtitle" />
         </div>
       )}
 
@@ -632,10 +648,9 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       {/* Center play overlay when paused */}
       {!isPlaying && !loading && !error && !showIntro && (
         <div
-          className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10"
-          onClick={() => { togglePlay(); showControlsWithTimer(4000); }}
+          className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10 pointer-events-none"
         >
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl">
             <Play className="h-7 w-7 sm:h-8 sm:w-8 text-white ml-0.5 fill-current" />
           </div>
         </div>
@@ -790,7 +805,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
               {/* Orientation toggle (visible in fullscreen) */}
               {isFullscreen && (
                 <button
-                  onClick={toggleOrientation}
+                  onClick={(e) => { e.stopPropagation(); toggleOrientation(); }}
                   className="text-white hover:text-white/80 transition-colors p-1"
                   title={isLandscapeLocked ? 'Switch to portrait' : 'Switch to landscape'}
                 >
