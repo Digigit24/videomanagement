@@ -7,25 +7,11 @@ import { Toast } from '@/components/ui/toast';
 import {
   FolderOpen, Plus, Users, Video,
   Link as LinkIcon, ExternalLink, MoreHorizontal,
-  Trash2, TrendingUp, Layers, Search
+  Trash2, Search, ArrowUpRight
 } from 'lucide-react';
 import CreateWorkspaceModal from '@/components/CreateWorkspaceModal';
 import DeleteWorkspaceModal from '@/components/DeleteWorkspaceModal';
 import { getApiUrl } from '@/lib/utils';
-
-// Gradient palette for workspace avatars
-const GRADIENTS = [
-  'from-blue-500 to-indigo-600',
-  'from-violet-500 to-purple-600',
-  'from-pink-500 to-rose-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-500 to-orange-600',
-  'from-cyan-500 to-blue-600',
-  'from-fuchsia-500 to-pink-600',
-  'from-lime-500 to-green-600',
-  'from-sky-500 to-indigo-600',
-  'from-red-500 to-rose-600',
-];
 
 export default function Dashboard() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -102,8 +88,6 @@ export default function Dashboard() {
     ? workspaces.filter(w => w.client_name.toLowerCase().includes(searchQuery.toLowerCase()))
     : workspaces;
 
-  const getGradient = (index: number) => GRADIENTS[index % GRADIENTS.length];
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -114,53 +98,46 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 rounded-2xl p-6 sm:p-8">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
-        {/* Digitech logo watermark - subtle background */}
-        <div className="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 opacity-[0.06] pointer-events-none hidden sm:block">
-          <img src="/digitech-logo-light.svg" alt="" className="h-32 w-auto" />
-        </div>
-        <div className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 mb-3">
-              <img src="/digitech-logo-light.svg" alt="Digitech Solutions" className="h-8 w-auto opacity-80" />
+      {/* Hero */}
+      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+        {/* Subtle pattern overlay */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+        {/* Soft glow */}
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl" />
+
+        <div className="relative px-6 sm:px-8 py-6 sm:py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-center gap-4">
+            {/* Digitech logo mark */}
+            <div className="hidden sm:flex w-12 h-12 rounded-xl bg-white/10 border border-white/10 items-center justify-center flex-shrink-0">
+              <img src="/digitech-logo-light.svg" alt="" className="h-8 w-auto" />
             </div>
-            <p className="text-blue-300 text-xs font-medium tracking-wider uppercase mb-1">Welcome back</p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">
-              {userName}
-            </h1>
-            <div className="flex items-center gap-4 mt-3">
-              <div className="flex items-center gap-1.5 text-blue-200 text-sm">
-                <Layers className="h-4 w-4" />
-                <span className="font-semibold">{workspaces.length}</span>
-                <span className="text-blue-300/70">workspaces</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-blue-200 text-sm">
-                <Video className="h-4 w-4" />
-                <span className="font-semibold">{totalVideos}</span>
-                <span className="text-blue-300/70">videos</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-blue-200 text-sm">
-                <Users className="h-4 w-4" />
-                <span className="font-semibold">{totalMembers}</span>
-                <span className="text-blue-300/70">members</span>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+                Welcome, {userName}
+              </h1>
+              <div className="flex items-center gap-4 mt-1.5 text-sm text-gray-400">
+                <span>{workspaces.length} workspaces</span>
+                <span className="text-gray-600">/</span>
+                <span>{totalVideos} videos</span>
+                <span className="text-gray-600">/</span>
+                <span>{totalMembers} members</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {isAdmin && (
               <>
-                <Button variant="outline" size="sm" onClick={() => navigate('/users')} className="text-xs h-9 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white">
+                <Button variant="outline" size="sm" onClick={() => navigate('/users')} className="text-xs h-8 bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white">
                   <Users className="h-3.5 w-3.5 mr-1.5" /> Team
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate('/recycle-bin')} className="text-xs h-9 bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white">
+                <Button variant="outline" size="sm" onClick={() => navigate('/recycle-bin')} className="text-xs h-8 bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white">
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Bin
                 </Button>
               </>
             )}
             {canCreateWorkspace && (
-              <Button onClick={() => setShowCreateModal(true)} size="sm" className="text-xs h-9 bg-white text-gray-900 hover:bg-gray-100">
+              <Button onClick={() => setShowCreateModal(true)} size="sm" className="text-xs h-8 bg-white text-gray-900 hover:bg-gray-100">
                 <Plus className="h-3.5 w-3.5 mr-1.5" /> New Client
               </Button>
             )}
@@ -168,62 +145,35 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-              <Layers className="h-4 w-4 text-blue-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Workspaces</span>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Workspaces', value: workspaces.length },
+          { label: 'Total Videos', value: totalVideos },
+          { label: 'Team Members', value: totalMembers },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white border border-gray-200/80 rounded-xl px-4 py-3.5">
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 mt-0.5">{stat.value}</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{workspaces.length}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
-              <Video className="h-4 w-4 text-violet-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Total Videos</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{totalVideos}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-              <Users className="h-4 w-4 text-emerald-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Team Members</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{totalMembers}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-amber-600" />
-            </div>
-            <span className="text-xs text-gray-500 font-medium">Avg Videos</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900">
-            {workspaces.length > 0 ? Math.round(totalVideos / workspaces.length) : 0}
-          </p>
-        </div>
+        ))}
       </div>
 
       {/* Workspace Header + Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-gray-900">
           {isOrgRole ? 'Client Workspaces' : 'Your Workspaces'}
+          <span className="text-gray-400 font-normal ml-2">{filteredWorkspaces.length}</span>
         </h2>
-        {workspaces.length > 5 && (
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+        {workspaces.length > 3 && (
+          <div className="relative w-56">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search workspaces..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full h-8 pl-8 pr-3 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-shadow"
             />
           </div>
         )}
@@ -231,7 +181,7 @@ export default function Dashboard() {
 
       {/* Workspaces Grid */}
       {workspaces.length === 0 ? (
-        <div className="bg-white border border-dashed border-gray-200 rounded-xl p-12 text-center">
+        <div className="bg-white border border-dashed border-gray-300 rounded-xl p-12 text-center">
           <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-200" />
           <p className="text-sm text-gray-500 mb-1">No workspaces yet</p>
           <p className="text-xs text-gray-400 mb-4">
@@ -248,78 +198,78 @@ export default function Dashboard() {
           {filteredWorkspaces.map((workspace, i) => (
             <div
               key={workspace.id}
-              className="group bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-200 hover:shadow-lg transition-all cursor-pointer relative animate-fade-in-up"
-              style={{ animationDelay: `${i * 30}ms`, animationFillMode: 'both' }}
+              className="group bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer relative animate-fade-in-up"
+              style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}
               onClick={() => navigate(`/workspace/${workspace.bucket}`)}
             >
-              {/* Colored top strip */}
-              <div className={`h-1.5 bg-gradient-to-r ${getGradient(i)}`} />
-
-              <div className="p-4">
-                <div className="flex items-start gap-3">
-                  {/* Avatar */}
-                  {workspace.client_logo ? (
-                    <img src={getApiUrl(workspace.client_logo)} alt="" className="w-11 h-11 rounded-xl object-cover border border-gray-100 flex-shrink-0" />
-                  ) : (
-                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getGradient(i)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm`}>
-                      {workspace.client_name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                      {workspace.client_name}
-                    </h3>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <Video className="h-3 w-3" /> {workspace.video_count}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3" /> {workspace.member_count}
-                      </span>
-                    </div>
+              <div className="flex items-start gap-3">
+                {/* Avatar */}
+                {workspace.client_logo ? (
+                  <img src={getApiUrl(workspace.client_logo)} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-gray-900 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                    {workspace.client_name.charAt(0).toUpperCase()}
                   </div>
+                )}
 
-                  {/* Actions menu */}
-                  {canCreateWorkspace && (
-                    <div className="context-menu-container flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setContextMenu(contextMenu === workspace.id ? null : workspace.id)}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-
-                      {contextMenu === workspace.id && (
-                        <div className="absolute right-3 top-14 w-48 bg-white border border-gray-200 rounded-xl shadow-2xl z-20 py-1 animate-scale-in">
-                          <button
-                            onClick={() => handleCreateInvitation(workspace.id)}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <LinkIcon className="h-3.5 w-3.5 text-gray-400" /> Copy Invite Link
-                          </button>
-                          <button
-                            onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 text-gray-400" /> Open Workspace
-                          </button>
-                          {isAdmin && (
-                            <>
-                              <div className="border-t border-gray-100 my-1" />
-                              <button
-                                onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" /> Delete Workspace
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-700 transition-colors">
+                    {workspace.client_name}
+                  </h3>
+                  <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <Video className="h-3 w-3" /> {workspace.video_count} videos
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" /> {workspace.member_count}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Actions */}
+                {canCreateWorkspace && (
+                  <div className="context-menu-container flex-shrink-0 relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setContextMenu(contextMenu === workspace.id ? null : workspace.id)}
+                      className="p-1 rounded-md text-gray-300 hover:text-gray-500 hover:bg-gray-50 transition-colors"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+
+                    {contextMenu === workspace.id && (
+                      <div className="absolute right-0 top-8 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-1 animate-scale-in">
+                        <button
+                          onClick={() => handleCreateInvitation(workspace.id)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <LinkIcon className="h-3.5 w-3.5 text-gray-400" /> Copy Invite Link
+                        </button>
+                        <button
+                          onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 text-gray-400" /> Open Workspace
+                        </button>
+                        {isAdmin && (
+                          <>
+                            <div className="border-t border-gray-100 my-1" />
+                            <button
+                              onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Delete Workspace
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Hover arrow indicator */}
+              <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ArrowUpRight className="h-3.5 w-3.5 text-gray-300" />
               </div>
             </div>
           ))}
