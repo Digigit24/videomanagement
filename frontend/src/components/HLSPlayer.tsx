@@ -260,25 +260,32 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     }
   }, []);
 
-  // Controls auto-hide
-  const handleMouseMove = useCallback(() => {
+  // Controls auto-hide (shared helper)
+  const showControlsWithTimer = useCallback((timeoutMs = 4000) => {
     setShowControls(true);
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     controlsTimeout.current = setTimeout(() => {
-      if (isPlaying) setShowControls(false);
-    }, 3000);
-  }, [isPlaying]);
+      if (videoRef.current && !videoRef.current.paused) setShowControls(false);
+    }, timeoutMs);
+  }, []);
+
+  const handleMouseMove = useCallback(() => {
+    showControlsWithTimer(3000);
+  }, [showControlsWithTimer]);
 
   const enterFullscreen = useCallback(async () => {
     if (!containerRef.current || document.fullscreenElement) return;
     try {
       await containerRef.current.requestFullscreen();
-      // Lock to landscape on mobile
-      if (isMobile.current && isLandscapeLocked && screen.orientation && 'lock' in screen.orientation) {
-        try { await screen.orientation.lock('landscape'); } catch {}
+      // Always lock to landscape on mobile when entering fullscreen
+      if (isMobile.current && screen.orientation && 'lock' in screen.orientation) {
+        try {
+          await (screen.orientation as any).lock('landscape');
+          setIsLandscapeLocked(true);
+        } catch {}
       }
     } catch {}
-  }, [isLandscapeLocked]);
+  }, []);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
@@ -351,25 +358,27 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     } else {
       try {
         await containerRef.current.requestFullscreen();
-        if (isMobile.current && isLandscapeLocked && screen.orientation && 'lock' in screen.orientation) {
-          try { await screen.orientation.lock('landscape'); } catch {}
+        // Lock to landscape on mobile when entering fullscreen
+        if (isMobile.current && screen.orientation && 'lock' in screen.orientation) {
+          try {
+            await (screen.orientation as any).lock('landscape');
+            setIsLandscapeLocked(true);
+          } catch {}
         }
       } catch {}
     }
-  }, [isLandscapeLocked]);
+  }, []);
 
   const toggleOrientation = useCallback(async () => {
-    if (!screen.orientation || !('lock' in screen.orientation)) return;
-    const newLocked = !isLandscapeLocked;
-    setIsLandscapeLocked(newLocked);
-    if (document.fullscreenElement) {
+    if (!document.fullscreenElement) return;
+    const newLandscape = !isLandscapeLocked;
+    setIsLandscapeLocked(newLandscape);
+    if (screen.orientation && 'lock' in screen.orientation) {
       try {
-        if (newLocked) {
-          await screen.orientation.lock('landscape');
-        } else {
-          await screen.orientation.lock('portrait');
-        }
-      } catch {}
+        await (screen.orientation as any).lock(newLandscape ? 'landscape' : 'portrait');
+      } catch {
+        // Orientation lock not supported, toggle still updates state for UI
+      }
     }
   }, [isLandscapeLocked]);
 
@@ -457,7 +466,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     }
   }, [skipForward, skipBackward]);
 
-  // Touch controls: show/hide on single tap, but wait to confirm it's not a double-tap
+  // Touch controls: single tap = pause/play + show controls for 4s, double tap = skip
   const singleTapTimer = useRef<ReturnType<typeof setTimeout>>();
   const handleVideoTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -465,15 +474,16 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
 
     handleVideoTap(e);
 
-    // Delayed single-tap action (toggle controls)
+    // Delayed single-tap action: toggle play/pause + show controls
     if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
     singleTapTimer.current = setTimeout(() => {
       // Only fires if wasn't a double-tap
       if (Date.now() - lastTapRef.current.time > 300 || lastTapRef.current.time === 0) {
-        setShowControls(prev => !prev);
+        togglePlay();
+        showControlsWithTimer(4000);
       }
     }, 320);
-  }, [handleVideoTap]);
+  }, [handleVideoTap, togglePlay, showControlsWithTimer]);
 
   const setQuality = (levelIndex: number) => {
     if (hlsRef.current) {
@@ -550,10 +560,11 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         )}
         playsInline
         controlsList="nodownload"
-        onClick={(e) => {
+        onClick={() => {
           // On desktop, toggle play on click (not on mobile, handled by touch)
           if (!isMobile.current) {
             togglePlay();
+            showControlsWithTimer(4000);
           }
         }}
         onTimeUpdate={handleTimeUpdate}
@@ -622,7 +633,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       {!isPlaying && !loading && !error && !showIntro && (
         <div
           className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10"
-          onClick={togglePlay}
+          onClick={() => { togglePlay(); showControlsWithTimer(4000); }}
         >
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
             <Play className="h-7 w-7 sm:h-8 sm:w-8 text-white ml-0.5 fill-current" />
@@ -776,7 +787,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
                 {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
               </button>
 
-              {/* Orientation toggle (visible in fullscreen on mobile) */}
+              {/* Orientation toggle (visible in fullscreen) */}
               {isFullscreen && (
                 <button
                   onClick={toggleOrientation}
