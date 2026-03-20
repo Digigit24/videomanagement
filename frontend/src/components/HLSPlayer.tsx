@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Settings, Check, Download, Play, Pause, Maximize, Minimize, Volume2, VolumeX } from 'lucide-react';
+import { Settings, Check, Download, Play, Pause, Maximize, Minimize, Volume2, VolumeX, SkipForward, SkipBack } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HLSPlayerProps {
@@ -34,6 +34,8 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
   const [buffered, setBuffered] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isPortrait, setIsPortrait] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+  const [introShown, setIntroShown] = useState(false);
 
   const seekTo = useCallback((time: number) => {
     if (videoRef.current) {
@@ -208,21 +210,27 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     return () => clearInterval(interval);
   }, [onProgress]);
 
-  // Keyboard shortcut
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && e.target === document.body) {
+      if (e.target !== document.body) return;
+      const video = videoRef.current;
+      if (!video) return;
+      if (e.code === 'Space') {
         e.preventDefault();
-        const video = videoRef.current;
-        if (video) {
-          video.paused ? video.play() : video.pause();
-        }
+        togglePlay();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        skipForward();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        skipBackward();
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
+  }, [togglePlay, skipForward, skipBackward]);
 
   // Close quality menu on outside click
   useEffect(() => {
@@ -267,7 +275,32 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.paused ? v.play() : v.pause();
+    if (v.paused) {
+      if (!introShown) {
+        setShowIntro(true);
+        setIntroShown(true);
+        setTimeout(() => {
+          setShowIntro(false);
+          v.play();
+        }, 1500);
+      } else {
+        v.play();
+      }
+    } else {
+      v.pause();
+    }
+  }, [introShown]);
+
+  const skipForward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.min(v.duration || 0, v.currentTime + 10);
+  }, []);
+
+  const skipBackward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.max(0, v.currentTime - 10);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -386,8 +419,20 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         }}
       />
 
+      {/* Digitech Intro Overlay */}
+      {showIntro && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-30 animate-fade-in">
+          <div className="text-center">
+            <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
+              Digitech
+            </h1>
+            <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
+          </div>
+        </div>
+      )}
+
       {/* Center play overlay when paused */}
-      {!isPlaying && !loading && !error && (
+      {!isPlaying && !loading && !error && !showIntro && (
         <div
           className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10"
           onClick={togglePlay}
@@ -431,6 +476,18 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
             <div className="flex items-center gap-1.5 sm:gap-2.5">
               <button onClick={togglePlay} className="text-white hover:text-white/80 transition-colors p-1">
                 {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
+              </button>
+              <button onClick={skipBackward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip back 10s">
+                <div className="relative">
+                  <SkipBack className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
+                </div>
+              </button>
+              <button onClick={skipForward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip forward 10s">
+                <div className="relative">
+                  <SkipForward className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
+                </div>
               </button>
               <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block">
                 {isMuted ? <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" /> : <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" />}

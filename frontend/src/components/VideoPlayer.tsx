@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactPlayer from 'react-player';
-import { Download } from 'lucide-react';
+import { Download, SkipForward, SkipBack } from 'lucide-react';
 
 interface VideoPlayerProps {
   url: string;
@@ -15,20 +15,63 @@ export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef, o
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+  const [introShown, setIntroShown] = useState(false);
   const internalPlayerRef = useRef<ReactPlayer>(null);
   const activePlayerRef = playerRef || internalPlayerRef;
 
+  const handlePlay = useCallback(() => {
+    if (!introShown) {
+      setShowIntro(true);
+      setIntroShown(true);
+      setTimeout(() => {
+        setShowIntro(false);
+        setPlaying(true);
+      }, 1500);
+    } else {
+      setPlaying(true);
+    }
+  }, [introShown]);
+
+  const skipForward = useCallback(() => {
+    const player = activePlayerRef.current;
+    if (player) {
+      const current = player.getCurrentTime();
+      const duration = player.getDuration();
+      player.seekTo(Math.min(duration, current + 10), 'seconds');
+    }
+  }, [activePlayerRef]);
+
+  const skipBackward = useCallback(() => {
+    const player = activePlayerRef.current;
+    if (player) {
+      const current = player.getCurrentTime();
+      player.seekTo(Math.max(0, current - 10), 'seconds');
+    }
+  }, [activePlayerRef]);
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && e.target === document.body) {
+      if (e.target !== document.body) return;
+      if (e.code === 'Space') {
         e.preventDefault();
-        setPlaying(prev => !prev);
+        if (playing) {
+          setPlaying(false);
+        } else {
+          handlePlay();
+        }
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        skipForward();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        skipBackward();
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
+  }, [playing, handlePlay, skipForward, skipBackward]);
 
   const handleDownload = () => {
     if (downloadUrl) {
@@ -46,6 +89,19 @@ export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef, o
           </div>
         </div>
       )}
+
+      {/* Digitech Intro Overlay */}
+      {showIntro && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-30 animate-fade-in">
+          <div className="text-center">
+            <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
+              Digitech
+            </h1>
+            <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
           <div className="text-center">
@@ -75,6 +131,30 @@ export default function VideoPlayer({ url, downloadUrl, onProgress, playerRef, o
           </button>
         </div>
       )}
+
+      {/* Skip controls overlay */}
+      <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <button
+          onClick={skipBackward}
+          className="bg-black/60 hover:bg-black/80 text-white p-2.5 rounded-full backdrop-blur-sm transition-all hover:scale-110 active:scale-95 shadow-lg"
+          title="Skip back 10s"
+        >
+          <div className="relative">
+            <SkipBack className="h-5 w-5" />
+            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-bold">10</span>
+          </div>
+        </button>
+        <button
+          onClick={skipForward}
+          className="bg-black/60 hover:bg-black/80 text-white p-2.5 rounded-full backdrop-blur-sm transition-all hover:scale-110 active:scale-95 shadow-lg"
+          title="Skip forward 10s"
+        >
+          <div className="relative">
+            <SkipForward className="h-5 w-5" />
+            <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[8px] font-bold">10</span>
+          </div>
+        </button>
+      </div>
 
       <ReactPlayer
         ref={activePlayerRef}

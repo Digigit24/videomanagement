@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Check, Loader2, ShieldX } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Check, Loader2, ShieldX, SkipForward, SkipBack } from 'lucide-react';
 
 export default function ShareVideoPlayer() {
   const { videoId } = useParams<{ videoId: string }>();
@@ -28,7 +28,8 @@ export default function ShareVideoPlayer() {
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [buffered, setBuffered] = useState(0);
   const [videoLoading, setVideoLoading] = useState(true);
-
+  const [showIntro, setShowIntro] = useState(false);
+  const [introShown, setIntroShown] = useState(false);
 
   useEffect(() => {
     if (videoId) loadVideo();
@@ -169,7 +170,32 @@ export default function ShareVideoPlayer() {
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.paused ? v.play() : v.pause();
+    if (v.paused) {
+      if (!introShown) {
+        setShowIntro(true);
+        setIntroShown(true);
+        setTimeout(() => {
+          setShowIntro(false);
+          v.play();
+        }, 1500);
+      } else {
+        v.play();
+      }
+    } else {
+      v.pause();
+    }
+  }, [introShown]);
+
+  const skipForward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.min(v.duration || 0, v.currentTime + 10);
+  }, []);
+
+  const skipBackward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.max(0, v.currentTime - 10);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -343,8 +369,20 @@ export default function ShareVideoPlayer() {
           playsInline
         />
 
+        {/* Digitech Intro Overlay */}
+        {showIntro && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black z-30 animate-fade-in">
+            <div className="text-center">
+              <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
+                Digitech
+              </h1>
+              <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
+            </div>
+          </div>
+        )}
+
         {/* Center Play Overlay */}
-        {!isPlaying && !videoLoading && (
+        {!isPlaying && !videoLoading && !showIntro && (
           <div
             className="absolute inset-0 flex items-center justify-center bg-black/20"
             onClick={togglePlay}
@@ -385,6 +423,18 @@ export default function ShareVideoPlayer() {
             <div className="flex items-center gap-1.5 sm:gap-2.5">
               <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:text-white/80 transition-colors p-1">
                 {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); skipBackward(); }} className="text-white hover:text-white/80 transition-colors p-1" title="Skip back 10s">
+                <div className="relative">
+                  <SkipBack className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
+                </div>
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); skipForward(); }} className="text-white hover:text-white/80 transition-colors p-1" title="Skip forward 10s">
+                <div className="relative">
+                  <SkipForward className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
+                </div>
               </button>
               <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block">
                 {isMuted ? <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" /> : <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" />}

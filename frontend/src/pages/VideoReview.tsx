@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import Hls from 'hls.js';
-import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw } from 'lucide-react';
+import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw, SkipForward, SkipBack } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -80,6 +80,8 @@ export default function VideoReview() {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+  const [introShown, setIntroShown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -293,7 +295,32 @@ export default function VideoReview() {
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.paused ? v.play() : v.pause();
+    if (v.paused) {
+      if (!introShown) {
+        setShowIntro(true);
+        setIntroShown(true);
+        setTimeout(() => {
+          setShowIntro(false);
+          v.play();
+        }, 1500);
+      } else {
+        v.play();
+      }
+    } else {
+      v.pause();
+    }
+  }, [introShown]);
+
+  const skipForward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.min(v.duration || 0, v.currentTime + 10);
+  }, []);
+
+  const skipBackward = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.max(0, v.currentTime - 10);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -704,8 +731,20 @@ export default function VideoReview() {
                 </div>
               )}
 
+              {/* Digitech Intro Overlay */}
+              {showIntro && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black z-30 animate-fade-in">
+                  <div className="text-center">
+                    <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
+                      Digitech
+                    </h1>
+                    <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
+                  </div>
+                </div>
+              )}
+
               {/* Center play overlay - only on initial state */}
-              {!isPlaying && !videoLoading && (
+              {!isPlaying && !videoLoading && !showIntro && (
                 <div
                   className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10"
                   onClick={togglePlay}
@@ -748,6 +787,18 @@ export default function VideoReview() {
                   <div className="flex items-center gap-1.5 sm:gap-2.5">
                     <button onClick={togglePlay} className="text-white hover:text-white/80 transition-colors p-1">
                       {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
+                    </button>
+                    <button onClick={skipBackward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip back 10s">
+                      <div className="relative">
+                        <SkipBack className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
+                      </div>
+                    </button>
+                    <button onClick={skipForward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip forward 10s">
+                      <div className="relative">
+                        <SkipForward className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
+                      </div>
                     </button>
                     <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block">
                       {isMuted ? <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" /> : <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" />}
