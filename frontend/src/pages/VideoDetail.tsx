@@ -149,14 +149,14 @@ export default function VideoDetail() {
   const currentBucket = bucket || contextBucket;
   const navigate = useNavigate();
 
-  // Back button: navigate to workspace (not browser history, which can be unreliable)
-  const handleBack = () => {
+  // Back button: navigate to workspace
+  const handleBack = useCallback(() => {
     if (currentBucket) {
       navigate(`/workspace/${currentBucket}`);
     } else {
       navigate('/');
     }
-  };
+  }, [currentBucket, navigate]);
   const playerRef = useRef<ReactPlayer>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
