@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { videoService, workspaceService, folderService } from '@/services/api.service';
-import { API_BASE_URL } from '@/lib/api';
 import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics, Folder } from '@/types';
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';

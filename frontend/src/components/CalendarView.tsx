@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Video } from '@/types';
 import { videoService } from '@/services/api.service';
 import { ChevronLeft, ChevronRight, Play, Image } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from 'date-fns';
 
 interface CalendarViewProps {
   videos: Video[];

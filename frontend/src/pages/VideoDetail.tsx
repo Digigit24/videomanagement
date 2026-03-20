@@ -49,14 +49,6 @@ function formatProcessingStep(step: string | null): string {
   return stepMap[step] || `Processing (${step})...`;
 }
 
-function isRecentUpload(dateStr: string | null): boolean {
-  if (!dateStr) return false;
-  const uploadTime = new Date(dateStr).getTime();
-  const now = Date.now();
-  const twentyFourHours = 24 * 60 * 60 * 1000;
-  return (now - uploadTime) < twentyFourHours;
-}
-
 function ActivityLog({ videoId }: { videoId: string }) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);

@@ -21,7 +21,7 @@ export default function SharedFolder() {
   const [videos, setVideos] = useState<SharedVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [requireLogin, setRequireLogin] = useState(false);
+  const [_requireLogin, setRequireLogin] = useState(false);
 
   useEffect(() => {
     if (!token) return;

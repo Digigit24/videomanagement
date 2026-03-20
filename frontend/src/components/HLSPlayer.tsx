@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Settings, Check, Download, Play, Pause, Maximize, Minimize, Volume2, VolumeX, SkipForward, SkipBack, RotateCcw, Smartphone } from 'lucide-react';
+import { Settings, Check, Download, Play, Pause, Maximize, Minimize, Volume2, VolumeX, SkipForward, SkipBack, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HLSPlayerProps {

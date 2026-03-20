@@ -4,7 +4,7 @@ import { userService } from '@/services/api.service';
 import { User, UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users as UsersIcon, Plus, Trash2, Mail, Calendar, Building2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Mail, Calendar, Building2, ArrowLeft } from 'lucide-react';
 import { formatDate, getApiUrl } from '@/lib/utils';
 import { Toast } from '@/components/ui/toast';
 import DeleteUserModal from '@/components/DeleteUserModal';
