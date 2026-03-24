@@ -539,8 +539,9 @@ export default function VideoDetail() {
     );
   }
 
-  const streamUrl = videoService.getStreamUrl(video.id, currentBucket);
-  const hlsUrl = videoService.getHLSUrl(video.id, currentBucket);
+  const cacheBuster = video.version_number || video.updated_at || "";
+  const streamUrl = videoService.getStreamUrl(video.id, currentBucket, cacheBuster);
+  const hlsUrl = videoService.getHLSUrl(video.id, currentBucket, cacheBuster);
   const downloadUrl = videoService.getDownloadUrl(video.id, currentBucket);
   const timestampComments = comments.filter(c => c.video_timestamp !== null);
 

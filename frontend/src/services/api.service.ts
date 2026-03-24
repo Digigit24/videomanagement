@@ -356,19 +356,22 @@ export const videoService = {
     };
   },
 
-  getThumbnailUrl: (id: string) => {
+  getThumbnailUrl: (id: string, cacheBuster?: string | number) => {
     const token = localStorage.getItem("token");
-    return `${API_BASE_URL}/video/${id}/thumbnail?token=${token}`;
+    const v = cacheBuster ? `&v=${cacheBuster}` : "";
+    return `${API_BASE_URL}/video/${id}/thumbnail?token=${token}${v}`;
   },
 
-  getStreamUrl: (id: string, bucket: string) => {
+  getStreamUrl: (id: string, bucket: string, cacheBuster?: string | number) => {
     const token = localStorage.getItem("token");
-    return `${API_BASE_URL}/stream/${id}?bucket=${bucket}&token=${token}`;
+    const v = cacheBuster ? `&v=${cacheBuster}` : "";
+    return `${API_BASE_URL}/stream/${id}?bucket=${bucket}&token=${token}${v}`;
   },
 
-  getHLSUrl: (id: string, bucket: string) => {
+  getHLSUrl: (id: string, bucket: string, cacheBuster?: string | number) => {
     const token = localStorage.getItem("token");
-    return `${API_BASE_URL}/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}`;
+    const v = cacheBuster ? `&v=${cacheBuster}` : "";
+    return `${API_BASE_URL}/hls/${id}/master.m3u8?bucket=${bucket}&token=${token}${v}`;
   },
 
   getDownloadUrl: (id: string, bucket: string) => {

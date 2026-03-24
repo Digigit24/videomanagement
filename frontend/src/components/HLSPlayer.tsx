@@ -469,12 +469,6 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       // First tap - record it
       lastTapRef.current = { time: now, x: touch.clientX };
 
-      // Enter fullscreen IMMEDIATELY (must be in user gesture, not setTimeout)
-      const v = videoRef.current;
-      if (v && v.paused && isMobile.current && !document.fullscreenElement) {
-        enterFullscreen();
-      }
-
       // Show controls right away
       showControlsWithTimer(4000);
 
@@ -567,7 +561,6 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
           // On desktop only — mobile is handled entirely by onTouchEnd
           if (!isMobile.current) {
             togglePlay();
-            enterFullscreen();
             showControlsWithTimer(4000);
           }
         }}

@@ -603,7 +603,7 @@ export async function streamVideo(req, res) {
 
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Accept-Ranges", "bytes");
-        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.setHeader("Cache-Control", "no-cache");
         if (contentLength != null) {
           res.setHeader("Content-Length", contentLength);
         }
@@ -621,7 +621,7 @@ export async function streamVideo(req, res) {
     if (video.hls_path) {
       const stream = await getVideoStream(req.bucket, video.hls_path);
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", "no-cache");
       return stream.pipe(res);
     }
 
@@ -657,8 +657,13 @@ export async function streamHLS(req, res) {
 
     const stream = await getVideoStream(req.bucket || video.bucket, objectKey);
 
+    // Playlists (.m3u8) must not be cached so replacements are picked up immediately.
+    // Segments (.ts) use a moderate cache since their paths change on re-encode.
+    const cacheControl = hlsFile.endsWith(".m3u8")
+      ? "no-cache"
+      : "public, max-age=300";
     res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=31536000");
+    res.setHeader("Cache-Control", cacheControl);
     stream.pipe(res);
   } catch (error) {
     apiError(req, error);
