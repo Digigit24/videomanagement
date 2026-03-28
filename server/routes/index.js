@@ -648,17 +648,62 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
     // Derive the HLS directory from the DB's hls_path (includes workspace prefix)
     const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
     const objectKey = `${hlsDir}/${hlsPath}`;
-    const stream = await getObjectStream(video.bucket, objectKey);
+
+    let stream;
+    try {
+      stream = await getObjectStream(video.bucket, objectKey);
+    } catch (s3Error) {
+      console.error(
+        `[Public HLS] S3 fetch failed: bucket=${video.bucket}, key=${objectKey}, error=${s3Error.message}`,
+      );
+      return res.status(404).json({ error: "HLS file not found in storage" });
+    }
 
     if (hlsPath.endsWith(".m3u8")) {
       res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-    } else if (hlsPath.endsWith(".ts")) {
-      res.setHeader("Content-Type", "video/mp2t");
-    }
-    res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
 
-    stream.pipe(res);
+      // Rewrite relative URIs to include share token so sub-requests authenticate
+      const shareToken = req.query.token || req.headers["x-share-token"];
+      const chunks = [];
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("error", (err) => {
+        console.error(`[Public HLS] Stream read error: ${err.message}`);
+        if (!res.headersSent) res.status(500).json({ error: "Failed to read playlist" });
+        else res.end();
+      });
+      stream.on("end", () => {
+        let playlist = Buffer.concat(chunks).toString("utf8");
+        if (shareToken) {
+          playlist = playlist
+            .split("\n")
+            .map((line) => {
+              const trimmed = line.trim();
+              if (trimmed && !trimmed.startsWith("#")) {
+                return `${trimmed}?token=${encodeURIComponent(shareToken)}`;
+              }
+              return line;
+            })
+            .join("\n");
+        }
+        res.send(playlist);
+      });
+    } else {
+      if (hlsPath.endsWith(".ts")) {
+        res.setHeader("Content-Type", "video/mp2t");
+      }
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+      stream.on("error", (err) => {
+        console.error(`[Public HLS] Stream error: ${err.message}`);
+        if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
+        else res.end();
+      });
+      stream.pipe(res);
+    }
   } catch (error) {
+    console.error(`[Public HLS] Error: ${error.message}`);
     res.status(404).json({ error: "Stream not found" });
   }
 });

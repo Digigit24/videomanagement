@@ -637,11 +637,12 @@ export async function streamHLS(req, res) {
   try {
     const { id } = req.params;
     const hlsFile = req.params[0];
-    const video = await getVideoById(id, req.bucket);
+    const bucket = req.bucket;
+    const video = await getVideoById(id, bucket);
 
     if (!video || !video.hls_ready) {
       console.warn(
-        `[HLS] Video ${id} not found or not HLS-ready. Bucket: ${req.bucket}`,
+        `[HLS] Video ${id} not found or not HLS-ready. Bucket: ${bucket}`,
       );
       return res
         .status(404)
@@ -655,7 +656,15 @@ export async function streamHLS(req, res) {
       ? "application/vnd.apple.mpegurl"
       : "video/MP2T";
 
-    const stream = await getVideoStream(req.bucket || video.bucket, objectKey);
+    let stream;
+    try {
+      stream = await getVideoStream(bucket || video.bucket, objectKey);
+    } catch (s3Error) {
+      console.error(
+        `[HLS] S3 fetch failed: bucket=${bucket}, key=${objectKey}, error=${s3Error.message}`,
+      );
+      return res.status(404).json({ error: "HLS file not found in storage" });
+    }
 
     // Playlists (.m3u8) must not be cached so replacements are picked up immediately.
     // Segments (.ts) use a moderate cache since their paths change on re-encode.
@@ -664,10 +673,60 @@ export async function streamHLS(req, res) {
       : "public, max-age=300";
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", cacheControl);
-    stream.pipe(res);
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+
+    // For .m3u8 playlists, rewrite relative URIs to include token & bucket
+    // so that hls.js sub-requests don't lose authentication/bucket context.
+    if (hlsFile.endsWith(".m3u8")) {
+      const token = req.query.token || req.headers.authorization?.substring(7);
+      const chunks = [];
+      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("error", (err) => {
+        console.error(`[HLS] Stream read error for ${objectKey}: ${err.message}`);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Failed to read HLS playlist" });
+        } else {
+          res.end();
+        }
+      });
+      stream.on("end", () => {
+        let playlist = Buffer.concat(chunks).toString("utf8");
+        // Rewrite relative URIs (lines not starting with #) to include query params
+        const params = new URLSearchParams();
+        if (bucket) params.set("bucket", bucket);
+        if (token) params.set("token", token);
+        const qs = params.toString();
+        if (qs) {
+          playlist = playlist
+            .split("\n")
+            .map((line) => {
+              const trimmed = line.trim();
+              if (trimmed && !trimmed.startsWith("#")) {
+                return `${trimmed}?${qs}`;
+              }
+              return line;
+            })
+            .join("\n");
+        }
+        res.send(playlist);
+      });
+    } else {
+      // For .ts segments, pipe directly
+      stream.on("error", (err) => {
+        console.error(`[HLS] Stream error for ${objectKey}: ${err.message}`);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Failed to stream HLS segment" });
+        } else {
+          res.end();
+        }
+      });
+      stream.pipe(res);
+    }
   } catch (error) {
     apiError(req, error);
-    res.status(500).json({ error: "Failed to stream HLS content" });
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to stream HLS content" });
+    }
   }
 }
 
