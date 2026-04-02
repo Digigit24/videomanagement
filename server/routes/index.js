@@ -100,6 +100,8 @@ import {
   authenticateStream,
   optionalAuthenticate,
   validateBucket,
+  requireWorkspaceMember,
+  refreshUserRole,
 } from "../middleware/auth.js";
 import rateLimit from "express-rate-limit";
 
@@ -122,10 +124,10 @@ router.post("/register", optionalAuthenticate, register);
 router.get("/users", authenticate, getUsers);
 router.get("/user/me", authenticate, getCurrentUser);
 router.get("/user/:id", authenticate, getUser);
-router.delete("/user/:id", authenticate, deleteUser);
+router.delete("/user/:id", authenticate, refreshUserRole, deleteUser);
 router.post("/user/avatar", authenticate, uploadAvatar);
-router.patch("/user/:id/role", authenticate, changeUserRole);
-router.patch("/user/:id/org-member", authenticate, toggleOrgMember);
+router.patch("/user/:id/role", authenticate, refreshUserRole, changeUserRole);
+router.patch("/user/:id/org-member", authenticate, refreshUserRole, toggleOrgMember);
 router.get("/avatar/*", getAvatarStream);
 
 // Organization members (for workspace creation member picker)
@@ -177,9 +179,9 @@ router.get("/workspaces", authenticate, listWorkspaces);
 router.post("/workspaces", authenticate, createNewWorkspace);
 router.patch("/workspace/:id", authenticate, updateWorkspaceDetails);
 router.post("/workspace/:id/logo", authenticate, uploadWorkspaceLogo);
-router.get("/workspace/:id/members", authenticate, getMembers);
-router.post("/workspace/:id/members", authenticate, addMember);
-router.delete("/workspace/:id/members/:userId", authenticate, removeMember);
+router.get("/workspace/:id/members", authenticate, requireWorkspaceMember, getMembers);
+router.post("/workspace/:id/members", authenticate, requireWorkspaceMember, addMember);
+router.delete("/workspace/:id/members/:userId", authenticate, requireWorkspaceMember, removeMember);
 
 // Invitations
 router.post("/invitations", authenticate, createInvite);
@@ -188,6 +190,7 @@ router.post("/invite/:code/accept", acceptInvite);
 router.get(
   "/workspace/:workspaceId/invitations",
   authenticate,
+  requireWorkspaceMember,
   listInvitations,
 );
 router.delete("/invitation/:id", authenticate, revokeInvitation);
@@ -204,7 +207,7 @@ router.get("/workspace/:bucket/analytics", authenticate, async (req, res) => {
 });
 
 // Workspace
-router.post("/workspace/:id/delete", authenticate, removeWorkspace);
+router.post("/workspace/:id/delete", authenticate, refreshUserRole, removeWorkspace);
 
 // Videos - poll endpoint (lightweight check for changes)
 router.get("/videos/poll", authenticate, validateBucket, async (req, res) => {
@@ -262,7 +265,7 @@ router.get("/photo/:id", authenticateStream, async (req, res) => {
   }
 });
 
-router.delete("/video/:id", authenticate, validateBucket, removeVideo);
+router.delete("/video/:id", authenticate, refreshUserRole, validateBucket, removeVideo);
 
 // Video processing status (queue position, progress, step)
 router.get("/video/:id/processing", authenticate, getProcessingStatus);
@@ -300,12 +303,13 @@ router.post("/deleted-video/:id/restore", authenticate, restoreVideo);
 router.delete(
   "/deleted-video/:id/permanent",
   authenticate,
+  refreshUserRole,
   permanentDeleteVideo,
 );
 
 // Folders
-router.get("/workspace/:workspaceId/folders", authenticate, listFolders);
-router.post("/workspace/:workspaceId/folders", authenticate, createNewFolder);
+router.get("/workspace/:workspaceId/folders", authenticate, requireWorkspaceMember, listFolders);
+router.post("/workspace/:workspaceId/folders", authenticate, requireWorkspaceMember, createNewFolder);
 router.patch("/folder/:id", authenticate, updateFolderName);
 router.delete("/folder/:id", authenticate, removeFolder);
 
@@ -323,21 +327,26 @@ router.get("/public/folder/:token", getSharedFolder);
 router.get(
   "/workspace/:workspaceId/permissions",
   authenticate,
+  requireWorkspaceMember,
   listAllPermissions,
 );
 router.get(
   "/workspace/:workspaceId/permissions/me",
   authenticate,
+  requireWorkspaceMember,
   getMyPermissions,
 );
 router.get(
   "/workspace/:workspaceId/permissions/:userId",
   authenticate,
+  requireWorkspaceMember,
   getUserPermissions,
 );
 router.put(
   "/workspace/:workspaceId/permissions/:userId",
   authenticate,
+  refreshUserRole,
+  requireWorkspaceMember,
   updateUserPermissions,
 );
 router.get("/role-defaults/:role", authenticate, getRoleDefaults);
@@ -439,8 +448,8 @@ router.delete("/comment/:commentId", authenticate, removeComment);
 router.patch("/comment/:commentId/marker", authenticate, updateMarkerStatus);
 
 // Workspace Chat Messages
-router.post("/workspace/:workspaceId/messages", authenticate, sendMessage);
-router.get("/workspace/:workspaceId/messages", authenticate, getMessages);
+router.post("/workspace/:workspaceId/messages", authenticate, requireWorkspaceMember, sendMessage);
+router.get("/workspace/:workspaceId/messages", authenticate, requireWorkspaceMember, getMessages);
 router.delete("/chat-message/:messageId", authenticate, removeMessage);
 
 // Chat attachment streaming

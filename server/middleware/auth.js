@@ -56,12 +56,60 @@ export function authenticateStream(req, res, next) {
   }
 }
 
+/**
+ * Middleware that refreshes the user's role from the database.
+ * Use on sensitive operations (delete, role changes, permission updates)
+ * to prevent stale JWT roles from granting elevated access.
+ */
+export async function refreshUserRole(req, res, next) {
+  if (!req.user?.id) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  try {
+    const result = await getPool().query(
+      "SELECT role FROM users WHERE id = $1 AND deleted_at IS NULL",
+      [req.user.id],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(401).json({ error: "User account not found or deactivated" });
+    }
+
+    // Override the JWT role with the current DB role
+    req.user.role = result.rows[0].role;
+    next();
+  } catch (error) {
+    console.error("[Auth] Failed to refresh user role:", error.message);
+    return res.status(500).json({ error: "Failed to verify user permissions" });
+  }
+}
+
+/**
+ * Check if the authenticated user is a member of the workspace (by bucket name).
+ * Admins bypass this check.
+ */
+async function verifyWorkspaceMembership(req, bucket) {
+  if (!req.user) return false;
+  if (req.user.role === "admin") return true;
+
+  try {
+    const result = await getPool().query(
+      `SELECT 1 FROM workspace_members wm
+       JOIN workspaces w ON wm.workspace_id = w.id
+       WHERE w.bucket = $1 AND wm.user_id = $2
+       LIMIT 1`,
+      [bucket, req.user.id],
+    );
+    return result.rows.length > 0;
+  } catch (error) {
+    console.error("[Auth] Workspace membership check failed:", error.message);
+    return false;
+  }
+}
+
 export async function validateBucket(req, res, next) {
   const bucket = req.query.bucket || req.body.bucket;
-  console.log(
-    `[Bucket Validation] Request URL: ${req.url}, Method: ${req.method}`,
-  );
-  console.log(`[Bucket Validation] Checking bucket: "${bucket}"`);
 
   if (!bucket) {
     // If bucket is missing but we have a video ID in params, try to resolve it from the video
@@ -73,6 +121,10 @@ export async function validateBucket(req, res, next) {
         );
         if (resolved) {
           req.bucket = resolved;
+          // Verify membership for the resolved bucket
+          if (!(await verifyWorkspaceMembership(req, resolved))) {
+            return res.status(403).json({ error: "You are not a member of this workspace" });
+          }
           return next();
         }
       } catch (e) {
@@ -81,7 +133,6 @@ export async function validateBucket(req, res, next) {
         );
       }
     }
-    console.warn(`[Bucket Validation] No bucket provided for ${req.url}`);
     return res.status(400).json({ error: "Bucket parameter required" });
   }
 
@@ -92,6 +143,10 @@ export async function validateBucket(req, res, next) {
 
   if (envBuckets.includes(bucket)) {
     req.bucket = bucket;
+    // Verify membership even for env buckets
+    if (!(await verifyWorkspaceMembership(req, bucket))) {
+      return res.status(403).json({ error: "You are not a member of this workspace" });
+    }
     return next();
   }
 
@@ -103,10 +158,11 @@ export async function validateBucket(req, res, next) {
     );
 
     if (result.rows.length > 0) {
-      console.log(
-        `[Bucket Validation] Bucket "${bucket}" found in workspaces table.`,
-      );
       req.bucket = bucket;
+      // Verify membership for workspace buckets
+      if (!(await verifyWorkspaceMembership(req, bucket))) {
+        return res.status(403).json({ error: "You are not a member of this workspace" });
+      }
       return next();
     }
   } catch (error) {
@@ -116,6 +172,34 @@ export async function validateBucket(req, res, next) {
     );
   }
 
-  console.warn(`[Bucket Validation] FAILED for bucket: "${bucket}"`);
   return res.status(400).json({ error: "Invalid bucket" });
+}
+
+/**
+ * Middleware to verify user is a member of a workspace identified by :workspaceId param.
+ * Admins bypass this check.
+ */
+export async function requireWorkspaceMember(req, res, next) {
+  const workspaceId = req.params.workspaceId || req.params.id;
+  if (!workspaceId) {
+    return res.status(400).json({ error: "Workspace ID required" });
+  }
+
+  if (req.user.role === "admin") {
+    return next();
+  }
+
+  try {
+    const result = await getPool().query(
+      "SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 LIMIT 1",
+      [workspaceId, req.user.id],
+    );
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: "You are not a member of this workspace" });
+    }
+    next();
+  } catch (error) {
+    console.error("[Auth] Workspace member check failed:", error.message);
+    return res.status(500).json({ error: "Failed to verify workspace access" });
+  }
 }
