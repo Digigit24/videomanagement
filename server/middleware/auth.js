@@ -176,6 +176,39 @@ export async function validateBucket(req, res, next) {
 }
 
 /**
+ * Middleware to verify user is a member of the workspace that owns a folder.
+ * Resolves workspace from :folderId or :id param via the folders table.
+ * Admins bypass this check.
+ */
+export async function requireFolderAccess(req, res, next) {
+  const folderId = req.params.folderId || req.params.id;
+  if (!folderId) {
+    return res.status(400).json({ error: "Folder ID required" });
+  }
+
+  if (req.user.role === "admin") {
+    return next();
+  }
+
+  try {
+    const result = await getPool().query(
+      `SELECT wm.user_id FROM folders f
+       JOIN workspace_members wm ON wm.workspace_id = f.workspace_id
+       WHERE f.id = $1 AND wm.user_id = $2
+       LIMIT 1`,
+      [folderId, req.user.id],
+    );
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: "You are not a member of this workspace" });
+    }
+    next();
+  } catch (error) {
+    console.error("[Auth] Folder access check failed:", error.message);
+    return res.status(500).json({ error: "Failed to verify folder access" });
+  }
+}
+
+/**
  * Middleware to verify user is a member of a workspace identified by :workspaceId param.
  * Admins bypass this check.
  */

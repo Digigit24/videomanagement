@@ -23,13 +23,22 @@ app.use(
 );
 app.use(express.json());
 
-// Request logger
+// Request logger — use a persistent write stream instead of sync I/O per request
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const logFile = path.join(__dirname, "logs", "http.log");
+const logDir = path.join(__dirname, "logs");
+const logFile = path.join(logDir, "http.log");
+
+// Ensure log directory exists once at startup
+try {
+  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+} catch (_) {}
+
+// Open a single write stream for the lifetime of the process
+const logStream = fs.createWriteStream(logFile, { flags: "a" });
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -37,13 +46,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     const msg = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${duration}ms)\n`;
     console.log(msg.trim());
-    try {
-      if (!fs.existsSync(path.dirname(logFile)))
-        fs.mkdirSync(path.dirname(logFile), { recursive: true });
-      fs.appendFileSync(logFile, msg);
-    } catch (e) {
-      console.error("Failed to write log:", e);
-    }
+    logStream.write(msg);
   });
   next();
 });

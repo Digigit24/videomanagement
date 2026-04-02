@@ -78,8 +78,21 @@ export default function WorkspaceVideos() {
 
   useEffect(() => {
     if (!bucket) return;
-    const interval = setInterval(pollVideoChanges, 4000);
-    return () => clearInterval(interval);
+    // Exponential backoff polling: 5s → 10s → 20s → 30s max, resets on window focus
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await pollVideoChanges();
+      delay = Math.min(delay * 1.5, 30000);
+      timer = setTimeout(poll, delay);
+    };
+    timer = setTimeout(poll, delay);
+    const resetDelay = () => { delay = 5000; };
+    window.addEventListener('focus', resetDelay);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', resetDelay);
+    };
   }, [bucket]);
 
   useEffect(() => {

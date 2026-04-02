@@ -78,8 +78,17 @@ export const uploadMiddleware = upload.single("video");
 
 export async function listVideos(req, res) {
   try {
-    const videos = await getVideos(req.bucket);
-    res.json({ videos });
+    const page = parseInt(req.query.page) || undefined;
+    const limit = parseInt(req.query.limit) || undefined;
+
+    const result = await getVideos(req.bucket, { page, limit });
+
+    // Paginated response includes metadata; unpaginated returns plain array
+    if (limit) {
+      res.json(result);
+    } else {
+      res.json({ videos: result });
+    }
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to list videos" });

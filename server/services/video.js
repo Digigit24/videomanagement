@@ -212,19 +212,36 @@ export async function syncBucketVideos(bucket) {
   }
 }
 
-export async function getVideos(bucket) {
+export async function getVideos(bucket, { page, limit } = {}) {
   try {
-    // Videos are created in the DB during upload (createVideo) — no need to
-    // sync with S3 on every list request. The old syncBucketVideos call was
-    // creating duplicate entries for temp-upload files still in S3.
-    const result = await pool().query(
-      `SELECT v.*, u.name as uploaded_by_name, u.email as uploaded_by_email
+    const params = [bucket];
+    let sql = `SELECT v.*, u.name as uploaded_by_name, u.email as uploaded_by_email
        FROM videos v
        LEFT JOIN users u ON v.uploaded_by = u.id
        WHERE v.bucket = $1 AND v.is_active_version = TRUE
-       ORDER BY v.created_at DESC`,
-      [bucket],
-    );
+       ORDER BY v.created_at DESC`;
+
+    if (limit) {
+      const offset = ((page || 1) - 1) * limit;
+      sql += ` LIMIT $2 OFFSET $3`;
+      params.push(limit, offset);
+    }
+
+    const result = await pool().query(sql, params);
+
+    // If paginated, also return total count
+    if (limit) {
+      const countResult = await pool().query(
+        "SELECT COUNT(*) FROM videos WHERE bucket = $1 AND is_active_version = TRUE",
+        [bucket],
+      );
+      return {
+        videos: result.rows,
+        total: parseInt(countResult.rows[0].count),
+        page: page || 1,
+        limit,
+      };
+    }
 
     return result.rows;
   } catch (error) {
