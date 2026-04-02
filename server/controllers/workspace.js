@@ -384,8 +384,20 @@ export async function acceptInvite(req, res) {
     let user;
     const existing = await getUserByEmail(email);
     if (existing) {
+      // Verify password for existing users to prevent unauthorized workspace access
+      const isValid = await verifyPassword(password, existing.password);
+      if (!isValid) {
+        return res
+          .status(401)
+          .json({ error: "Invalid password for existing account. Please log in with your correct password." });
+      }
       user = existing;
     } else {
+      if (!password || password.length < 6) {
+        return res
+          .status(400)
+          .json({ error: "Password must be at least 6 characters" });
+      }
       user = await createUser(email, password, name, role);
     }
 

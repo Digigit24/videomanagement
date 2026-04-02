@@ -10,9 +10,6 @@ export function authenticate(req, res, next) {
     }
 
     const token = authHeader.substring(7);
-    console.log(
-      `[Auth Middleware] JWT_SECRET exists: ${!!process.env.JWT_SECRET}, Length: ${process.env.JWT_SECRET?.length}`,
-    );
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.user = decoded;

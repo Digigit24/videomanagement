@@ -25,9 +25,6 @@ export async function login(req, res) {
     }
 
     // Generate JWT token
-    console.log(
-      `[Auth Controller] JWT_SECRET exists: ${!!process.env.JWT_SECRET}, Length: ${process.env.JWT_SECRET?.length}`,
-    );
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
