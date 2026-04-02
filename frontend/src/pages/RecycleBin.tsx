@@ -132,8 +132,8 @@ export default function RecycleBin() {
         message: `Recycle bin cleared: ${videos} video(s), ${workspaces} workspace(s), ${users} user(s) permanently deleted`,
         type: 'success',
       });
-    } catch (err: any) {
-      setClearError(err.response?.data?.error || 'Failed to clear recycle bin');
+    } catch (err: unknown) {
+      setClearError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to clear recycle bin');
     } finally {
       setClearing(false);
     }

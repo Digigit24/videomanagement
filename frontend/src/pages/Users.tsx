@@ -284,8 +284,8 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
     try {
       const user = await userService.createUser(name, email, password, role, isOrgMember);
       onUserAdded(user);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create user');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create user');
     } finally {
       setLoading(false);
     }

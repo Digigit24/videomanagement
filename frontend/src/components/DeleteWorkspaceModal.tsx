@@ -26,8 +26,8 @@ export default function DeleteWorkspaceModal({ workspaceId, workspaceName, onClo
     try {
       await workspaceService.deleteWorkspace(workspaceId, password);
       onDeleted(workspaceId);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete workspace');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to delete workspace');
     } finally {
       setLoading(false);
     }

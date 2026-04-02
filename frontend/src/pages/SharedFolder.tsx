@@ -34,8 +34,8 @@ export default function SharedFolder() {
       setFolder(data.folder);
       setVideos(data.videos);
       setRequireLogin(data.requireLogin);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'This link is invalid or has expired.');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'This link is invalid or has expired.');
     } finally {
       setLoading(false);
     }

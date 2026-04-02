@@ -58,8 +58,8 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
         onLogin(data.user.email, data.token, data.user.name, data.user.id, data.user.role);
       }
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to join workspace');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to join workspace');
     } finally {
       setLoading(false);
     }

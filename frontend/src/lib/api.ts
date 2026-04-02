@@ -6,15 +6,6 @@ export const API_BASE_URL =
 export const APP_URL =
   import.meta.env.VITE_APP_URL || "https://videomanagement.celiyo.com";
 
-
-
-// export const API_BASE_URL =
-//   import.meta.env.VITE_API_URL || "http://localhost:4011";
-
-// export const APP_URL =
-//   import.meta.env.VITE_APP_URL || "http://localhost:4011";
-
-
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -41,5 +32,18 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+/**
+ * Extract a user-friendly error message from an API error.
+ * Works with Axios errors (server response) and plain Error objects.
+ */
+export function getErrorMessage(err: unknown, fallback = "Something went wrong"): string {
+  if (typeof err === "object" && err !== null) {
+    const axiosErr = err as { response?: { data?: { error?: string } }; message?: string };
+    if (axiosErr.response?.data?.error) return axiosErr.response.data.error;
+    if (axiosErr.message) return axiosErr.message;
+  }
+  return fallback;
+}
 
 export default api;

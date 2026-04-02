@@ -26,8 +26,8 @@ export default function DeleteUserModal({ userId, userName, onClose, onDeleted }
     try {
       await userService.deleteUser(userId, password);
       onDeleted(userId);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete user');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to delete user');
     } finally {
       setLoading(false);
     }

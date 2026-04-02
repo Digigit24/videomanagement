@@ -206,7 +206,7 @@ export default function VideoDetail() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  const handleUploadComplete = (newVideo?: any) => {
+  const handleUploadComplete = (newVideo?: Record<string, unknown>) => {
     if (newVideo && newVideo.id && newVideo.id !== id) {
       // Navigate to new video version (different ID)
       if (currentBucket) {
@@ -361,9 +361,9 @@ export default function VideoDetail() {
       // Reload the video so hls_ready resets and processing UI shows
       const updated = await videoService.getVideo(video.id, currentBucket);
       if (updated) setVideo(updated);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Reprocess failed:', err);
-      alert(err?.response?.data?.error || 'Failed to trigger reprocessing. Please try re-uploading.');
+      alert((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to trigger reprocessing. Please try re-uploading.');
     } finally {
       setReprocessing(false);
     }
@@ -400,10 +400,11 @@ export default function VideoDetail() {
       await videoService.deleteVideo(id, currentBucket, password);
       setConfirmDelete(false);
       navigate(`/workspace/${currentBucket}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete error:', error);
-      const status = error?.response?.status;
-      let msg = error?.response?.data?.error || 'Failed to delete video.';
+      const axiosErr = error as { response?: { status?: number; data?: { error?: string } } };
+      const status = axiosErr.response?.status;
+      let msg = axiosErr.response?.data?.error || 'Failed to delete video.';
       
       if (status === 403) {
         msg = 'Invalid admin password. Please try again.';
@@ -462,7 +463,7 @@ export default function VideoDetail() {
       try {
         const token = await videoService.getShareToken(video.id, requireLogin);
         setShareToken(token);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to generate share token:', error);
         setShareError(true);
       } finally {

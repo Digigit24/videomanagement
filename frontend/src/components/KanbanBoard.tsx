@@ -98,11 +98,11 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
       try {
         await videoService.updateStatus(video.id, newStatus);
         setToast({ message: `Status updated to ${newStatus}`, type: 'success' });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to update status:', error);
         // Revert optimistic update
         onVideoUpdate(videoId, previousStatus);
-        const errorMsg = error?.response?.data?.error || 'Failed to update status';
+        const errorMsg = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update status';
         setToast({ message: errorMsg, type: 'error' });
       }
     }

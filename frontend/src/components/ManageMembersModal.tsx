@@ -108,10 +108,10 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
     try {
       setSavingPerms(userId);
       await permissionService.updatePermissions(workspaceId, userId, updated);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Revert on error
       setMemberPerms(prev => ({ ...prev, [userId]: current }));
-      setError(err.response?.data?.error || 'Failed to update permissions');
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to update permissions');
     } finally {
       setSavingPerms(null);
     }
@@ -121,8 +121,8 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
     try {
       await workspaceService.addMember(workspaceId, userId);
       await loadData();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to add member');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to add member');
     }
   };
 
@@ -140,8 +140,8 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
     try {
       await workspaceService.removeMember(workspaceId, userId);
       await loadData();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to remove member');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to remove member');
     }
   };
 

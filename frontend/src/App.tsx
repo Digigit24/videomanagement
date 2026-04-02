@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/Header';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Login from '@/pages/Login';
 // Registration removed - only admin can create members
 import Dashboard from '@/pages/Dashboard';
@@ -23,12 +24,14 @@ function AppContent() {
 
   if (isPublicRoute) {
     return (
-      <Routes>
-        <Route path="/v/:videoId/review" element={<VideoReview />} />
-        <Route path="/v/:videoId" element={<VideoReview />} />
-        <Route path="/shared/folder/:token" element={<SharedFolder />} />
-        <Route path="/schema-generator" element={<SchemaGenerator />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/v/:videoId/review" element={<VideoReview />} />
+          <Route path="/v/:videoId" element={<VideoReview />} />
+          <Route path="/shared/folder/:token" element={<SharedFolder />} />
+          <Route path="/schema-generator" element={<SchemaGenerator />} />
+        </Routes>
+      </ErrorBoundary>
     );
   }
 
@@ -57,15 +60,17 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user.email} onLogout={logout} />
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/workspace/:bucket" element={<WorkspaceVideos />} />
-          <Route path="/workspace/:bucket/video/:id" element={<VideoDetail />} />
-          <Route path="/video/:id" element={<VideoDetail />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/recycle-bin" element={<RecycleBin />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/workspace/:bucket" element={<WorkspaceVideos />} />
+            <Route path="/workspace/:bucket/video/:id" element={<VideoDetail />} />
+            <Route path="/video/:id" element={<VideoDetail />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/recycle-bin" element={<RecycleBin />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

@@ -210,10 +210,11 @@ export default function SchemaGenerator() {
           }
         }
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError') return;
-      setError(err.message || 'An unexpected error occurred');
-      setStatusMessage(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const errMsg = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(errMsg);
+      setStatusMessage(`Error: ${errMsg}`);
     } finally {
       setIsGenerating(false);
       abortRef.current = null;

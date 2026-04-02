@@ -92,8 +92,8 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
       }
 
       onCreated(workspace);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create workspace');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create workspace');
     } finally {
       setLoading(false);
     }

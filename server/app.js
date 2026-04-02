@@ -5,9 +5,9 @@ import routes from "./routes/index.js";
 const app = express();
 
 // Middleware
-app.use(
-  cors({
-    origin: [
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim())
+  : [
       "https://videomanagement.celiyo.com",
       "https://video.celiyo.com",
       "http://localhost:3000",
@@ -15,7 +15,11 @@ app.use(
       "http://localhost:5000",
       "http://localhost:3001",
       "http://localhost:5174",
-    ],
+    ];
+
+app.use(
+  cors({
+    origin: corsOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Range", "x-share-token"],

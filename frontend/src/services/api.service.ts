@@ -327,7 +327,7 @@ export const videoService = {
   uploadVideo: async (
     file: File,
     bucket: string,
-    onProgress?: (progressEvent: any) => void,
+    onProgress?: (progressEvent: { loaded: number; total?: number }) => void,
     replaceVideoId?: string,
     folderId?: string,
   ) => {
@@ -518,7 +518,7 @@ export const chatService = {
     before?: string,
     since?: string,
   ) => {
-    const params: any = {};
+    const params: Record<string, string | number> = {};
     if (limit) params.limit = limit;
     if (before) params.before = before;
     if (since) params.since = since;
@@ -553,7 +553,7 @@ export const chatService = {
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent: any) => {
+        onUploadProgress: (progressEvent: { loaded: number; total?: number }) => {
           if (onProgress && progressEvent.total) {
             onProgress(
               Math.round((progressEvent.loaded * 100) / progressEvent.total),
@@ -593,7 +593,7 @@ export const notificationService = {
 // Public API (no auth needed - for share links, requires share token)
 export const publicVideoService = {
   getVideoInfo: async (videoId: string, token?: string) => {
-    const params: any = {};
+    const params: Record<string, string | number> = {};
     if (token) params.token = token;
     const { data } = await api.get(`/public/video/${videoId}`, { params });
     return data.video;
@@ -610,7 +610,7 @@ export const publicVideoService = {
   },
 
   getReviews: async (videoId: string, token?: string) => {
-    const params: any = {};
+    const params: Record<string, string | number> = {};
     if (token) params.token = token;
     const { data } = await api.get(`/public/video/${videoId}/reviews`, {
       params,
@@ -626,7 +626,7 @@ export const publicVideoService = {
     token?: string,
     attachment?: File,
   ) => {
-    const params: any = {};
+    const params: Record<string, string | number> = {};
     if (token) params.token = token;
 
     const formData = new FormData();

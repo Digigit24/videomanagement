@@ -7,7 +7,7 @@ import { useBucket } from '@/hooks/useBucket';
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadComplete: (video?: any) => void;
+  onUploadComplete: (video?: Record<string, unknown>) => void;
   bucket?: string;
   folderId?: string | null;
   replaceVideoId?: string;
@@ -142,10 +142,10 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
           idx === i ? { ...f, status: 'completed', progress: 100 } : f
         ));
         lastUploadedVideo = video;
-      } catch (err: any) {
+      } catch (err: unknown) {
         hasError = true;
         setFiles(prev => prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'error', error: err.response?.data?.error || 'Upload failed' } : f
+          idx === i ? { ...f, status: 'error', error: (err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Upload failed' } : f
         ));
       }
     }

@@ -41,8 +41,8 @@ export default function Register({ onRegister }: RegisterProps) {
       const loginData = await userService.login(email, password);
       onRegister(loginData.user.email, loginData.token, loginData.user.name, loginData.user.id, loginData.user.role, loginData.user.avatar_url);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Registration failed');
     } finally {
       setLoading(false);
     }
