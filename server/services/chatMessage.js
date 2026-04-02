@@ -1,4 +1,5 @@
 import { getPool } from "../db/index.js";
+import { sanitizeText } from "../utils/sanitize.js";
 
 export async function createMessage(
   workspaceId,
@@ -11,7 +12,7 @@ export async function createMessage(
     const result = await getPool().query(
       `INSERT INTO chat_messages (workspace_id, user_id, content, reply_to, mentions)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [workspaceId, userId, content, replyTo, mentions],
+      [workspaceId, userId, sanitizeText(content), replyTo, mentions],
     );
 
     // Fetch with user info and reply info

@@ -1,5 +1,6 @@
 import { getPool } from "../db/index.js";
 import crypto from "crypto";
+import { sanitizeText } from "../utils/sanitize.js";
 
 // === Share Tokens ===
 
@@ -50,7 +51,7 @@ export async function createReview(videoId, reviewerName, content, replyTo) {
   const result = await getPool().query(
     `INSERT INTO video_reviews (video_id, reviewer_name, content, reply_to)
      VALUES ($1, $2, $3, $4) RETURNING *`,
-    [videoId, reviewerName, content, replyTo || null],
+    [videoId, sanitizeText(reviewerName), sanitizeText(content), replyTo || null],
   );
 
   // Fetch with reply info and attachment

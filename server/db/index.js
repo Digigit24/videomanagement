@@ -17,13 +17,20 @@ function getPool() {
       throw new Error("DATABASE_URL environment variable is not set");
     }
 
+    // Use DB_SSL_CA env var for custom CA cert, otherwise trust system CAs.
+    // rejectUnauthorized defaults to true for secure connections.
+    const sslConfig = dbUrl.includes("sslmode=require")
+      ? {
+          rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false",
+          ...(process.env.DB_SSL_CA
+            ? { ca: fs.readFileSync(process.env.DB_SSL_CA, "utf8") }
+            : {}),
+        }
+      : false;
+
     pool = new Pool({
       connectionString: dbUrl,
-      ssl: dbUrl.includes("sslmode=require")
-        ? {
-            rejectUnauthorized: false,
-          }
-        : false,
+      ssl: sslConfig,
     });
   }
   return pool;

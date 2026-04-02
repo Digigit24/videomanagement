@@ -106,11 +106,29 @@ export async function processPermanentDeletions() {
         `Permanently deleting workspace: ${ws.client_name} (${ws.bucket})`,
       );
 
-      // Delete S3 content
+      // Delete S3 content for workspace prefix
       await deleteS3Content(ws.bucket);
 
-      // Delete from DB (Cascade should handle members/invitations if configured, but let's check schema)
-      // Schema has ON DELETE CASCADE for workspace_members and invitations.
+      // Also clean up individual video HLS directories and originals
+      const videos = await getPool().query(
+        "SELECT object_key, hls_path, thumbnail_key FROM videos WHERE bucket = $1",
+        [ws.bucket],
+      );
+      for (const v of videos.rows) {
+        try {
+          if (v.hls_path) {
+            const hlsDir = v.hls_path.replace(/\/master\.m3u8$/, "");
+            const { deleteS3Prefix } = await import("./storage.js");
+            const { bucket: resolved } = resolveBucket(ws.bucket);
+            await deleteS3Prefix(resolved, hlsDir);
+          }
+        } catch (e) {
+          console.warn(`Failed to clean S3 for video ${v.object_key}:`, e.message);
+        }
+      }
+
+      // Delete from DB (CASCADE handles members, invitations, folders)
+      await getPool().query("DELETE FROM videos WHERE bucket = $1", [ws.bucket]);
       await getPool().query("DELETE FROM workspaces WHERE id = $1", [ws.id]);
     }
 

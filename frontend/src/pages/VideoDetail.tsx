@@ -235,25 +235,38 @@ export default function VideoDetail() {
   const canDelete = ['admin', 'video_editor', 'project_manager', 'social_media_manager'].includes(userRole || '');
 
   useEffect(() => {
-    if (id && currentBucket) {
-      loadVideo();
-      loadComments();
-      loadViewers();
-      loadWorkspace();
-      videoService.recordView(id).catch(() => {});
-    }
+    if (!id || !currentBucket) return;
+
+    const controller = new AbortController();
+    loadVideo();
+    loadComments();
+    loadViewers();
+    loadWorkspace();
+    videoService.recordView(id).catch(() => {});
+
+    return () => controller.abort();
   }, [id, currentBucket]);
 
-  // Short polling: refresh comments every 4 seconds for near-real-time feedback
+  // Exponential backoff polling for comments (5s → 30s max, resets on focus)
   useEffect(() => {
     if (!id) return;
-    const interval = setInterval(async () => {
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
       try {
         const data = await commentService.getComments(id);
         setComments(data);
       } catch {}
-    }, 4000);
-    return () => clearInterval(interval);
+      delay = Math.min(delay * 1.5, 30000);
+      timer = setTimeout(poll, delay);
+    };
+    timer = setTimeout(poll, delay);
+    const resetDelay = () => { delay = 5000; };
+    window.addEventListener('focus', resetDelay);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', resetDelay);
+    };
   }, [id]);
 
   // Poll for processing status when video is not HLS-ready yet (skip for photos)

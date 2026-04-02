@@ -6,6 +6,7 @@ import {
 } from "../services/comment.js";
 import { logActivity } from "../services/activity.js";
 import { apiError } from "../utils/logger.js";
+import { VALID_MARKER_STATUSES } from "../utils/constants.js";
 
 import { uploadToS3 } from "../services/upload.js";
 import { getBucketByVideoId } from "../services/video.js";
@@ -145,10 +146,9 @@ export async function updateMarkerStatus(req, res) {
         .json({ error: "You don't have permission to update marker status" });
     }
 
-    const validStatuses = ["pending", "working", "done"];
-    if (!validStatuses.includes(markerStatus)) {
+    if (!VALID_MARKER_STATUSES.includes(markerStatus)) {
       return res.status(400).json({
-        error: "Invalid marker status. Must be: pending, working, or done",
+        error: `Invalid marker status. Must be one of: ${VALID_MARKER_STATUSES.join(", ")}`,
       });
     }
 

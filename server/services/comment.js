@@ -1,4 +1,5 @@
 import { getPool } from "../db/index.js";
+import { sanitizeText } from "../utils/sanitize.js";
 
 export async function createComment(
   videoId,
@@ -11,7 +12,7 @@ export async function createComment(
     const result = await getPool().query(
       `INSERT INTO comments (video_id, user_id, content, video_timestamp, reply_to)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [videoId, userId, content, videoTimestamp, replyTo],
+      [videoId, userId, sanitizeText(content), videoTimestamp, replyTo],
     );
 
     // Fetch with user info

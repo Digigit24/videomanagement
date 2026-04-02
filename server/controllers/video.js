@@ -2,6 +2,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { VALID_VIDEO_STATUSES } from "../utils/constants.js";
 import {
   getVideos,
   getVideoById,
@@ -117,8 +118,8 @@ export async function updateStatus(req, res) {
     const { status } = req.body;
     const userRole = req.user.role;
 
-    if (!status) {
-      return res.status(400).json({ error: "Status required" });
+    if (!status || !VALID_VIDEO_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_VIDEO_STATUSES.join(", ")}` });
     }
 
     // Only admin, project_manager, and client can change video status

@@ -34,7 +34,7 @@ async function start() {
     processPermanentDeletions().catch(console.error);
 
     // Start server
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`\n✓ Server running on http://localhost:${PORT}`);
       console.log(`✓ Buckets: ${process.env.ZATA_BUCKETS}`);
 
@@ -44,6 +44,28 @@ async function start() {
         console.error("Failed to recover stuck videos:", err);
       });
     });
+
+    // Graceful shutdown: stop accepting new connections, let in-flight finish
+    const shutdown = async (signal) => {
+      console.log(`\n[${signal}] Shutting down gracefully...`);
+      server.close(async () => {
+        console.log("✓ HTTP server closed");
+        try {
+          const { getPool } = await import("./db/index.js");
+          await getPool().end();
+          console.log("✓ Database pool closed");
+        } catch (_) {}
+        process.exit(0);
+      });
+      // Force exit after 10s if connections don't drain
+      setTimeout(() => {
+        console.error("Forced shutdown after timeout");
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

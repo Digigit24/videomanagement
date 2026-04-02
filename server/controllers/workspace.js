@@ -393,11 +393,6 @@ export async function acceptInvite(req, res) {
       }
       user = existing;
     } else {
-      if (!password || password.length < 6) {
-        return res
-          .status(400)
-          .json({ error: "Password must be at least 6 characters" });
-      }
       user = await createUser(email, password, name, role);
     }
 

@@ -65,11 +65,11 @@ app.use("/api/schema-generator", schemaGeneratorRoutes);
 app.use("/schema-generator", schemaGeneratorRoutes);
 app.use("/api", schemaGeneratorRoutes);
 
-// Routes
-// We mount on both /api and / to handle different proxy configurations
-// (some proxies strip the /api prefix, others don't)
+// Routes — mount on /api always; also mount on / for proxies that strip the prefix
 app.use("/api", routes);
-app.use("/", routes);
+if (process.env.MOUNT_ROOT_ROUTES !== "false") {
+  app.use("/", routes);
+}
 
 // Health check
 app.get("/health", (req, res) => {
