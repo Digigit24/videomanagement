@@ -85,38 +85,29 @@ export function registerCustomComponents() {
       this.selected(options.selected || false);
     }
     handleClick() {
-      const qualityLevels = (this.player() as any).qualityLevels?.() || [];
+      const player = this.player() as any;
+      const qualityLevels = player.qualityLevels?.() || [];
       const selectedHeight = this.qualityLevel?.height;
 
+      // Enable/disable quality levels in VHS
       for (let i = 0; i < qualityLevels.length; i++) {
         qualityLevels[i].enabled = selectedHeight === -1 || qualityLevels[i].height === selectedHeight;
       }
 
-      const menu = this.parentComponent();
-      if (menu) {
-        for (const item of menu.children() || []) {
-          if (item !== this && item.selected) item.selected(false);
-        }
-      }
-      this.selected(true);
-
-      const menuButton = this.parentComponent()?.parentComponent();
-      if (menuButton?.updateLabel) {
-        menuButton.updateLabel(selectedHeight === -1 ? 'Auto' : `${selectedHeight}p`, selectedHeight);
-      }
+      // Store selection on the player and fire event so MenuButton can update
+      player._selectedQualityHeight = selectedHeight;
+      player.trigger('qualityselected');
     }
   }
 
   // --- Quality Menu Button ---
   class QualityMenuButton extends MenuButton {
     labelEl: HTMLElement | null;
-    selectedHeight: number;
 
     constructor(player: any, options: any) {
       super(player, options);
       this.controlText('Quality');
       this.labelEl = null;
-      this.selectedHeight = -1; // -1 = Auto
 
       const el = this.el();
       const label = document.createElement('span');
@@ -124,6 +115,19 @@ export function registerCustomComponents() {
       label.textContent = 'Auto';
       el.querySelector('.vjs-icon-placeholder')?.appendChild(label);
       this.labelEl = label;
+
+      // Initialize stored selection
+      if ((player as any)._selectedQualityHeight === undefined) {
+        (player as any)._selectedQualityHeight = -1;
+      }
+
+      // Listen for quality selection changes
+      player.on('qualityselected', () => {
+        const h = (player as any)._selectedQualityHeight;
+        const text = h === -1 ? 'Auto' : (h >= 2160 ? '4K' : h >= 1440 ? '1440p' : `${h}p`);
+        if (this.labelEl) this.labelEl.textContent = text;
+        this.update(); // rebuild menu to update checkmarks
+      });
 
       player.ready(() => {
         const ql = (player as any).qualityLevels?.();
@@ -136,6 +140,8 @@ export function registerCustomComponents() {
       const ql = (this.player() as any).qualityLevels?.();
       if (!ql || ql.length === 0) return items;
 
+      const selectedHeight = (this.player() as any)._selectedQualityHeight ?? -1;
+
       const heights = new Set<number>();
       for (let i = 0; i < ql.length; i++) {
         if (ql[i].height) heights.add(ql[i].height);
@@ -143,22 +149,17 @@ export function registerCustomComponents() {
       const sorted = Array.from(heights).sort((a, b) => b - a);
 
       items.push(new QualityMenuItem(this.player(), {
-        label: 'Auto', qualityLevel: { height: -1 }, selected: this.selectedHeight === -1,
+        label: 'Auto', qualityLevel: { height: -1 }, selected: selectedHeight === -1,
       }));
 
       for (const h of sorted) {
         const label = h >= 2160 ? '4K' : h >= 1440 ? '1440p' : `${h}p`;
         const badge = h >= 720 ? ' HD' : '';
         items.push(new QualityMenuItem(this.player(), {
-          label: `${label}${badge}`, qualityLevel: { height: h }, selected: this.selectedHeight === h,
+          label: `${label}${badge}`, qualityLevel: { height: h }, selected: selectedHeight === h,
         }));
       }
       return items;
-    }
-
-    updateLabel(text: string, height: number) {
-      this.selectedHeight = height;
-      if (this.labelEl) this.labelEl.textContent = text;
     }
 
     buildCSSClass() {
