@@ -57,8 +57,14 @@ export async function sendMessage(req, res) {
       let parsedMentions = [];
       if (mentions) {
         try {
-          parsedMentions = JSON.parse(mentions);
-          if (!Array.isArray(parsedMentions)) parsedMentions = [];
+          const parsed = JSON.parse(mentions);
+          if (!Array.isArray(parsed)) {
+            return res.status(400).json({ error: "Mentions must be an array" });
+          }
+          // Only keep valid string/number IDs
+          parsedMentions = parsed.filter(
+            (id) => typeof id === "string" || typeof id === "number",
+          );
         } catch {
           return res.status(400).json({ error: "Invalid mentions format" });
         }

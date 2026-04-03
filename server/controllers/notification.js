@@ -8,7 +8,7 @@ import { apiError } from "../utils/logger.js";
 
 export async function getNotifications(req, res) {
   try {
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 50, 500));
     const notifications = await getUserNotifications(req.user.id, limit);
     const unreadCount = await getUnreadCount(req.user.id);
     res.json({ notifications, unreadCount });

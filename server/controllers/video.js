@@ -81,8 +81,10 @@ export const uploadMiddleware = upload.single("video");
 
 export async function listVideos(req, res) {
   try {
-    const page = parseInt(req.query.page) || undefined;
-    const limit = parseInt(req.query.limit) || undefined;
+    const rawPage = parseInt(req.query.page);
+    const rawLimit = parseInt(req.query.limit);
+    const page = rawPage > 0 ? rawPage : undefined;
+    const limit = rawLimit > 0 ? Math.min(rawLimit, 500) : undefined;
 
     const result = await getVideos(req.bucket, { page, limit });
 
