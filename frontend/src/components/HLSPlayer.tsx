@@ -104,23 +104,31 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Detect portrait video and add CSS class for object-fit: cover
-    player.on('loadedmetadata', () => {
+    // Detect portrait video — try on multiple events since HLS dimensions
+    // may not be available until after playback starts
+    const checkPortrait = () => {
       const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-      if (videoEl && videoEl.videoHeight > videoEl.videoWidth) {
+      if (videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > videoEl.videoWidth) {
         player.addClass('vjs-portrait');
+        // Also force style directly on the tech element in case CSS class doesn't apply
+        videoEl.style.setProperty('object-fit', 'cover', 'important');
         setIsPortrait(true);
+        return true;
       }
-    });
+      return false;
+    };
+    player.on('loadedmetadata', checkPortrait);
+    player.on('loadeddata', checkPortrait);
+    player.on('playing', checkPortrait);
 
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile) {
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
-        // Use Video.js fullscreen (not native video element fullscreen)
-        // so our CSS and controls stay in effect
         try { player.requestFullscreen(); } catch {}
+        // Check portrait again now that video is playing
+        checkPortrait();
         const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
         if (videoEl && screen.orientation && 'lock' in screen.orientation) {
           const portrait = videoEl.videoHeight > videoEl.videoWidth;

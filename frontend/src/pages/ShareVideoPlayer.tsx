@@ -135,12 +135,19 @@ export default function ShareVideoPlayer() {
     playerRef.current = player;
 
     // Detect portrait video and add CSS class for object-fit: cover
-    player.on('loadedmetadata', () => {
+    // Detect portrait video on multiple events (HLS dimensions may arrive late)
+    const checkPortrait = () => {
       const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-      if (videoEl && videoEl.videoHeight > videoEl.videoWidth) {
+      if (videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > videoEl.videoWidth) {
         player.addClass('vjs-portrait');
+        videoEl.style.setProperty('object-fit', 'cover', 'important');
+        return true;
       }
-    });
+      return false;
+    };
+    player.on('loadedmetadata', checkPortrait);
+    player.on('loadeddata', checkPortrait);
+    player.on('playing', checkPortrait);
 
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile) {
@@ -148,6 +155,7 @@ export default function ShareVideoPlayer() {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
         try { player.requestFullscreen(); } catch {}
+        checkPortrait();
         const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
         if (videoEl && screen.orientation && 'lock' in screen.orientation) {
           const portrait = videoEl.videoHeight > videoEl.videoWidth;
