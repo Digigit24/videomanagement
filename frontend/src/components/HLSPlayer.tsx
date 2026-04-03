@@ -3,7 +3,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
-import { registerCustomComponents } from './videojs-custom-plugins';
+import { registerCustomComponents, forceVideoFill } from './videojs-custom-plugins';
 
 registerCustomComponents();
 
@@ -105,34 +105,8 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Force tech element (the actual <video>) to fill the player
-    const forceTechSize = () => {
-      const techEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-      if (techEl) {
-        techEl.style.setProperty('width', '100%', 'important');
-        techEl.style.setProperty('height', '100%', 'important');
-        techEl.style.setProperty('max-width', 'none', 'important');
-        techEl.style.setProperty('max-height', 'none', 'important');
-        techEl.style.setProperty('object-fit', 'contain', 'important');
-      }
-    };
-    player.ready(forceTechSize);
-
-    // Detect portrait video and switch to object-fit: cover
-    const checkPortrait = () => {
-      const techEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-      if (techEl) {
-        // Always enforce sizing
-        forceTechSize();
-        if (techEl.videoWidth > 0 && techEl.videoHeight > techEl.videoWidth) {
-          techEl.style.setProperty('object-fit', 'cover', 'important');
-          setIsPortrait(true);
-        }
-      }
-    };
-    player.on('loadedmetadata', checkPortrait);
-    player.on('loadeddata', checkPortrait);
-    player.on('playing', checkPortrait);
+    // Force video element sizing via direct DOM query (not player.tech())
+    forceVideoFill(player.el(), (portrait) => setIsPortrait(portrait));
 
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile) {
@@ -140,9 +114,7 @@ export default function HLSPlayer({
         if (autoFsDone.current) return;
         autoFsDone.current = true;
         try { player.requestFullscreen(); } catch {}
-        // Check portrait again now that video is playing
-        checkPortrait();
-        const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+        const videoEl = player.el().querySelector('video') as HTMLVideoElement | null;
         if (videoEl && screen.orientation && 'lock' in screen.orientation) {
           const portrait = videoEl.videoHeight > videoEl.videoWidth;
           (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
