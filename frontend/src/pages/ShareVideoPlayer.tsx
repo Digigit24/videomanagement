@@ -16,7 +16,7 @@ export default function ShareVideoPlayer() {
   const { videoId } = useParams<{ videoId: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || undefined;
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
   const autoFsDone = useRef(false);
 
@@ -24,7 +24,6 @@ export default function ShareVideoPlayer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [playerReady, setPlayerReady] = useState(false);
 
   useEffect(() => {
     if (videoId) loadVideo();
@@ -36,11 +35,11 @@ export default function ShareVideoPlayer() {
     };
   }, [videoId]);
 
-  // Init player once video data is loaded and element is in DOM
+  // Init player once video data is loaded and container is in DOM
   useEffect(() => {
-    if (!video || !video.hls_ready || processing || playerRef.current || !videoRef.current) return;
+    if (!video || !video.hls_ready || processing || playerRef.current || !containerRef.current) return;
     initPlayer(video);
-  }, [video, processing, playerReady]);
+  }, [video, processing]);
 
   // Poll for processing status
   useEffect(() => {
@@ -85,15 +84,21 @@ export default function ShareVideoPlayer() {
   };
 
   const initPlayer = (videoData: any) => {
-    if (!videoRef.current || playerRef.current) return;
+    if (!containerRef.current || playerRef.current) return;
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    const player = videojs(videoRef.current, {
+    // Dynamic element creation — avoids React/Video.js DOM conflicts
+    const videoElement = document.createElement('video-js');
+    videoElement.classList.add('vjs-big-play-centered');
+    containerRef.current.appendChild(videoElement);
+
+    const player = videojs(videoElement as any, {
       controls: true,
       autoplay: false,
       preload: 'auto',
       playsinline: true,
+      fill: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -192,17 +197,9 @@ export default function ShareVideoPlayer() {
         </div>
       </div>
 
-      {/* Video Player — static <video> element, Video.js wraps it */}
-      <div className="flex-1 bg-black relative min-h-0">
-        <video
-          ref={(el) => {
-            (videoRef as any).current = el;
-            if (el && !playerRef.current) setPlayerReady(true);
-          }}
-          className="video-js vjs-big-play-centered absolute inset-0"
-          playsInline
-        />
-      </div>
+      {/* Video Player — dynamic video-js element created by initPlayer */}
+      <div ref={containerRef} className="flex-1 bg-black relative min-h-0" />
+
     </div>
   );
 }

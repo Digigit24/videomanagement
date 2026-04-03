@@ -28,7 +28,7 @@ export default function HLSPlayer({
   onPlayingChange,
   onPlayerError,
 }: HLSPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<Player | null>(null);
   const autoFsDone = useRef(false);
 
@@ -53,15 +53,21 @@ export default function HLSPlayer({
   }, [onPlayerRef]);
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    if (!containerRef.current) return;
 
     const token = localStorage.getItem('token');
 
-    const player = videojs(videoRef.current, {
+    // Dynamic element creation — avoids React/Video.js DOM conflicts
+    const videoElement = document.createElement('video-js');
+    videoElement.classList.add('vjs-big-play-centered');
+    containerRef.current.appendChild(videoElement);
+
+    const player = videojs(videoElement as any, {
       controls: true,
       autoplay: false,
       preload: 'auto',
       playsinline: true,
+      fill: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -104,13 +110,11 @@ export default function HLSPlayer({
         autoFsDone.current = true;
         const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
         if (!videoEl) return;
-        // Use native video fullscreen — browser handles sizing perfectly
         const goFullscreen = (videoEl as any).webkitEnterFullscreen
           || videoEl.requestFullscreen?.bind(videoEl);
         if (goFullscreen) {
           try { goFullscreen.call(videoEl); } catch {}
         }
-        // Lock orientation based on video dimensions
         if (screen.orientation && 'lock' in screen.orientation) {
           const isPortrait = videoEl.videoHeight > videoEl.videoWidth;
           (screen.orientation as any).lock(isPortrait ? 'portrait' : 'landscape').catch(() => {});
@@ -194,12 +198,8 @@ export default function HLSPlayer({
 
   return (
     <div className="w-full relative bg-black" style={{ aspectRatio: '16/9' }}>
-      {/* Static video element — Video.js initializes on this directly */}
-      <video
-        ref={videoRef}
-        className="video-js vjs-big-play-centered absolute inset-0"
-        playsInline
-      />
+      {/* Container for dynamically created video-js element */}
+      <div ref={containerRef} className="absolute inset-0" />
 
       {/* Intro Overlay */}
       {showIntro && (

@@ -53,9 +53,8 @@ export default function VideoReview() {
   const isMobile = useRef(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
   const autoFsDone = useRef(false);
   const [requiresLogin, setRequiresLogin] = useState(false);
-  const videoElRef = useRef<HTMLVideoElement>(null);
-  const playerRef = useRef<Player | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<Player | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -208,16 +207,22 @@ export default function VideoReview() {
   };
 
   const initPlayer = (videoData: any) => {
-    if (!videoElRef.current || playerRef.current) return;
+    if (!playerContainerRef.current || playerRef.current) return;
     if (!videoData.hls_ready) { setProcessing(true); return; }
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    const player = videojs(videoElRef.current, {
+    // Dynamic element creation — avoids React/Video.js DOM conflicts
+    const videoElement = document.createElement('video-js');
+    videoElement.classList.add('vjs-big-play-centered');
+    playerContainerRef.current.appendChild(videoElement);
+
+    const player = videojs(videoElement as any, {
       controls: true,
       autoplay: false,
       preload: 'auto',
       playsinline: true,
+      fill: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -593,34 +598,27 @@ export default function VideoReview() {
                 : "flex-1 h-full"
           )}
         >
-          {processing ? (
-            <div className="w-full h-full flex flex-col items-center justify-center text-center px-6">
+          {processing && (
+            <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center text-center px-6 z-10">
               <div className="w-10 h-10 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mb-4" />
               <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
               <p className="text-gray-500 text-xs max-w-xs">
                 Your video is being transcoded into multiple quality levels. This may take a few moments.
               </p>
             </div>
-          ) : (
-            <>
-              <video
-                ref={videoElRef}
-                className="video-js vjs-big-play-centered absolute inset-0"
-                playsInline
-              />
+          )}
+          {/* Video.js player gets dynamically appended here */}
 
-              {/* Digitech Intro Overlay */}
-              {showIntro && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black z-30">
-                  <div className="text-center">
-                    <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
-                      Digitech
-                    </h1>
-                    <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
-                  </div>
-                </div>
-              )}
-            </>
+          {/* Digitech Intro Overlay */}
+          {showIntro && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-30">
+              <div className="text-center">
+                <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
+                  Digitech
+                </h1>
+                <div className="mt-4 w-12 h-0.5 bg-white/40 mx-auto rounded-full" />
+              </div>
+            </div>
           )}
         </div>
 
