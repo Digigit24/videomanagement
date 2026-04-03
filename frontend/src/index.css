@@ -2,13 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Video.js — force player and video to fill container */
+/* Video.js — force player and video to fill container.
+   Tailwind preflight sets "img, video { max-width:100%; height:auto }"
+   which prevents the <video> from filling its parent. Override here. */
 .video-js,
 .video-js.vjs-fill {
   font-family: inherit;
   width: 100% !important;
   height: 100% !important;
 }
+.video-js video,
 .video-js .vjs-tech,
 .vjs-tech {
   position: absolute !important;
@@ -16,6 +19,8 @@
   left: 0 !important;
   width: 100% !important;
   height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   object-fit: contain !important;
 }
 .video-js .vjs-control-bar {

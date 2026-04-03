@@ -127,10 +127,19 @@ export default function HLSPlayer({
     });
 
     player.ready(() => {
-      // Force video element to fill player (bypass CSS specificity issues)
+      // Force video element to fill player — override Tailwind preflight
+      // which sets "video { max-width:100%; height:auto }" and shrinks it
       const tech = player.el()?.querySelector('video');
       if (tech) {
-        (tech as HTMLElement).style.cssText += 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;';
+        const s = (tech as HTMLElement).style;
+        s.setProperty('position', 'absolute', 'important');
+        s.setProperty('top', '0', 'important');
+        s.setProperty('left', '0', 'important');
+        s.setProperty('width', '100%', 'important');
+        s.setProperty('height', '100%', 'important');
+        s.setProperty('max-width', 'none', 'important');
+        s.setProperty('max-height', 'none', 'important');
+        s.setProperty('object-fit', 'contain', 'important');
       }
 
       // Add download button if URL provided
