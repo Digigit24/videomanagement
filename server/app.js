@@ -10,6 +10,7 @@ app.use(
   helmet({
     contentSecurityPolicy: false, // CSP managed separately or by frontend
     crossOriginEmbedderPolicy: false, // Allow embedding video content
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow thumbnails/streams to load cross-origin
   }),
 );
 

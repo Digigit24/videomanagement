@@ -3,7 +3,6 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
-import 'videojs-hls-quality-selector';
 import type Player from 'video.js/dist/types/player';
 
 interface HLSPlayerProps {
@@ -123,8 +122,8 @@ export default function HLSPlayer({
       },
     });
 
-    // HLS quality selector
-    (player as any).hlsQualitySelector({ displayCurrentQuality: true });
+    // Quality levels — auto-managed by VHS, no UI selector needed
+    // (videojs-contrib-quality-levels enables ABR quality tracking)
 
     // Skip buttons config
     player.ready(() => {

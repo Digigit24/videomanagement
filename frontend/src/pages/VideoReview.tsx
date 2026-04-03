@@ -5,7 +5,6 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
-import 'videojs-hls-quality-selector';
 import type Player from 'video.js/dist/types/player';
 import { Send, Reply, User, MessageCircle, Loader2, ShieldX, X, Paperclip, Smile, Image, FileVideo, FileText, File, Download, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -252,8 +251,8 @@ export default function VideoReview() {
       },
     });
 
-    // HLS quality selector
-    (player as any).hlsQualitySelector({ displayCurrentQuality: true });
+    // Quality levels — auto-managed by VHS
+    // (videojs-contrib-quality-levels enables ABR quality tracking)
 
     // Track play/pause state for layout
     player.on('play', () => setIsPlaying(true));
