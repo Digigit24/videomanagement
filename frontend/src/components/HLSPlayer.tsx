@@ -4,6 +4,9 @@ import 'video.js/dist/video-js.css';
 import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
+import { registerCustomComponents } from './videojs-custom-plugins';
+
+registerCustomComponents();
 
 interface HLSPlayerProps {
   hlsUrl: string;
@@ -97,14 +100,14 @@ export default function HLSPlayer({
       controlBar: {
         children: [
           'playToggle',
-          'skipBackward',
-          'skipForward',
+          'skipBackwardButton',
+          'skipForwardButton',
           'volumePanel',
           'currentTimeDisplay',
           'timeDivider',
           'durationDisplay',
           'progressControl',
-          'qualitySelector',
+          'qualityMenuButton',
           'fullscreenToggle',
         ],
       },
@@ -122,10 +125,6 @@ export default function HLSPlayer({
       },
     });
 
-    // Quality levels — auto-managed by VHS, no UI selector needed
-    // (videojs-contrib-quality-levels enables ABR quality tracking)
-
-    // Skip buttons config
     player.ready(() => {
       // Add download button if URL provided
       if (downloadUrl) {

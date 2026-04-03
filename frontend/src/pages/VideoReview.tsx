@@ -6,6 +6,10 @@ import 'video.js/dist/video-js.css';
 import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
+import { registerCustomComponents } from '@/components/videojs-custom-plugins';
+
+registerCustomComponents();
+
 import { Send, Reply, User, MessageCircle, Loader2, ShieldX, X, Paperclip, Smile, Image, FileVideo, FileText, File, Download, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -237,6 +241,20 @@ export default function VideoReview() {
         nativeVideoTracks: false,
       },
       sources: [{ src: hlsUrl, type: 'application/x-mpegURL' }],
+      controlBar: {
+        children: [
+          'playToggle',
+          'skipBackwardButton',
+          'skipForwardButton',
+          'volumePanel',
+          'currentTimeDisplay',
+          'timeDivider',
+          'durationDisplay',
+          'progressControl',
+          'qualityMenuButton',
+          'fullscreenToggle',
+        ],
+      },
     });
 
     playerRef.current = player;
@@ -250,9 +268,6 @@ export default function VideoReview() {
         iOS: true,
       },
     });
-
-    // Quality levels — auto-managed by VHS
-    // (videojs-contrib-quality-levels enables ABR quality tracking)
 
     // Track play/pause state for layout
     player.on('play', () => setIsPlaying(true));

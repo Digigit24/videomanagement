@@ -47,6 +47,44 @@
 .video-js .vjs-slider:focus {
   box-shadow: none;
 }
+/* Custom skip buttons */
+.video-js .vjs-skip-backward-button,
+.video-js .vjs-skip-forward-button {
+  cursor: pointer;
+  color: #fff;
+}
+.video-js .vjs-skip-backward-button:hover,
+.video-js .vjs-skip-forward-button:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+/* Quality menu button */
+.video-js .vjs-quality-menu-button .vjs-icon-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-js .vjs-quality-menu-button .vjs-quality-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+.video-js .vjs-quality-menu-button .vjs-menu {
+  width: 8em;
+}
+.video-js .vjs-quality-menu-button .vjs-menu .vjs-menu-item {
+  font-size: 12px;
+  padding: 4px 12px;
+  text-transform: none;
+}
+.video-js .vjs-quality-menu-button .vjs-menu .vjs-selected {
+  background-color: rgba(59, 130, 246, 0.5);
+}
+/* Download button */
+.video-js .vjs-download-button .vjs-icon-placeholder::before {
+  content: "\f019";
+  font-family: "VideoJS";
+  font-size: 1.6em;
+}
 
 @layer base {
   :root {
