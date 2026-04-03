@@ -102,7 +102,7 @@ export function registerCustomComponents() {
 
       const menuButton = this.parentComponent()?.parentComponent();
       if (menuButton?.updateLabel) {
-        menuButton.updateLabel(selectedHeight === -1 ? 'Auto' : `${selectedHeight}p`);
+        menuButton.updateLabel(selectedHeight === -1 ? 'Auto' : `${selectedHeight}p`, selectedHeight);
       }
     }
   }
@@ -110,11 +110,13 @@ export function registerCustomComponents() {
   // --- Quality Menu Button ---
   class QualityMenuButton extends MenuButton {
     labelEl: HTMLElement | null;
+    selectedHeight: number;
 
     constructor(player: any, options: any) {
       super(player, options);
       this.controlText('Quality');
       this.labelEl = null;
+      this.selectedHeight = -1; // -1 = Auto
 
       const el = this.el();
       const label = document.createElement('span');
@@ -141,20 +143,21 @@ export function registerCustomComponents() {
       const sorted = Array.from(heights).sort((a, b) => b - a);
 
       items.push(new QualityMenuItem(this.player(), {
-        label: 'Auto', qualityLevel: { height: -1 }, selected: true,
+        label: 'Auto', qualityLevel: { height: -1 }, selected: this.selectedHeight === -1,
       }));
 
       for (const h of sorted) {
         const label = h >= 2160 ? '4K' : h >= 1440 ? '1440p' : `${h}p`;
         const badge = h >= 720 ? ' HD' : '';
         items.push(new QualityMenuItem(this.player(), {
-          label: `${label}${badge}`, qualityLevel: { height: h }, selected: false,
+          label: `${label}${badge}`, qualityLevel: { height: h }, selected: this.selectedHeight === h,
         }));
       }
       return items;
     }
 
-    updateLabel(text: string) {
+    updateLabel(text: string, height: number) {
+      this.selectedHeight = height;
       if (this.labelEl) this.labelEl.textContent = text;
     }
 
