@@ -1,6 +1,6 @@
 /**
  * Custom Video.js components: Skip buttons + Quality selector menu
- * Register once, use in any player via controlBar config.
+ * Also injects CSS overrides that MUST load after Video.js + Tailwind.
  */
 import videojs from 'video.js';
 
@@ -9,6 +9,21 @@ let registered = false;
 export function registerCustomComponents() {
   if (registered) return;
   registered = true;
+
+  // --- Inject CSS override via <style> tag (loads LAST, wins specificity) ---
+  const style = document.createElement('style');
+  style.textContent = `
+    .video-js { width: 100% !important; height: 100% !important; }
+    .video-js video,
+    .video-js .vjs-tech {
+      max-width: none !important;
+      max-height: none !important;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain !important;
+    }
+  `;
+  document.head.appendChild(style);
 
   const Button = videojs.getComponent('Button') as any;
   const MenuButton = videojs.getComponent('MenuButton') as any;
@@ -74,27 +89,17 @@ export function registerCustomComponents() {
       const selectedHeight = this.qualityLevel?.height;
 
       for (let i = 0; i < qualityLevels.length; i++) {
-        if (selectedHeight === -1) {
-          // Auto mode — enable all levels
-          qualityLevels[i].enabled = true;
-        } else {
-          qualityLevels[i].enabled = qualityLevels[i].height === selectedHeight;
-        }
+        qualityLevels[i].enabled = selectedHeight === -1 || qualityLevels[i].height === selectedHeight;
       }
 
-      // Update selected state on all siblings
       const menu = this.parentComponent();
       if (menu) {
-        const items = menu.children() || [];
-        for (const item of items) {
-          if (item !== this && item.selected) {
-            item.selected(false);
-          }
+        for (const item of menu.children() || []) {
+          if (item !== this && item.selected) item.selected(false);
         }
       }
       this.selected(true);
 
-      // Update the button label
       const menuButton = this.parentComponent()?.parentComponent();
       if (menuButton?.updateLabel) {
         menuButton.updateLabel(selectedHeight === -1 ? 'Auto' : `${selectedHeight}p`);
@@ -111,7 +116,6 @@ export function registerCustomComponents() {
       this.controlText('Quality');
       this.labelEl = null;
 
-      // Build label element
       const el = this.el();
       const label = document.createElement('span');
       label.className = 'vjs-quality-label';
@@ -119,12 +123,9 @@ export function registerCustomComponents() {
       el.querySelector('.vjs-icon-placeholder')?.appendChild(label);
       this.labelEl = label;
 
-      // Rebuild menu when quality levels change
       player.ready(() => {
         const ql = (player as any).qualityLevels?.();
-        if (ql) {
-          ql.on('addqualitylevel', () => this.update());
-        }
+        if (ql) ql.on('addqualitylevel', () => this.update());
       });
     }
 
@@ -133,38 +134,28 @@ export function registerCustomComponents() {
       const ql = (this.player() as any).qualityLevels?.();
       if (!ql || ql.length === 0) return items;
 
-      // Collect unique heights
       const heights = new Set<number>();
       for (let i = 0; i < ql.length; i++) {
         if (ql[i].height) heights.add(ql[i].height);
       }
       const sorted = Array.from(heights).sort((a, b) => b - a);
 
-      // Auto option
       items.push(new QualityMenuItem(this.player(), {
-        label: 'Auto',
-        qualityLevel: { height: -1 },
-        selected: true,
+        label: 'Auto', qualityLevel: { height: -1 }, selected: true,
       }));
 
-      // Individual quality levels
       for (const h of sorted) {
         const label = h >= 2160 ? '4K' : h >= 1440 ? '1440p' : `${h}p`;
         const badge = h >= 720 ? ' HD' : '';
         items.push(new QualityMenuItem(this.player(), {
-          label: `${label}${badge}`,
-          qualityLevel: { height: h },
-          selected: false,
+          label: `${label}${badge}`, qualityLevel: { height: h }, selected: false,
         }));
       }
-
       return items;
     }
 
     updateLabel(text: string) {
-      if (this.labelEl) {
-        this.labelEl.textContent = text;
-      }
+      if (this.labelEl) this.labelEl.textContent = text;
     }
 
     buildCSSClass() {
@@ -172,7 +163,6 @@ export function registerCustomComponents() {
     }
   }
 
-  // Register components globally
   videojs.registerComponent('skipBackwardButton', SkipBackwardButton as any);
   videojs.registerComponent('skipForwardButton', SkipForwardButton as any);
   videojs.registerComponent('qualityMenuButton', QualityMenuButton as any);
