@@ -170,7 +170,14 @@ export default function VideoReview() {
 
   // Listen for fullscreen changes
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    const handler = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      // Unlock orientation when exiting fullscreen
+      if (!fs && screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch {}
+      }
+    };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
@@ -319,10 +326,32 @@ export default function VideoReview() {
   };
 
   // --- Player controls ---
+  const isMobileDevice = useRef(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
+  const autoFullscreenDone = useRef(false);
+
+  const enterPlayerFullscreen = useCallback(async () => {
+    if (!playerContainerRef.current || document.fullscreenElement) return;
+    try {
+      await playerContainerRef.current.requestFullscreen();
+      if (isMobileDevice.current && screen.orientation && 'lock' in screen.orientation) {
+        const v = videoRef.current;
+        const videoIsPortrait = v && v.videoHeight > v.videoWidth;
+        try {
+          await (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape');
+        } catch {}
+      }
+    } catch {}
+  }, []);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
+      // Auto-enter fullscreen on first play on mobile
+      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement) {
+        autoFullscreenDone.current = true;
+        enterPlayerFullscreen();
+      }
       if (!introShown) {
         setShowIntro(true);
         setIntroShown(true);
@@ -336,7 +365,7 @@ export default function VideoReview() {
     } else {
       v.pause();
     }
-  }, [introShown]);
+  }, [introShown, enterPlayerFullscreen]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;
@@ -357,14 +386,14 @@ export default function VideoReview() {
     setIsMuted(v.muted);
   }, []);
 
-  const toggleFullscreen = useCallback(() => {
+  const toggleFullscreen = useCallback(async () => {
     if (!playerContainerRef.current) return;
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else {
-      playerContainerRef.current.requestFullscreen();
+      await enterPlayerFullscreen();
     }
-  }, []);
+  }, [enterPlayerFullscreen]);
 
   const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const v = videoRef.current;
@@ -709,10 +738,10 @@ export default function VideoReview() {
           className={cn(
             "w-full bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group transition-all duration-300",
             isFullscreen
-              ? ""
+              ? "h-screen w-screen"
               : showChat
                 ? isPortrait
-                  ? "h-[60vh] sm:h-[70vh] md:flex-1 md:h-full"
+                  ? "h-[65vh] sm:h-[75vh] md:flex-1 md:h-full"
                   : "h-[40vh] sm:h-[45vh] md:flex-1 md:h-full"
                 : "flex-1 h-full"
           )}

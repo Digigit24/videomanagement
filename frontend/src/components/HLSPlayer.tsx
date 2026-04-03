@@ -285,20 +285,29 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     if (!containerRef.current || document.fullscreenElement) return;
     try {
       await containerRef.current.requestFullscreen();
-      // Always lock to landscape on mobile when entering fullscreen
+      // Lock orientation based on video aspect ratio
       if (isMobile.current && screen.orientation && 'lock' in screen.orientation) {
+        const v = videoRef.current;
+        const videoIsPortrait = v && v.videoHeight > v.videoWidth;
         try {
-          await (screen.orientation as any).lock('landscape');
-          setIsLandscapeLocked(true);
+          await (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape');
+          setIsLandscapeLocked(!videoIsPortrait);
         } catch {}
       }
     } catch {}
   }, []);
 
+  const autoFullscreenDone = useRef(false);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
+      // Auto-enter fullscreen on first play on mobile
+      if (isMobile.current && !autoFullscreenDone.current && !document.fullscreenElement) {
+        autoFullscreenDone.current = true;
+        enterFullscreen();
+      }
       if (!introShown) {
         setShowIntro(true);
         setIntroShown(true);
@@ -312,7 +321,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     } else {
       v.pause();
     }
-  }, [introShown]);
+  }, [introShown, enterFullscreen]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;
@@ -362,11 +371,13 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     } else {
       try {
         await containerRef.current.requestFullscreen();
-        // Lock to landscape on mobile when entering fullscreen
+        // Lock orientation based on video aspect ratio
         if (isMobile.current && screen.orientation && 'lock' in screen.orientation) {
+          const v = videoRef.current;
+          const videoIsPortrait = v && v.videoHeight > v.videoWidth;
           try {
-            await (screen.orientation as any).lock('landscape');
-            setIsLandscapeLocked(true);
+            await (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape');
+            setIsLandscapeLocked(!videoIsPortrait);
           } catch {}
         }
       } catch {}
@@ -540,10 +551,14 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       ref={containerRef}
       className={cn(
         "w-full bg-gray-950 rounded-lg overflow-hidden relative group select-none",
-        isFullscreen ? "rounded-none" : "",
-        isPortrait && !isFullscreen ? "max-h-[75vh]" : ""
+        isFullscreen ? "rounded-none h-screen w-screen" : "",
       )}
-      style={!isFullscreen ? { aspectRatio: isPortrait ? '9/16' : '16/9', maxHeight: isPortrait ? '75vh' : undefined } : undefined}
+      style={!isFullscreen ? {
+        aspectRatio: isPortrait ? '9/16' : '16/9',
+        maxHeight: isPortrait ? '80vh' : undefined,
+        margin: isPortrait ? '0 auto' : undefined,
+        maxWidth: isPortrait ? 'min(100%, 56.25vh)' : undefined,
+      } : undefined}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
       onTouchEnd={handleVideoTouchEnd}
@@ -561,7 +576,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         ref={videoRef}
         className={cn(
           "w-full h-full cursor-pointer",
-          isFullscreen ? "object-contain" : "object-contain"
+          isFullscreen && isPortrait ? "object-contain" : "object-contain"
         )}
         playsInline
         controlsList="nodownload"

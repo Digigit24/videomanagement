@@ -54,9 +54,19 @@ export default function ShareVideoPlayer() {
     return () => clearInterval(interval);
   }, [videoId, processing, token]);
 
+  const [isPortrait, setIsPortrait] = useState(false);
+  const isMobileDevice = useRef(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
+  const autoFullscreenDone = useRef(false);
+
   // Fullscreen listener
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    const handler = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      if (!fs && screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch {}
+      }
+    };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
@@ -167,10 +177,29 @@ export default function ShareVideoPlayer() {
   };
 
   // --- Player controls ---
+  const enterFullscreenSmart = useCallback(async () => {
+    if (!containerRef.current || document.fullscreenElement) return;
+    try {
+      await containerRef.current.requestFullscreen();
+      if (isMobileDevice.current && screen.orientation && 'lock' in screen.orientation) {
+        const v = videoRef.current;
+        const videoIsPortrait = v && v.videoHeight > v.videoWidth;
+        try {
+          await (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape');
+        } catch {}
+      }
+    } catch {}
+  }, []);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
+      // Auto-enter fullscreen on first play on mobile
+      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement) {
+        autoFullscreenDone.current = true;
+        enterFullscreenSmart();
+      }
       if (!introShown) {
         setShowIntro(true);
         setIntroShown(true);
@@ -184,7 +213,7 @@ export default function ShareVideoPlayer() {
     } else {
       v.pause();
     }
-  }, [introShown]);
+  }, [introShown, enterFullscreenSmart]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;
@@ -205,14 +234,14 @@ export default function ShareVideoPlayer() {
     setIsMuted(v.muted);
   }, []);
 
-  const toggleFullscreen = useCallback(() => {
+  const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else {
-      containerRef.current.requestFullscreen();
+      await enterFullscreenSmart();
     }
-  }, []);
+  }, [enterFullscreenSmart]);
 
   const handleQualityChange = useCallback((levelIndex: number) => {
     if (hlsRef.current) {
@@ -363,6 +392,10 @@ export default function ShareVideoPlayer() {
           onEnded={() => setIsPlaying(false)}
           onLoadedMetadata={() => {
             setVideoLoading(false);
+            const v = videoRef.current;
+            if (v && v.videoWidth && v.videoHeight) {
+              setIsPortrait(v.videoHeight > v.videoWidth);
+            }
           }}
           onWaiting={() => setVideoLoading(true)}
           onPlaying={() => setVideoLoading(false)}
