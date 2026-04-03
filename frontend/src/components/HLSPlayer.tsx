@@ -61,6 +61,8 @@ export default function HLSPlayer({
     // Dynamic element creation — avoids React/Video.js DOM conflicts
     const videoElement = document.createElement('video-js');
     videoElement.classList.add('vjs-big-play-centered');
+    // Force the video-js element to fill its container via inline styles
+    videoElement.style.cssText = 'width:100%!important;height:100%!important;position:absolute;top:0;left:0;';
     containerRef.current.appendChild(videoElement);
 
     const player = videojs(videoElement as any, {
@@ -68,7 +70,6 @@ export default function HLSPlayer({
       autoplay: false,
       preload: 'auto',
       playsinline: true,
-      fill: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -104,18 +105,30 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Detect portrait video — try on multiple events since HLS dimensions
-    // may not be available until after playback starts
-    const checkPortrait = () => {
-      const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-      if (videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > videoEl.videoWidth) {
-        player.addClass('vjs-portrait');
-        // Also force style directly on the tech element in case CSS class doesn't apply
-        videoEl.style.setProperty('object-fit', 'cover', 'important');
-        setIsPortrait(true);
-        return true;
+    // Force tech element (the actual <video>) to fill the player
+    const forceTechSize = () => {
+      const techEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+      if (techEl) {
+        techEl.style.setProperty('width', '100%', 'important');
+        techEl.style.setProperty('height', '100%', 'important');
+        techEl.style.setProperty('max-width', 'none', 'important');
+        techEl.style.setProperty('max-height', 'none', 'important');
+        techEl.style.setProperty('object-fit', 'contain', 'important');
       }
-      return false;
+    };
+    player.ready(forceTechSize);
+
+    // Detect portrait video and switch to object-fit: cover
+    const checkPortrait = () => {
+      const techEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+      if (techEl) {
+        // Always enforce sizing
+        forceTechSize();
+        if (techEl.videoWidth > 0 && techEl.videoHeight > techEl.videoWidth) {
+          techEl.style.setProperty('object-fit', 'cover', 'important');
+          setIsPortrait(true);
+        }
+      }
     };
     player.on('loadedmetadata', checkPortrait);
     player.on('loadeddata', checkPortrait);

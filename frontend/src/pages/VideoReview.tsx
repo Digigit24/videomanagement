@@ -215,6 +215,7 @@ export default function VideoReview() {
     // Dynamic element creation — avoids React/Video.js DOM conflicts
     const videoElement = document.createElement('video-js');
     videoElement.classList.add('vjs-big-play-centered');
+    videoElement.style.cssText = 'width:100%!important;height:100%!important;position:absolute;top:0;left:0;';
     playerContainerRef.current.appendChild(videoElement);
 
     const player = videojs(videoElement as any, {
@@ -222,7 +223,6 @@ export default function VideoReview() {
       autoplay: false,
       preload: 'auto',
       playsinline: true,
-      fill: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -258,15 +258,28 @@ export default function VideoReview() {
 
     playerRef.current = player;
 
-    // Detect portrait video on multiple events (HLS dimensions may arrive late)
-    const checkPortrait = () => {
-      const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-      if (videoEl && videoEl.videoWidth > 0 && videoEl.videoHeight > videoEl.videoWidth) {
-        player.addClass('vjs-portrait');
-        videoEl.style.setProperty('object-fit', 'cover', 'important');
-        return true;
+    // Force tech element to fill player
+    const forceTechSize = () => {
+      const techEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+      if (techEl) {
+        techEl.style.setProperty('width', '100%', 'important');
+        techEl.style.setProperty('height', '100%', 'important');
+        techEl.style.setProperty('max-width', 'none', 'important');
+        techEl.style.setProperty('max-height', 'none', 'important');
+        techEl.style.setProperty('object-fit', 'contain', 'important');
       }
-      return false;
+    };
+    player.ready(forceTechSize);
+
+    // Detect portrait video and switch to cover
+    const checkPortrait = () => {
+      const techEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+      if (techEl) {
+        forceTechSize();
+        if (techEl.videoWidth > 0 && techEl.videoHeight > techEl.videoWidth) {
+          techEl.style.setProperty('object-fit', 'cover', 'important');
+        }
+      }
     };
     player.on('loadedmetadata', checkPortrait);
     player.on('loadeddata', checkPortrait);
