@@ -384,7 +384,7 @@ export default function ShareVideoPlayer() {
 
         <video
           ref={videoRef}
-          className="w-full h-full object-contain"
+          className={`w-full h-full ${isPortrait ? 'object-cover' : 'object-contain'}`}
           onClick={togglePlay}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}

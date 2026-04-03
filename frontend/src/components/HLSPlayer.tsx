@@ -554,10 +554,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         isFullscreen ? "rounded-none h-screen w-screen" : "",
       )}
       style={!isFullscreen ? {
-        aspectRatio: isPortrait ? '9/16' : '16/9',
-        maxHeight: isPortrait ? '80vh' : undefined,
-        margin: isPortrait ? '0 auto' : undefined,
-        maxWidth: isPortrait ? 'min(100%, 56.25vh)' : undefined,
+        aspectRatio: '16/9',
       } : undefined}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
@@ -576,7 +573,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
         ref={videoRef}
         className={cn(
           "w-full h-full cursor-pointer",
-          isFullscreen && isPortrait ? "object-contain" : "object-contain"
+          isFullscreen && isPortrait ? "object-cover" : "object-contain"
         )}
         playsInline
         controlsList="nodownload"

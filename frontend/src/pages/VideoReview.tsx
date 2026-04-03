@@ -764,7 +764,7 @@ export default function VideoReview() {
             ) : (
               <video
                 ref={videoRef}
-                className="w-full h-full object-contain cursor-pointer"
+                className={`w-full h-full cursor-pointer ${isPortrait && isFullscreen ? 'object-cover' : 'object-contain'}`}
                 playsInline
                 onClick={togglePlay}
                 onPlay={() => setIsPlaying(true)}
