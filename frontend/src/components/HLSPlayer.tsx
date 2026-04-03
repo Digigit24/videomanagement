@@ -35,6 +35,7 @@ export default function HLSPlayer({
   const [showIntro, setShowIntro] = useState(false);
   const [introShown, setIntroShown] = useState(false);
   const [error, setError] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
 
   const onProgressRef = useRef(onProgress);
   const onPlayingChangeRef = useRef(onPlayingChange);
@@ -102,6 +103,15 @@ export default function HLSPlayer({
     });
 
     playerRef.current = player;
+
+    // Detect portrait video and add CSS class for object-fit: cover
+    player.on('loadedmetadata', () => {
+      const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+      if (videoEl && videoEl.videoHeight > videoEl.videoWidth) {
+        player.addClass('vjs-portrait');
+        setIsPortrait(true);
+      }
+    });
 
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile) {
@@ -197,7 +207,13 @@ export default function HLSPlayer({
   }, [introShown]);
 
   return (
-    <div className="w-full relative bg-black" style={{ aspectRatio: '16/9' }}>
+    <div
+      className="w-full relative bg-black"
+      style={isPortrait
+        ? { aspectRatio: '9/16', maxHeight: '80vh', margin: '0 auto' }
+        : { aspectRatio: '16/9' }
+      }
+    >
       {/* Container for dynamically created video-js element */}
       <div ref={containerRef} className="absolute inset-0" />
 

@@ -22,6 +22,11 @@ export function registerCustomComponents() {
       height: 100% !important;
       object-fit: contain !important;
     }
+    /* Portrait video on mobile: fill the screen, no black bars */
+    .video-js.vjs-portrait video,
+    .video-js.vjs-portrait .vjs-tech {
+      object-fit: cover !important;
+    }
   `;
   document.head.appendChild(style);
 

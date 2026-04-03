@@ -258,6 +258,14 @@ export default function VideoReview() {
 
     playerRef.current = player;
 
+    // Detect portrait video and add CSS class for object-fit: cover
+    player.on('loadedmetadata', () => {
+      const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+      if (videoEl && videoEl.videoHeight > videoEl.videoWidth) {
+        player.addClass('vjs-portrait');
+      }
+    });
+
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile.current) {
       player.on('play', () => {
