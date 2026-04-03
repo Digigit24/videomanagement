@@ -1,8 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
-import Hls from 'hls.js';
-import { Send, Play, Pause, Reply, User, MessageCircle, Loader2, ShieldX, X, Settings, Check, Maximize, Minimize, Volume2, VolumeX, Paperclip, Smile, Image, FileVideo, FileText, File, Download, RotateCw, SkipForward, SkipBack, ArrowLeft } from 'lucide-react';
+import videojs from 'video.js';
+import 'video.js/dist/video-js.css';
+import 'videojs-landscape-fullscreen';
+import 'videojs-contrib-quality-levels';
+import 'videojs-hls-quality-selector';
+import type Player from 'video.js/dist/types/player';
+import { Send, Reply, User, MessageCircle, Loader2, ShieldX, X, Paperclip, Smile, Image, FileVideo, FileText, File, Download, ArrowLeft } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -44,14 +49,13 @@ export default function VideoReview() {
   const token = searchParams.get('token') || undefined;
   const isFromFolder = searchParams.get('folder') === '1';
   const [requiresLogin, setRequiresLogin] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<Player | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isNearBottomRef = useRef(true);
-  const controlsTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const [video, setVideo] = useState<any>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -63,26 +67,13 @@ export default function VideoReview() {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<Review | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  // HLS quality state
-  const [qualities, setQualities] = useState<{ index: number; height: number; width: number; bitrate: number }[]>([]);
-  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [showControls, setShowControls] = useState(true);
+  const [, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [videoLoading, setVideoLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [buffered, setBuffered] = useState(0);
-  const [rotation, setRotation] = useState(0);
-  const [isPortrait, setIsPortrait] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
-  const [introShown, setIntroShown] = useState(false);
+  const [, setIntroShown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -91,14 +82,17 @@ export default function VideoReview() {
       loadReviews();
     }
     return () => {
-      if (hlsRef.current) hlsRef.current.destroy();
+      if (playerRef.current && !playerRef.current.isDisposed()) {
+        playerRef.current.dispose();
+        playerRef.current = null;
+      }
     };
   }, [videoId]);
 
-  // Re-initialize player when nameSet becomes true (video element now exists)
+  // Re-initialize player when nameSet becomes true (video container now exists)
   useEffect(() => {
-    if (nameSet && video && videoRef.current) {
-      initPlayer(video);
+    if (nameSet && video && video.hls_ready) {
+      setTimeout(() => initPlayer(video), 100);
     }
   }, [nameSet]);
 
@@ -137,7 +131,7 @@ export default function VideoReview() {
         if (!cancelled && data.hls_ready) {
           setVideo(data);
           setProcessing(false);
-          if (nameSet && videoRef.current) {
+          if (nameSet) {
             setTimeout(() => initPlayer(data), 100);
           }
           return;
@@ -173,27 +167,10 @@ export default function VideoReview() {
     const handler = () => {
       const fs = !!document.fullscreenElement;
       setIsFullscreen(fs);
-      // Unlock orientation when exiting fullscreen
-      if (!fs && screen.orientation && 'unlock' in screen.orientation) {
-        try { screen.orientation.unlock(); } catch {}
-      }
     };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
-
-  // Close quality menu on outside click
-  useEffect(() => {
-    if (!showQualityMenu) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.quality-panel')) {
-        setShowQualityMenu(false);
-      }
-    };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [showQualityMenu]);
 
   const loadVideo = async () => {
     if (!token) {
@@ -227,88 +204,83 @@ export default function VideoReview() {
   };
 
   const initPlayer = (videoData: any) => {
-    const videoEl = videoRef.current;
-    if (!videoEl) return;
+    if (!videoContainerRef.current || playerRef.current) return;
+    if (!videoData.hls_ready) { setProcessing(true); return; }
 
-    // Reset player
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-    setQualities([]);
-    setCurrentQuality(-1);
-    setVideoLoading(true);
-
-    if (!videoData.hls_ready) {
-      setProcessing(true);
-      return;
-    }
+    const videoElement = document.createElement('video-js');
+    videoElement.classList.add('vjs-big-play-centered', 'vjs-fill');
+    videoContainerRef.current.appendChild(videoElement);
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        startLevel: -1,              // Auto quality selection
-        enableWorker: true,          // Web worker for faster parsing
-        capLevelToPlayerSize: true,  // Match quality to player size
-        maxBufferLength: 30,         // Buffer 30 seconds ahead
-        maxMaxBufferLength: 60,      // Max 60 seconds buffer
-        maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer
-        startFragPrefetch: true,     // Prefetch next fragment for faster playback
-        lowLatencyMode: false,       // Not live streaming
-        backBufferLength: 30,        // Keep 30s of back buffer for seeking
-        testBandwidth: true,         // Test bandwidth for better ABR
-        // Forward the share token to ALL HLS sub-requests
-        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-          if (token && !url.includes('token=')) {
-            const separator = url.includes('?') ? '&' : '?';
-            xhr.open('GET', `${url}${separator}token=${token}`, true);
-          }
+    const player = videojs(videoElement, {
+      controls: true,
+      autoplay: false,
+      preload: 'auto',
+      fluid: false,
+      fill: true,
+      responsive: true,
+      playsinline: true,
+      html5: {
+        vhs: {
+          overrideNative: true,
+          xhr: {
+            beforeRequest: (options: Record<string, any>) => {
+              if (token && options.uri && !options.uri.includes('token=')) {
+                const separator = options.uri.includes('?') ? '&' : '?';
+                options.uri = `${options.uri}${separator}token=${token}`;
+              }
+              return options;
+            },
+          },
         },
-      });
-      hlsRef.current = hls;
+        nativeAudioTracks: false,
+        nativeVideoTracks: false,
+      },
+      sources: [{ src: hlsUrl, type: 'application/x-mpegURL' }],
+    });
 
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(videoEl);
+    playerRef.current = player;
 
-      hls.on(Hls.Events.MANIFEST_PARSED, (_event: any, data: any) => {
-        setVideoLoading(false);
-        const levels = data.levels
-          .map((level: any, index: number) => ({
-            index,
-            height: level.height,
-            width: level.width,
-            bitrate: level.bitrate,
-          }))
-          .sort((a: any, b: any) => b.height - a.height);
-        setQualities(levels);
-      });
+    // Landscape fullscreen plugin
+    (player as any).landscapeFullscreen({
+      fullscreen: {
+        enterOnRotate: true,
+        exitOnRotate: true,
+        alwaysInLandscapeMode: false,
+        iOS: true,
+      },
+    });
 
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_event: any, data: any) => {
-        setCurrentQuality(data.level);
-      });
+    // HLS quality selector
+    (player as any).hlsQualitySelector({ displayCurrentQuality: true });
 
-      hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              setError('Failed to load video stream.');
-              break;
+    // Track play/pause state for layout
+    player.on('play', () => setIsPlaying(true));
+    player.on('pause', () => setIsPlaying(false));
+    player.on('ended', () => setIsPlaying(false));
+
+    // Intro overlay on first play
+    let introHandled = false;
+    player.on('play', () => {
+      if (!introHandled) {
+        introHandled = true;
+        player.pause();
+        setShowIntro(true);
+        setIntroShown(true);
+        setTimeout(() => {
+          setShowIntro(false);
+          if (playerRef.current && !playerRef.current.isDisposed()) {
+            playerRef.current.play();
           }
-        }
-      });
-    } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
-      videoEl.src = hlsUrl;
-      videoEl.addEventListener('loadedmetadata', () => setVideoLoading(false), { once: true });
-    } else {
-      setError('Your browser does not support HLS video playback.');
-    }
+        }, 1500);
+      }
+    });
+
+    player.on('error', () => {
+      console.error('Video.js error:', player.error());
+      setError('Failed to load video stream.');
+    });
   };
 
   const loadReviews = async () => {
@@ -325,118 +297,6 @@ export default function VideoReview() {
     }
   };
 
-  // --- Player controls ---
-  const isMobileDevice = useRef(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768);
-  const autoFullscreenDone = useRef(false);
-
-  const enterPlayerFullscreen = useCallback(async () => {
-    if (!playerContainerRef.current || document.fullscreenElement) return;
-    try {
-      await playerContainerRef.current.requestFullscreen();
-      if (isMobileDevice.current && screen.orientation && 'lock' in screen.orientation) {
-        const v = videoRef.current;
-        const videoIsPortrait = v && v.videoHeight > v.videoWidth;
-        try {
-          await (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape');
-        } catch {}
-      }
-    } catch {}
-  }, []);
-
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) {
-      // Auto-enter fullscreen on first play on mobile — MUST be synchronous with user gesture
-      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement && playerContainerRef.current) {
-        autoFullscreenDone.current = true;
-        playerContainerRef.current.requestFullscreen().then(() => {
-          if (screen.orientation && 'lock' in screen.orientation) {
-            const videoIsPortrait = v.videoHeight > v.videoWidth;
-            (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape').catch(() => {});
-          }
-        }).catch(() => {});
-      }
-      if (!introShown) {
-        setShowIntro(true);
-        setIntroShown(true);
-        setTimeout(() => {
-          setShowIntro(false);
-          v.play();
-        }, 1500);
-      } else {
-        v.play();
-      }
-    } else {
-      v.pause();
-    }
-  }, [introShown]);
-
-  const skipForward = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.min(v.duration || 0, v.currentTime + 10);
-  }, []);
-
-  const skipBackward = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = Math.max(0, v.currentTime - 10);
-  }, []);
-
-  const toggleMute = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setIsMuted(v.muted);
-  }, []);
-
-  const toggleFullscreen = useCallback(async () => {
-    if (!playerContainerRef.current) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      await enterPlayerFullscreen();
-    }
-  }, [enterPlayerFullscreen]);
-
-  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const v = videoRef.current;
-    if (!v || !v.duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    v.currentTime = percent * v.duration;
-  }, []);
-
-  const handleTimeUpdate = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    setCurrentTime(v.currentTime);
-    setDuration(v.duration || 0);
-    if (v.buffered.length > 0) {
-      setBuffered(v.buffered.end(v.buffered.length - 1));
-    }
-  }, []);
-
-  const handleMouseMove = useCallback(() => {
-    setShowControls(true);
-    if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
-    controlsTimeout.current = setTimeout(() => {
-      if (isPlaying) setShowControls(false);
-    }, 3000);
-  }, [isPlaying]);
-
-  const handleQualityChange = useCallback((levelIndex: number) => {
-    if (hlsRef.current) {
-      hlsRef.current.currentLevel = levelIndex;
-      setCurrentQuality(levelIndex);
-    }
-    setShowQualityMenu(false);
-  }, []);
-
-  const toggleRotation = useCallback(() => {
-    setRotation((prev) => (prev + 90) % 360);
-  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -456,36 +316,6 @@ export default function VideoReview() {
         inputRef.current.focus();
       }
     }, 0);
-  };
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return '0:00';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const getQualityLabel = (height: number) => {
-    if (height >= 2160) return '4K';
-    if (height >= 1440) return '1440p';
-    if (height >= 1080) return '1080p';
-    if (height >= 720) return '720p';
-    if (height >= 480) return '480p';
-    if (height >= 360) return '360p';
-    return `${height}p`;
-  };
-
-  const formatBitrate = (bitrate: number) => {
-    if (bitrate >= 1000000) return `${(bitrate / 1000000).toFixed(1)} Mbps`;
-    return `${Math.round(bitrate / 1000)} Kbps`;
-  };
-
-  const getCurrentQualityLabel = () => {
-    if (currentQuality === -1 || !qualities.length) return 'Auto';
-    const level = qualities.find(l => l.index === currentQuality);
-    return level ? getQualityLabel(level.height) : 'Auto';
   };
 
   // --- Form handlers ---
@@ -737,73 +567,33 @@ export default function VideoReview() {
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row min-h-0 relative">
-        {/* Video Player Section — immersive by default */}
+        {/* Video Player Section */}
         <div
           ref={playerContainerRef}
           className={cn(
-            "w-full bg-black relative flex items-center justify-center overflow-hidden flex-shrink-0 group transition-all duration-300",
+            "w-full bg-black relative overflow-hidden flex-shrink-0 transition-all duration-300",
             isFullscreen
               ? "h-screen w-screen"
               : showChat
-                ? isPortrait
-                  ? "h-[65vh] sm:h-[75vh] md:flex-1 md:h-full"
-                  : "h-[40vh] sm:h-[45vh] md:flex-1 md:h-full"
+                ? "h-[45vh] sm:h-[50vh] md:flex-1 md:h-full"
                 : "flex-1 h-full"
           )}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => { if (isPlaying) setShowControls(false); }}
         >
-          {/* Rotating Content: Video or Processing UI */}
-          <div 
-            className="w-full h-full flex items-center justify-center transition-transform duration-500 ease-in-out"
-            style={{ transform: `rotate(${rotation}deg)` }}
-          >
-            {processing ? (
-              <div className="flex flex-col items-center justify-center text-center px-6">
-                <div className="w-10 h-10 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mb-4" />
-                <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
-                <p className="text-gray-500 text-xs max-w-xs">
-                  Your video is being transcoded into multiple quality levels. This may take a few moments.
-                </p>
-              </div>
-            ) : (
-              <video
-                ref={videoRef}
-                className={`w-full h-full cursor-pointer ${isPortrait && isFullscreen ? 'object-cover' : 'object-contain'}`}
-                playsInline
-                onClick={togglePlay}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={() => {
-                  setVideoLoading(false);
-                  const v = videoRef.current;
-                  if (v && v.videoWidth && v.videoHeight) {
-                    setIsPortrait(v.videoHeight > v.videoWidth);
-                  }
-                }}
-                onWaiting={() => setVideoLoading(true)}
-                onPlaying={() => setVideoLoading(false)}
-              />
-            )}
-          </div>
-
-          {/* Non-Rotating Overlays: Loading, Controls, etc. */}
-          {!processing && (
+          {processing ? (
+            <div className="w-full h-full flex flex-col items-center justify-center text-center px-6">
+              <div className="w-10 h-10 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mb-4" />
+              <p className="text-gray-300 text-sm font-medium mb-1">Processing Video</p>
+              <p className="text-gray-500 text-xs max-w-xs">
+                Your video is being transcoded into multiple quality levels. This may take a few moments.
+              </p>
+            </div>
+          ) : (
             <>
-              {videoLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 pointer-events-none">
-                  <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
-                    <p className="text-gray-400 text-sm">Loading video...</p>
-                  </div>
-                </div>
-              )}
+              <div ref={videoContainerRef} className="w-full h-full" />
 
               {/* Digitech Intro Overlay */}
               {showIntro && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black z-30 animate-fade-in">
+                <div className="absolute inset-0 flex items-center justify-center bg-black z-30">
                   <div className="text-center">
                     <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-wider animate-pulse">
                       Digitech
@@ -812,160 +602,6 @@ export default function VideoReview() {
                   </div>
                 </div>
               )}
-
-              {/* Center play overlay - only on initial state */}
-              {!isPlaying && !videoLoading && !showIntro && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer z-10"
-                  onClick={togglePlay}
-                >
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
-                    <Play className="h-7 w-7 sm:h-8 sm:w-8 text-white ml-0.5 fill-current" />
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom controls overlay */}
-              <div
-                className={cn(
-                  "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-3 sm:px-4 pb-2.5 sm:pb-3 pt-12 transition-opacity duration-300 z-20",
-                  showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-                )}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Progress bar */}
-                <div
-                  className="w-full h-1 sm:h-1.5 bg-white/20 rounded-full mb-2.5 cursor-pointer group/bar relative"
-                  onClick={handleSeek}
-                >
-                  <div
-                    className="absolute h-full bg-white/30 rounded-full"
-                    style={{ width: duration ? `${(buffered / duration) * 100}%` : '0%' }}
-                  />
-                  <div
-                    className="absolute h-full bg-white rounded-full transition-[width] duration-100"
-                    style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-                  />
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover/bar:opacity-100 transition-opacity"
-                    style={{ left: duration ? `calc(${(currentTime / duration) * 100}% - 6px)` : '0' }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  {/* Left controls */}
-                  <div className="flex items-center gap-1.5 sm:gap-2.5">
-                    <button onClick={togglePlay} className="text-white hover:text-white/80 transition-colors p-1">
-                      {isPlaying ? <Pause className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
-                    </button>
-                    <button onClick={skipBackward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip back 10s">
-                      <div className="relative">
-                        <SkipBack className="h-4 w-4 sm:h-5 sm:w-5" />
-                        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
-                      </div>
-                    </button>
-                    <button onClick={skipForward} className="text-white hover:text-white/80 transition-colors p-1" title="Skip forward 10s">
-                      <div className="relative">
-                        <SkipForward className="h-4 w-4 sm:h-5 sm:w-5" />
-                        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[8px] font-bold">10</span>
-                      </div>
-                    </button>
-                    <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-1 hidden sm:block">
-                      {isMuted ? <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" /> : <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" />}
-                    </button>
-                    <span className="text-white text-[10px] sm:text-xs font-mono tabular-nums">
-                      {formatTime(currentTime)} / {formatTime(duration)}
-                    </span>
-                  </div>
-
-                  {/* Right controls */}
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    {/* Quality selector */}
-                    {qualities.length > 0 && (
-                      <div className="relative quality-panel">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); }}
-                          className="flex items-center gap-1 sm:gap-1.5 bg-white/10 hover:bg-white/20 text-white text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg font-medium backdrop-blur-sm transition-all"
-                        >
-                          <Settings className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                          <span>{getCurrentQualityLabel()}</span>
-                        </button>
-
-                        {showQualityMenu && (
-                          <>
-                            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowQualityMenu(false); }} />
-                            <div className="absolute bottom-9 sm:bottom-10 right-0 bg-gray-900/95 backdrop-blur-md rounded-lg sm:rounded-xl py-1 sm:py-1.5 min-w-[160px] sm:min-w-[200px] z-50 shadow-2xl border border-gray-700/50 overflow-hidden">
-                              <div className="px-3 py-1 sm:py-1.5 text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-700/50 mb-0.5 sm:mb-1">
-                                Video Quality
-                              </div>
-
-                              {/* Auto option */}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleQualityChange(-1); }}
-                                className="flex items-center w-full text-left px-3 py-1.5 sm:py-2 text-xs text-white hover:bg-white/10 transition-colors gap-2"
-                              >
-                                <div className="w-4 flex justify-center">
-                                  {currentQuality === -1 && <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-400" />}
-                                </div>
-                                <div className="flex-1">
-                                  <span className="font-medium">Auto</span>
-                                  <span className="text-gray-400 ml-1.5 text-[10px]">Adaptive</span>
-                                </div>
-                              </button>
-
-                              {/* Quality levels - sorted highest first */}
-                              {qualities.map((level) => (
-                                <button
-                                  key={level.index}
-                                  onClick={(e) => { e.stopPropagation(); handleQualityChange(level.index); }}
-                                  className="flex items-center w-full text-left px-3 py-1.5 sm:py-2 text-xs text-white hover:bg-white/10 transition-colors gap-2"
-                                >
-                                  <div className="w-4 flex justify-center">
-                                    {currentQuality === level.index && <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-blue-400" />}
-                                  </div>
-                                  <div className="flex-1 flex items-center gap-1.5">
-                                    <span className="font-medium">{getQualityLabel(level.height)}</span>
-                                    {level.height >= 720 && (
-                                      <span className="text-[8px] sm:text-[9px] font-bold bg-blue-500 text-white px-1 py-0.5 rounded">HD</span>
-                                    )}
-                                    {level.height >= 2160 && (
-                                      <span className="text-[8px] sm:text-[9px] font-bold bg-purple-500 text-white px-1 py-0.5 rounded">4K</span>
-                                    )}
-                                  </div>
-                                  <span className="text-[10px] text-gray-500 hidden sm:inline">
-                                    {formatBitrate(level.bitrate)}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Mute toggle (mobile) */}
-                    <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-1 sm:hidden">
-                      {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                    </button>
-
-                    {/* Rotate Toggle */}
-                    <button 
-                      onClick={toggleRotation} 
-                      className="text-white hover:text-white/80 transition-colors p-1"
-                      title="Rotate Video"
-                    >
-                      <RotateCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </button>
-
-                    {/* Fullscreen */}
-                    <button onClick={toggleFullscreen} className="text-white hover:text-white/80 transition-colors p-1">
-                      {isFullscreen
-                        ? <Minimize className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                        : <Maximize className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
             </>
           )}
         </div>

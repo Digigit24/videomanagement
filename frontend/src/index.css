@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Video.js dark theme overrides */
+.video-js {
+  font-family: inherit;
+}
+.video-js .vjs-control-bar {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+}
+.video-js .vjs-big-play-button {
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  line-height: 64px;
+  font-size: 28px;
+  transition: transform 0.2s, background-color 0.2s;
+}
+.video-js .vjs-big-play-button:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+.video-js .vjs-play-progress {
+  background-color: #3b82f6;
+}
+.video-js .vjs-slider:focus {
+  box-shadow: none;
+}
+
 @layer base {
   :root {
     --radius: 0.5rem;
