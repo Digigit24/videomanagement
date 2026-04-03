@@ -111,10 +111,10 @@ function ActivityLog({ videoId }: { videoId: string }) {
               
               <div className="text-xs text-gray-600 bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
                 {activity.action === 'video_uploaded' && (
-                  <p>Uploaded the video <span className="font-medium text-gray-800">{activity.details?.filename}</span></p>
+                  <p>Uploaded the video <span className="font-medium text-gray-800">{activity.details?.filename as string}</span></p>
                 )}
                 {activity.action === 'status_changed' && (
-                   <p>Changed status from <span className="font-medium text-gray-500 line-through">{activity.details?.oldStatus}</span> to <span className={`font-medium ${statusColors[activity.details?.newStatus as VideoStatus] || 'text-gray-800'} px-1.5 py-0.5 rounded ml-1`}>{activity.details?.newStatus}</span></p>
+                   <p>Changed status from <span className="font-medium text-gray-500 line-through">{activity.details?.oldStatus as string}</span> to <span className={`font-medium ${statusColors[activity.details?.newStatus as VideoStatus] || 'text-gray-800'} px-1.5 py-0.5 rounded ml-1`}>{activity.details?.newStatus as string}</span></p>
                 )}
                 {activity.action === 'comment_added' && (
                   <p>Added a {activity.details?.timestamp ? 'timestamped ' : ''}comment</p>

@@ -156,7 +156,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
     if (!hasError) {
       setTimeout(() => {
         // Clear files before closing to reset state but wait for animation
-        onUploadComplete(lastUploadedVideo); 
+        onUploadComplete(lastUploadedVideo as unknown as Record<string, unknown>);
         handleClose();
       }, 1000);
     }
