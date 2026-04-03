@@ -6,7 +6,9 @@ import {
   DeleteObjectCommand,
   CopyObjectCommand,
   DeleteObjectsCommand,
+  PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 import { pipeline } from "stream/promises";
 
@@ -296,6 +298,29 @@ export async function deleteS3Prefix(bucket, prefix) {
       ? response.NextContinuationToken
       : undefined;
   } while (continuationToken);
+}
+
+/**
+ * Generate a presigned PUT URL for direct browser-to-S3 uploads.
+ * @param {string} bucketName - Raw workspace bucket name
+ * @param {string} objectKey - Full S3 key (already includes prefix)
+ * @param {string} contentType - MIME type of the file
+ * @param {number} expiresIn - URL validity in seconds (default 1 hour)
+ * @returns {{ url: string, bucket: string, key: string }}
+ */
+export async function generatePresignedUploadUrl(bucketName, objectKey, contentType, expiresIn = 3600) {
+  const { bucket, prefix } = resolveBucket(bucketName);
+  const finalKey = prefix ? `${prefix}${objectKey}` : objectKey;
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: finalKey,
+    ContentType: contentType,
+  });
+
+  const url = await getSignedUrl(getS3Client(), command, { expiresIn });
+
+  return { url, bucket, key: finalKey };
 }
 
 export { getS3Client };

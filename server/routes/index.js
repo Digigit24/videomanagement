@@ -94,6 +94,10 @@ import {
   addReview,
   listReviews,
 } from "../controllers/videoReview.js";
+import {
+  getPresignedUploadUrl,
+  confirmUpload,
+} from "../controllers/presignedUpload.js";
 import { getWorkspaceAnalytics } from "../services/workspaceStats.js";
 import {
   authenticate,
@@ -226,6 +230,8 @@ router.get("/videos", authenticate, validateBucket, listVideos);
 router.get("/video/:id", authenticate, validateBucket, getVideo);
 router.patch("/video/:id/status", authenticate, updateStatus);
 router.post("/upload", authenticate, validateBucket, uploadVideo);
+router.post("/upload/presign", authenticate, validateBucket, getPresignedUploadUrl);
+router.post("/upload/confirm", authenticate, validateBucket, confirmUpload);
 router.get("/stream/:id", authenticateStream, validateBucket, streamVideo);
 
 // Photo streaming endpoint - serves original image file
