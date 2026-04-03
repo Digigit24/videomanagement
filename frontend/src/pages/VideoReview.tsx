@@ -347,10 +347,15 @@ export default function VideoReview() {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      // Auto-enter fullscreen on first play on mobile
-      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement) {
+      // Auto-enter fullscreen on first play on mobile — MUST be synchronous with user gesture
+      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement && playerContainerRef.current) {
         autoFullscreenDone.current = true;
-        enterPlayerFullscreen();
+        playerContainerRef.current.requestFullscreen().then(() => {
+          if (screen.orientation && 'lock' in screen.orientation) {
+            const videoIsPortrait = v.videoHeight > v.videoWidth;
+            (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape').catch(() => {});
+          }
+        }).catch(() => {});
       }
       if (!introShown) {
         setShowIntro(true);
@@ -365,7 +370,7 @@ export default function VideoReview() {
     } else {
       v.pause();
     }
-  }, [introShown, enterPlayerFullscreen]);
+  }, [introShown]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;

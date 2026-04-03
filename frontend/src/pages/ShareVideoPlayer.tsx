@@ -195,10 +195,16 @@ export default function ShareVideoPlayer() {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      // Auto-enter fullscreen on first play on mobile
-      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement) {
+      // Auto-enter fullscreen on first play on mobile — MUST be synchronous with user gesture
+      if (isMobileDevice.current && !autoFullscreenDone.current && !document.fullscreenElement && containerRef.current) {
         autoFullscreenDone.current = true;
-        enterFullscreenSmart();
+        // Call requestFullscreen directly (synchronous with click event)
+        containerRef.current.requestFullscreen().then(() => {
+          if (screen.orientation && 'lock' in screen.orientation) {
+            const videoIsPortrait = v.videoHeight > v.videoWidth;
+            (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape').catch(() => {});
+          }
+        }).catch(() => {});
       }
       if (!introShown) {
         setShowIntro(true);
@@ -213,7 +219,7 @@ export default function ShareVideoPlayer() {
     } else {
       v.pause();
     }
-  }, [introShown, enterFullscreenSmart]);
+  }, [introShown]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;

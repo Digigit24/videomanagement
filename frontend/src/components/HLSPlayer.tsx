@@ -303,10 +303,15 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      // Auto-enter fullscreen on first play on mobile
-      if (isMobile.current && !autoFullscreenDone.current && !document.fullscreenElement) {
+      // Auto-enter fullscreen on first play on mobile — MUST be synchronous with user gesture
+      if (isMobile.current && !autoFullscreenDone.current && !document.fullscreenElement && containerRef.current) {
         autoFullscreenDone.current = true;
-        enterFullscreen();
+        containerRef.current.requestFullscreen().then(() => {
+          if (screen.orientation && 'lock' in screen.orientation) {
+            const videoIsPortrait = v.videoHeight > v.videoWidth;
+            (screen.orientation as any).lock(videoIsPortrait ? 'portrait-primary' : 'landscape').catch(() => {});
+          }
+        }).catch(() => {});
       }
       if (!introShown) {
         setShowIntro(true);
@@ -321,7 +326,7 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
     } else {
       v.pause();
     }
-  }, [introShown, enterFullscreen]);
+  }, [introShown]);
 
   const skipForward = useCallback(() => {
     const v = videoRef.current;
