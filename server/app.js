@@ -1,8 +1,17 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import routes from "./routes/index.js";
 
 const app = express();
+
+// Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // CSP managed separately or by frontend
+    crossOriginEmbedderPolicy: false, // Allow embedding video content
+  }),
+);
 
 // Middleware
 const corsOrigins = process.env.CORS_ORIGINS
@@ -39,7 +48,9 @@ const logFile = path.join(logDir, "http.log");
 // Ensure log directory exists once at startup
 try {
   if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-} catch (_) {}
+} catch (err) {
+  console.error("Failed to create log directory:", err.message);
+}
 
 // Open a single write stream for the lifetime of the process
 const logStream = fs.createWriteStream(logFile, { flags: "a" });

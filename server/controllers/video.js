@@ -25,7 +25,9 @@ import { getWorkspaceByBucket } from "../services/workspace.js";
 const UPLOAD_TEMP_DIR = path.join(os.tmpdir(), "video-uploads");
 try {
   fs.mkdirSync(UPLOAD_TEMP_DIR, { recursive: true });
-} catch (_) {}
+} catch (err) {
+  console.error("Failed to create upload temp dir:", err.message);
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -256,7 +258,7 @@ export async function uploadVideo(req, res) {
           console.error("Photo upload error:", photoErr);
         }
         // Delete local temp file
-        try { fs.unlinkSync(filePath); } catch (_) {}
+        try { fs.unlinkSync(filePath); } catch (e) { console.error("Failed to clean up temp file:", e.message); }
       } else {
         // Videos: Keep the file on server, enqueue for local processing
         // The processing queue will process from the local file, upload results to S3,

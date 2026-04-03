@@ -48,12 +48,23 @@ export function apiError(req, err) {
   writeToFile('api-errors.log', JSON.stringify(errorLog, null, 2));
 }
 
+const SENSITIVE_HEADERS = ['authorization', 'cookie', 'x-api-key'];
+
+function filterHeaders(headers) {
+  if (!headers) return {};
+  const filtered = { ...headers };
+  for (const key of SENSITIVE_HEADERS) {
+    if (filtered[key]) filtered[key] = '[REDACTED]';
+  }
+  return filtered;
+}
+
 export function logRequest(req) {
   const requestLog = {
     timestamp: getTimestamp(),
     method: req.method,
     url: req.url,
-    headers: req.headers
+    headers: filterHeaders(req.headers)
   };
   writeToFile('requests.log', JSON.stringify(requestLog));
 }

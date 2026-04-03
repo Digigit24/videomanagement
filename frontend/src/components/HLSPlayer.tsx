@@ -198,10 +198,18 @@ export default function HLSPlayer({ hlsUrl, fallbackUrl, downloadUrl, onProgress
       };
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = hlsUrl;
-      video.addEventListener('loadedmetadata', () => setLoading(false));
+      const onLoaded = () => setLoading(false);
+      video.addEventListener('loadedmetadata', onLoaded, { once: true });
+      return () => {
+        video.removeEventListener('loadedmetadata', onLoaded);
+      };
     } else {
       video.src = fallbackUrl;
-      video.addEventListener('loadedmetadata', () => setLoading(false));
+      const onLoaded = () => setLoading(false);
+      video.addEventListener('loadedmetadata', onLoaded, { once: true });
+      return () => {
+        video.removeEventListener('loadedmetadata', onLoaded);
+      };
     }
   }, [hlsUrl, fallbackUrl]);
 

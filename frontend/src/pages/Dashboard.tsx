@@ -86,8 +86,13 @@ export default function Dashboard() {
     try {
       const invitation = await workspaceService.createInvitation(workspaceId);
       const inviteUrl = `${window.location.origin}/invite/${invitation.code}`;
-      await navigator.clipboard.writeText(inviteUrl);
-      setToast({ message: 'Invite link copied!', type: 'success' });
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        setToast({ message: 'Invite link copied!', type: 'success' });
+      } catch {
+        // Fallback for browsers that deny clipboard permission
+        prompt('Copy this invite link:', inviteUrl);
+      }
     } catch (error) {
       setToast({ message: 'Failed to create invite', type: 'error' });
     }

@@ -102,29 +102,55 @@ export default function VideoReview() {
     }
   }, [nameSet]);
 
-  // Poll for new reviews every 5 seconds
+  // Poll for new reviews with exponential backoff (5s → 30s)
   useEffect(() => {
     if (!videoId || !nameSet) return;
-    const interval = setInterval(loadReviews, 5000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = () => {
+      if (cancelled) return;
+      loadReviews();
+      delay = Math.min(delay * 1.3, 30000);
+      timer = setTimeout(poll, delay);
+    };
+    timer = setTimeout(poll, delay);
+    const resetDelay = () => { delay = 5000; };
+    window.addEventListener('focus', resetDelay);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      window.removeEventListener('focus', resetDelay);
+    };
   }, [videoId, nameSet]);
 
-  // Poll for processing status when video is not HLS-ready yet
+  // Poll for processing status with exponential backoff
   useEffect(() => {
     if (!videoId || !processing) return;
-    const interval = setInterval(async () => {
+    let cancelled = false;
+    let delay = 5000;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      if (cancelled) return;
       try {
         const data = await publicVideoService.getVideoInfo(videoId!, token);
-        if (data.hls_ready) {
+        if (!cancelled && data.hls_ready) {
           setVideo(data);
           setProcessing(false);
           if (nameSet && videoRef.current) {
             setTimeout(() => initPlayer(data), 100);
           }
+          return;
         }
       } catch {}
-    }, 5000);
-    return () => clearInterval(interval);
+      delay = Math.min(delay * 1.5, 30000);
+      timer = setTimeout(poll, delay);
+    };
+    timer = setTimeout(poll, delay);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [videoId, processing, nameSet, token]);
 
   // Check if user is near bottom before new messages arrive

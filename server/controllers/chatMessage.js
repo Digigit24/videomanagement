@@ -30,7 +30,7 @@ const messageUpload = multer({
       cb(null, uniqueName);
     },
   }),
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
 }).single("attachment");
 
 export async function sendMessage(req, res) {
@@ -39,7 +39,7 @@ export async function sendMessage(req, res) {
       if (err.code === "LIMIT_FILE_SIZE") {
         return res
           .status(400)
-          .json({ error: "File too large. Maximum size is 2GB." });
+          .json({ error: "File too large. Maximum size is 100MB." });
       }
       return res.status(400).json({ error: err.message });
     }
@@ -54,7 +54,15 @@ export async function sendMessage(req, res) {
           .json({ error: "Content or attachment is required" });
       }
 
-      const parsedMentions = mentions ? JSON.parse(mentions) : [];
+      let parsedMentions = [];
+      if (mentions) {
+        try {
+          parsedMentions = JSON.parse(mentions);
+          if (!Array.isArray(parsedMentions)) parsedMentions = [];
+        } catch {
+          return res.status(400).json({ error: "Invalid mentions format" });
+        }
+      }
 
       const message = await createMessage(
         workspaceId,
@@ -165,7 +173,7 @@ export async function sendMessage(req, res) {
 export async function getMessages(req, res) {
   try {
     const { workspaceId } = req.params;
-    const limit = parseInt(req.query.limit) || 100;
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 100, 500));
     const before = req.query.before || null;
     const since = req.query.since || null;
 
