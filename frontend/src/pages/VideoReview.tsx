@@ -212,6 +212,7 @@ export default function VideoReview() {
 
     const videoElement = document.createElement('video-js');
     videoElement.classList.add('vjs-big-play-centered', 'vjs-fill');
+    videoElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
     videoContainerRef.current.appendChild(videoElement);
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
@@ -267,6 +268,14 @@ export default function VideoReview() {
         alwaysInLandscapeMode: false,
         iOS: true,
       },
+    });
+
+    // Force video element to fill player (bypass CSS specificity issues)
+    player.ready(() => {
+      const tech = player.el()?.querySelector('video');
+      if (tech) {
+        (tech as HTMLElement).style.cssText += 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;';
+      }
     });
 
     // Track play/pause state for layout

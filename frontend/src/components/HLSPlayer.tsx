@@ -63,6 +63,7 @@ export default function HLSPlayer({
     // Create a video element inside the container div
     const videoElement = document.createElement('video-js');
     videoElement.classList.add('vjs-big-play-centered', 'vjs-fill');
+    videoElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
     videoRef.current.appendChild(videoElement);
 
     const token = localStorage.getItem('token');
@@ -126,6 +127,12 @@ export default function HLSPlayer({
     });
 
     player.ready(() => {
+      // Force video element to fill player (bypass CSS specificity issues)
+      const tech = player.el()?.querySelector('video');
+      if (tech) {
+        (tech as HTMLElement).style.cssText += 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;';
+      }
+
       // Add download button if URL provided
       if (downloadUrl) {
         const Button = videojs.getComponent('Button') as any;
