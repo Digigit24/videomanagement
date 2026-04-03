@@ -6,74 +6,20 @@ import videojs from 'video.js';
 
 let registered = false;
 
-/**
- * Force the <video> element inside a Video.js player to fill its container.
- * Uses direct DOM query (not player.tech()) to find the video element.
- * Retries up to 10 times with 200ms intervals to handle async HLS tech creation.
- */
-export function forceVideoFill(playerEl: Element, isPortraitCb?: (portrait: boolean) => void) {
-  let attempts = 0;
-  const apply = () => {
-    const video = playerEl.querySelector('video') as HTMLVideoElement | null;
-    if (!video) {
-      if (attempts++ < 10) setTimeout(apply, 200);
-      return;
-    }
-    video.style.setProperty('width', '100%', 'important');
-    video.style.setProperty('height', '100%', 'important');
-    video.style.setProperty('max-width', 'none', 'important');
-    video.style.setProperty('max-height', 'none', 'important');
-    video.style.setProperty('position', 'absolute', 'important');
-    video.style.setProperty('top', '0', 'important');
-    video.style.setProperty('left', '0', 'important');
-    video.style.setProperty('object-fit', 'contain', 'important');
-
-    // Check portrait once dimensions are available
-    const checkDimensions = () => {
-      if (video.videoWidth > 0) {
-        const portrait = video.videoHeight > video.videoWidth;
-        video.style.setProperty('object-fit', portrait ? 'cover' : 'contain', 'important');
-        if (isPortraitCb) isPortraitCb(portrait);
-      }
-    };
-    video.addEventListener('loadedmetadata', checkDimensions);
-    video.addEventListener('loadeddata', checkDimensions);
-    video.addEventListener('playing', checkDimensions);
-    // Also check immediately in case already loaded
-    checkDimensions();
-  };
-  apply();
-}
-
 export function registerCustomComponents() {
   if (registered) return;
   registered = true;
 
   // --- Inject CSS override via <style> tag (loads LAST, wins specificity) ---
+  // Tailwind preflight sets: video { max-width: 100%; height: auto; }
+  // This breaks Video.js sizing. Override it for all video elements inside players.
   const style = document.createElement('style');
   style.textContent = `
-    /* Target both <video-js> tag and .video-js class */
-    .video-js, video-js {
-      width: 100% !important;
-      height: 100% !important;
-    }
-    /* Target every possible way the <video> tech element can be selected */
-    .video-js video,
-    .video-js .vjs-tech,
-    video-js video,
-    video-js .vjs-tech,
-    video-js > video,
-    .video-js > video,
-    [data-vjs-player] video,
-    [data-vjs-player] .vjs-tech {
+    .video-js .vjs-tech {
       max-width: none !important;
-      max-height: none !important;
-      width: 100% !important;
       height: 100% !important;
+      width: 100% !important;
       object-fit: contain !important;
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
     }
   `;
   document.head.appendChild(style);

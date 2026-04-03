@@ -3,7 +3,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
-import { registerCustomComponents, forceVideoFill } from './videojs-custom-plugins';
+import { registerCustomComponents } from './videojs-custom-plugins';
 
 registerCustomComponents();
 
@@ -35,7 +35,6 @@ export default function HLSPlayer({
   const [showIntro, setShowIntro] = useState(false);
   const [introShown, setIntroShown] = useState(false);
   const [error, setError] = useState(false);
-  const [isPortrait, setIsPortrait] = useState(false);
 
   const onProgressRef = useRef(onProgress);
   const onPlayingChangeRef = useRef(onPlayingChange);
@@ -58,18 +57,17 @@ export default function HLSPlayer({
 
     const token = localStorage.getItem('token');
 
-    // Dynamic element creation — avoids React/Video.js DOM conflicts
-    const videoElement = document.createElement('video-js');
-    videoElement.classList.add('vjs-big-play-centered');
-    // Force the video-js element to fill its container via inline styles
-    videoElement.style.cssText = 'width:100%!important;height:100%!important;position:absolute;top:0;left:0;';
-    containerRef.current.appendChild(videoElement);
+    // Create a <video> element — Video.js wraps it in a <div> with proper sizing
+    const videoEl = document.createElement('video');
+    videoEl.classList.add('video-js', 'vjs-big-play-centered');
+    videoEl.setAttribute('playsinline', '');
+    containerRef.current.appendChild(videoEl);
 
-    const player = videojs(videoElement as any, {
+    const player = videojs(videoEl, {
       controls: true,
       autoplay: false,
       preload: 'auto',
-      playsinline: true,
+      fluid: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -105,18 +103,15 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Force video element sizing via direct DOM query (not player.tech())
-    forceVideoFill(player.el(), (portrait) => setIsPortrait(portrait));
-
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile) {
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
         try { player.requestFullscreen(); } catch {}
-        const videoEl = player.el().querySelector('video') as HTMLVideoElement | null;
-        if (videoEl && screen.orientation && 'lock' in screen.orientation) {
-          const portrait = videoEl.videoHeight > videoEl.videoWidth;
+        const vid = player.el().querySelector('video') as HTMLVideoElement | null;
+        if (vid && screen.orientation && 'lock' in screen.orientation) {
+          const portrait = vid.videoHeight > vid.videoWidth;
           (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
         }
       });
@@ -197,15 +192,9 @@ export default function HLSPlayer({
   }, [introShown]);
 
   return (
-    <div
-      className="w-full relative bg-black"
-      style={isPortrait
-        ? { aspectRatio: '9/16', maxHeight: '80vh', margin: '0 auto' }
-        : { aspectRatio: '16/9' }
-      }
-    >
-      {/* Container for dynamically created video-js element */}
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className="w-full relative bg-black">
+      {/* Video.js creates its wrapper div here */}
+      <div ref={containerRef} />
 
       {/* Intro Overlay */}
       {showIntro && (

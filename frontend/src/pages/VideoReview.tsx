@@ -5,7 +5,7 @@ import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
-import { registerCustomComponents, forceVideoFill } from '@/components/videojs-custom-plugins';
+import { registerCustomComponents } from '@/components/videojs-custom-plugins';
 
 registerCustomComponents();
 
@@ -212,17 +212,17 @@ export default function VideoReview() {
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    // Dynamic element creation — avoids React/Video.js DOM conflicts
-    const videoElement = document.createElement('video-js');
-    videoElement.classList.add('vjs-big-play-centered');
-    videoElement.style.cssText = 'width:100%!important;height:100%!important;position:absolute;top:0;left:0;';
-    playerContainerRef.current.appendChild(videoElement);
+    // Create <video> element — Video.js wraps it in a <div> with proper sizing
+    const videoEl = document.createElement('video');
+    videoEl.classList.add('video-js', 'vjs-big-play-centered');
+    videoEl.setAttribute('playsinline', '');
+    playerContainerRef.current.appendChild(videoEl);
 
-    const player = videojs(videoElement as any, {
+    const player = videojs(videoEl, {
       controls: true,
       autoplay: false,
       preload: 'auto',
-      playsinline: true,
+      fill: true,
       html5: {
         vhs: {
           overrideNative: true,
@@ -257,9 +257,6 @@ export default function VideoReview() {
     });
 
     playerRef.current = player;
-
-    // Force video element sizing via direct DOM query
-    forceVideoFill(player.el());
 
     // Mobile: auto-fullscreen on first play + lock orientation
     if (isMobile.current) {
