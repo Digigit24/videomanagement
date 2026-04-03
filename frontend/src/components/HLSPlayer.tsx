@@ -221,7 +221,7 @@ export default function HLSPlayer({
   return (
     <div className="w-full relative" style={{ aspectRatio: '16/9' }}>
       {/* Video.js container */}
-      <div ref={videoRef} className="w-full h-full" />
+      <div ref={videoRef} className="w-full h-full relative" />
 
       {/* Digitech Solutions Premium Intro Overlay */}
       {showIntro && (

@@ -588,7 +588,7 @@ export default function VideoReview() {
             </div>
           ) : (
             <>
-              <div ref={videoContainerRef} className="w-full h-full" />
+              <div ref={videoContainerRef} className="w-full h-full relative" />
 
               {/* Digitech Intro Overlay */}
               {showIntro && (

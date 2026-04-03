@@ -188,7 +188,7 @@ export default function ShareVideoPlayer() {
       </div>
 
       {/* Video.js Player */}
-      <div ref={videoContainerRef} className="flex-1 bg-black" />
+      <div ref={videoContainerRef} className="flex-1 bg-black relative min-h-0" />
     </div>
   );
 }
