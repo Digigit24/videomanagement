@@ -118,16 +118,13 @@ export default function HLSPlayer({
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
+        // Use Video.js fullscreen (not native video element fullscreen)
+        // so our CSS and controls stay in effect
+        try { player.requestFullscreen(); } catch {}
         const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-        if (!videoEl) return;
-        const goFullscreen = (videoEl as any).webkitEnterFullscreen
-          || videoEl.requestFullscreen?.bind(videoEl);
-        if (goFullscreen) {
-          try { goFullscreen.call(videoEl); } catch {}
-        }
-        if (screen.orientation && 'lock' in screen.orientation) {
-          const isPortrait = videoEl.videoHeight > videoEl.videoWidth;
-          (screen.orientation as any).lock(isPortrait ? 'portrait' : 'landscape').catch(() => {});
+        if (videoEl && screen.orientation && 'lock' in screen.orientation) {
+          const portrait = videoEl.videoHeight > videoEl.videoWidth;
+          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
         }
       });
     }

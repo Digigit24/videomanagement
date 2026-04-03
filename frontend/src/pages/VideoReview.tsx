@@ -271,11 +271,9 @@ export default function VideoReview() {
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
+        try { player.requestFullscreen(); } catch {}
         const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
-        if (!videoEl) return;
-        const goFs = (videoEl as any).webkitEnterFullscreen || videoEl.requestFullscreen?.bind(videoEl);
-        if (goFs) { try { goFs.call(videoEl); } catch {} }
-        if (screen.orientation && 'lock' in screen.orientation) {
+        if (videoEl && screen.orientation && 'lock' in screen.orientation) {
           const portrait = videoEl.videoHeight > videoEl.videoWidth;
           (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
         }

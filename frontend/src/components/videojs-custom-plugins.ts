@@ -22,9 +22,24 @@ export function registerCustomComponents() {
       height: 100% !important;
       object-fit: contain !important;
     }
-    /* Portrait video on mobile: fill the screen, no black bars */
+    /* Portrait video: fill the container, no black bars */
     .video-js.vjs-portrait video,
     .video-js.vjs-portrait .vjs-tech {
+      object-fit: cover !important;
+    }
+    /* Fullscreen: player fills viewport */
+    .video-js.vjs-fullscreen {
+      width: 100vw !important;
+      height: 100vh !important;
+    }
+    .video-js.vjs-fullscreen video,
+    .video-js.vjs-fullscreen .vjs-tech {
+      width: 100vw !important;
+      height: 100vh !important;
+    }
+    /* Portrait video in fullscreen: cover to fill screen */
+    .video-js.vjs-fullscreen.vjs-portrait video,
+    .video-js.vjs-fullscreen.vjs-portrait .vjs-tech {
       object-fit: cover !important;
     }
   `;
