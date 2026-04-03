@@ -3,7 +3,6 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
 import { registerCustomComponents } from '@/components/videojs-custom-plugins';
@@ -51,8 +50,10 @@ export default function VideoReview() {
   const navigate = useNavigate();
   const token = searchParams.get('token') || undefined;
   const isFromFolder = searchParams.get('folder') === '1';
+  const isMobile = useRef(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  const autoFsDone = useRef(false);
   const [requiresLogin, setRequiresLogin] = useState(false);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoElRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -207,23 +208,15 @@ export default function VideoReview() {
   };
 
   const initPlayer = (videoData: any) => {
-    if (!videoContainerRef.current || playerRef.current) return;
+    if (!videoElRef.current || playerRef.current) return;
     if (!videoData.hls_ready) { setProcessing(true); return; }
-
-    const videoElement = document.createElement('video-js');
-    videoElement.classList.add('vjs-big-play-centered', 'vjs-fill');
-    videoElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
-    videoContainerRef.current.appendChild(videoElement);
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    const player = videojs(videoElement, {
+    const player = videojs(videoElRef.current, {
       controls: true,
       autoplay: false,
       preload: 'auto',
-      fluid: false,
-      fill: true,
-      responsive: true,
       playsinline: true,
       html5: {
         vhs: {
@@ -260,32 +253,21 @@ export default function VideoReview() {
 
     playerRef.current = player;
 
-    // Landscape fullscreen plugin
-    (player as any).landscapeFullscreen({
-      fullscreen: {
-        enterOnRotate: true,
-        exitOnRotate: true,
-        alwaysInLandscapeMode: false,
-        iOS: true,
-      },
-    });
-
-    // Force video element to fill player — override Tailwind preflight
-    // which sets "video { max-width:100%; height:auto }" and shrinks it
-    player.ready(() => {
-      const tech = player.el()?.querySelector('video');
-      if (tech) {
-        const s = (tech as HTMLElement).style;
-        s.setProperty('position', 'absolute', 'important');
-        s.setProperty('top', '0', 'important');
-        s.setProperty('left', '0', 'important');
-        s.setProperty('width', '100%', 'important');
-        s.setProperty('height', '100%', 'important');
-        s.setProperty('max-width', 'none', 'important');
-        s.setProperty('max-height', 'none', 'important');
-        s.setProperty('object-fit', 'contain', 'important');
-      }
-    });
+    // Mobile: auto-fullscreen on first play + lock orientation
+    if (isMobile.current) {
+      player.on('play', () => {
+        if (autoFsDone.current) return;
+        autoFsDone.current = true;
+        const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+        if (!videoEl) return;
+        const goFs = (videoEl as any).webkitEnterFullscreen || videoEl.requestFullscreen?.bind(videoEl);
+        if (goFs) { try { goFs.call(videoEl); } catch {} }
+        if (screen.orientation && 'lock' in screen.orientation) {
+          const portrait = videoEl.videoHeight > videoEl.videoWidth;
+          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
+        }
+      });
+    }
 
     // Track play/pause state for layout
     player.on('play', () => setIsPlaying(true));
@@ -621,7 +603,11 @@ export default function VideoReview() {
             </div>
           ) : (
             <>
-              <div ref={videoContainerRef} className="w-full h-full relative" />
+              <video
+                ref={videoElRef}
+                className="video-js vjs-big-play-centered absolute inset-0"
+                playsInline
+              />
 
               {/* Digitech Intro Overlay */}
               {showIntro && (

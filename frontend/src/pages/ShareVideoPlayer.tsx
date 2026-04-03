@@ -3,25 +3,28 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
 import { registerCustomComponents } from '@/components/videojs-custom-plugins';
+import { Loader2, ShieldX, Play } from 'lucide-react';
 
 registerCustomComponents();
-import { Loader2, ShieldX, Play } from 'lucide-react';
+
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 export default function ShareVideoPlayer() {
   const { videoId } = useParams<{ videoId: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || undefined;
-  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
+  const autoFsDone = useRef(false);
 
   const [video, setVideo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
 
   useEffect(() => {
     if (videoId) loadVideo();
@@ -32,6 +35,12 @@ export default function ShareVideoPlayer() {
       }
     };
   }, [videoId]);
+
+  // Init player once video data is loaded and element is in DOM
+  useEffect(() => {
+    if (!video || !video.hls_ready || processing || playerRef.current || !videoRef.current) return;
+    initPlayer(video);
+  }, [video, processing, playerReady]);
 
   // Poll for processing status
   useEffect(() => {
@@ -46,7 +55,6 @@ export default function ShareVideoPlayer() {
         if (!cancelled && data.hls_ready) {
           setVideo(data);
           setProcessing(false);
-          setTimeout(() => initPlayer(data), 100);
           return;
         }
       } catch {}
@@ -68,10 +76,8 @@ export default function ShareVideoPlayer() {
       setVideo(data);
       if (!data.hls_ready) {
         setProcessing(true);
-      } else {
-        setTimeout(() => initPlayer(data), 100);
       }
-    } catch (err: unknown) {
+    } catch {
       setError('This video is not available or the link has expired.');
     } finally {
       setLoading(false);
@@ -79,30 +85,20 @@ export default function ShareVideoPlayer() {
   };
 
   const initPlayer = (videoData: any) => {
-    if (!videoContainerRef.current || playerRef.current) return;
-    if (!videoData.hls_ready) { setProcessing(true); return; }
-
-    const videoElement = document.createElement('video-js');
-    videoElement.classList.add('vjs-big-play-centered', 'vjs-fill');
-    videoElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
-    videoContainerRef.current.appendChild(videoElement);
+    if (!videoRef.current || playerRef.current) return;
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    const player = videojs(videoElement, {
+    const player = videojs(videoRef.current, {
       controls: true,
       autoplay: false,
       preload: 'auto',
-      fluid: false,
-      fill: true,
-      responsive: true,
       playsinline: true,
       html5: {
         vhs: {
           overrideNative: true,
           xhr: {
             beforeRequest: (options: Record<string, any>) => {
-              // Append token to sub-requests (segments, playlists)
               if (token && options.uri && !options.uri.includes('token=')) {
                 const separator = options.uri.includes('?') ? '&' : '?';
                 options.uri = `${options.uri}${separator}token=${token}`;
@@ -133,42 +129,28 @@ export default function ShareVideoPlayer() {
 
     playerRef.current = player;
 
-    // Landscape fullscreen plugin
-    (player as any).landscapeFullscreen({
-      fullscreen: {
-        enterOnRotate: true,
-        exitOnRotate: true,
-        alwaysInLandscapeMode: false,
-        iOS: true,
-      },
-    });
-
-    // Force video element to fill player — override Tailwind preflight
-    // which sets "video { max-width:100%; height:auto }" and shrinks it
-    player.ready(() => {
-      const tech = player.el()?.querySelector('video');
-      if (tech) {
-        const s = (tech as HTMLElement).style;
-        s.setProperty('position', 'absolute', 'important');
-        s.setProperty('top', '0', 'important');
-        s.setProperty('left', '0', 'important');
-        s.setProperty('width', '100%', 'important');
-        s.setProperty('height', '100%', 'important');
-        s.setProperty('max-width', 'none', 'important');
-        s.setProperty('max-height', 'none', 'important');
-        s.setProperty('object-fit', 'contain', 'important');
-      }
-    });
+    // Mobile: auto-fullscreen on first play + lock orientation
+    if (isMobile) {
+      player.on('play', () => {
+        if (autoFsDone.current) return;
+        autoFsDone.current = true;
+        const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+        if (!videoEl) return;
+        const goFs = (videoEl as any).webkitEnterFullscreen || videoEl.requestFullscreen?.bind(videoEl);
+        if (goFs) { try { goFs.call(videoEl); } catch {} }
+        if (screen.orientation && 'lock' in screen.orientation) {
+          const portrait = videoEl.videoHeight > videoEl.videoWidth;
+          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
+        }
+      });
+    }
   };
 
   // --- Render states ---
   if (loading) {
     return (
       <div className="h-[100dvh] bg-black flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 text-white animate-spin" />
-          <p className="text-white/60 text-sm">Loading video...</p>
-        </div>
+        <Loader2 className="h-8 w-8 text-white animate-spin" />
       </div>
     );
   }
@@ -180,9 +162,7 @@ export default function ShareVideoPlayer() {
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
             {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <Play className="h-8 w-8 text-red-400" />}
           </div>
-          <h1 className="text-xl font-bold text-white mb-2">
-            {!token ? 'Access Denied' : 'Video Unavailable'}
-          </h1>
+          <h1 className="text-xl font-bold text-white mb-2">{!token ? 'Access Denied' : 'Video Unavailable'}</h1>
           <p className="text-gray-400 text-sm max-w-md">{error || 'This video could not be loaded.'}</p>
         </div>
       </div>
@@ -195,9 +175,7 @@ export default function ShareVideoPlayer() {
         <div className="text-center">
           <div className="w-12 h-12 border-[3px] border-gray-600 border-t-blue-400 rounded-full animate-spin mx-auto mb-4" />
           <h1 className="text-xl font-bold text-white mb-2">Processing Video</h1>
-          <p className="text-gray-400 text-sm max-w-md">
-            This video is still being processed. Please check back shortly.
-          </p>
+          <p className="text-gray-400 text-sm max-w-md">This video is still being processed.</p>
         </div>
       </div>
     );
@@ -206,21 +184,25 @@ export default function ShareVideoPlayer() {
   return (
     <div className="h-[100dvh] bg-black flex flex-col overflow-hidden">
       {/* Brand Header */}
-      <div className="bg-gray-950 border-b border-gray-800 px-3 sm:px-4 py-2.5 flex items-center justify-between">
+      <div className="bg-gray-950 border-b border-gray-800 px-3 sm:px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-white font-bold text-sm tracking-tight">ReviewFlow</span>
           <span className="text-gray-600 text-xs">|</span>
           <span className="text-gray-400 text-xs truncate max-w-[150px] sm:max-w-none">{video.filename}</span>
         </div>
-        {video.status && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 font-medium flex-shrink-0">
-            {video.status}
-          </span>
-        )}
       </div>
 
-      {/* Video.js Player */}
-      <div ref={videoContainerRef} className="flex-1 bg-black relative min-h-0" />
+      {/* Video Player — static <video> element, Video.js wraps it */}
+      <div className="flex-1 bg-black relative min-h-0">
+        <video
+          ref={(el) => {
+            (videoRef as any).current = el;
+            if (el && !playerRef.current) setPlayerReady(true);
+          }}
+          className="video-js vjs-big-play-centered absolute inset-0"
+          playsInline
+        />
+      </div>
     </div>
   );
 }

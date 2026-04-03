@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import 'videojs-landscape-fullscreen';
 import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
 import { registerCustomComponents } from './videojs-custom-plugins';
 
 registerCustomComponents();
+
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 interface HLSPlayerProps {
   hlsUrl: string;
@@ -27,14 +28,14 @@ export default function HLSPlayer({
   onPlayingChange,
   onPlayerError,
 }: HLSPlayerProps) {
-  const videoRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<Player | null>(null);
+  const autoFsDone = useRef(false);
 
   const [showIntro, setShowIntro] = useState(false);
   const [introShown, setIntroShown] = useState(false);
   const [error, setError] = useState(false);
 
-  // Store callbacks in refs to avoid re-creating player on callback changes
   const onProgressRef = useRef(onProgress);
   const onPlayingChangeRef = useRef(onPlayingChange);
   const onPlayerErrorRef = useRef(onPlayerError);
@@ -42,39 +43,24 @@ export default function HLSPlayer({
   useEffect(() => { onPlayingChangeRef.current = onPlayingChange; }, [onPlayingChange]);
   useEffect(() => { onPlayerErrorRef.current = onPlayerError; }, [onPlayerError]);
 
-  // Expose seekTo/pause to parent
   useEffect(() => {
     if (onPlayerRef && playerRef.current) {
       onPlayerRef({
-        seekTo: (time: number) => {
-          playerRef.current?.currentTime(time);
-        },
-        pause: () => {
-          playerRef.current?.pause();
-        },
+        seekTo: (time: number) => { playerRef.current?.currentTime(time); },
+        pause: () => { playerRef.current?.pause(); },
       });
     }
   }, [onPlayerRef]);
 
-  // Initialize Video.js
   useEffect(() => {
     if (!videoRef.current) return;
 
-    // Create a video element inside the container div
-    const videoElement = document.createElement('video-js');
-    videoElement.classList.add('vjs-big-play-centered', 'vjs-fill');
-    videoElement.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;';
-    videoRef.current.appendChild(videoElement);
-
     const token = localStorage.getItem('token');
 
-    const player = videojs(videoElement, {
+    const player = videojs(videoRef.current, {
       controls: true,
       autoplay: false,
       preload: 'auto',
-      fluid: false,
-      fill: true,
-      responsive: true,
       playsinline: true,
       html5: {
         vhs: {
@@ -92,12 +78,7 @@ export default function HLSPlayer({
         nativeAudioTracks: false,
         nativeVideoTracks: false,
       },
-      sources: [
-        {
-          src: hlsUrl,
-          type: 'application/x-mpegURL',
-        },
-      ],
+      sources: [{ src: hlsUrl, type: 'application/x-mpegURL' }],
       controlBar: {
         children: [
           'playToggle',
@@ -116,33 +97,28 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Landscape fullscreen plugin
-    (player as any).landscapeFullscreen({
-      fullscreen: {
-        enterOnRotate: true,
-        exitOnRotate: true,
-        alwaysInLandscapeMode: false,
-        iOS: true,
-      },
-    });
+    // Mobile: auto-fullscreen on first play + lock orientation
+    if (isMobile) {
+      player.on('play', () => {
+        if (autoFsDone.current) return;
+        autoFsDone.current = true;
+        const videoEl = player.tech({ IWillNotUseThisInPlugins: true })?.el() as HTMLVideoElement | undefined;
+        if (!videoEl) return;
+        // Use native video fullscreen — browser handles sizing perfectly
+        const goFullscreen = (videoEl as any).webkitEnterFullscreen
+          || videoEl.requestFullscreen?.bind(videoEl);
+        if (goFullscreen) {
+          try { goFullscreen.call(videoEl); } catch {}
+        }
+        // Lock orientation based on video dimensions
+        if (screen.orientation && 'lock' in screen.orientation) {
+          const isPortrait = videoEl.videoHeight > videoEl.videoWidth;
+          (screen.orientation as any).lock(isPortrait ? 'portrait' : 'landscape').catch(() => {});
+        }
+      });
+    }
 
     player.ready(() => {
-      // Force video element to fill player — override Tailwind preflight
-      // which sets "video { max-width:100%; height:auto }" and shrinks it
-      const tech = player.el()?.querySelector('video');
-      if (tech) {
-        const s = (tech as HTMLElement).style;
-        s.setProperty('position', 'absolute', 'important');
-        s.setProperty('top', '0', 'important');
-        s.setProperty('left', '0', 'important');
-        s.setProperty('width', '100%', 'important');
-        s.setProperty('height', '100%', 'important');
-        s.setProperty('max-width', 'none', 'important');
-        s.setProperty('max-height', 'none', 'important');
-        s.setProperty('object-fit', 'contain', 'important');
-      }
-
-      // Add download button if URL provided
       if (downloadUrl) {
         const Button = videojs.getComponent('Button') as any;
         class DownloadButton extends Button {
@@ -151,18 +127,12 @@ export default function HLSPlayer({
             this.controlText('Download');
             this.addClass('vjs-download-button');
           }
-          handleClick() {
-            window.open(downloadUrl, '_blank');
-          }
-          buildCSSClass() {
-            return `vjs-download-button vjs-control vjs-button ${super.buildCSSClass()}`;
-          }
+          handleClick() { window.open(downloadUrl, '_blank'); }
+          buildCSSClass() { return `vjs-download-button vjs-control vjs-button ${super.buildCSSClass()}`; }
         }
         videojs.registerComponent('DownloadButton', DownloadButton as any);
         player.getChild('controlBar')?.addChild('DownloadButton', {});
       }
-
-      // Expose player ref to parent after ready
       if (onPlayerRef) {
         onPlayerRef({
           seekTo: (time: number) => player.currentTime(time),
@@ -171,27 +141,20 @@ export default function HLSPlayer({
       }
     });
 
-    // Progress tracking
     player.on('timeupdate', () => {
-      const currentTime = player.currentTime() || 0;
-      const duration = player.duration() || 0;
-      if (duration > 0 && onProgressRef.current) {
-        onProgressRef.current({
-          played: currentTime / duration,
-          playedSeconds: currentTime,
-        });
+      const ct = player.currentTime() || 0;
+      const dur = player.duration() || 0;
+      if (dur > 0 && onProgressRef.current) {
+        onProgressRef.current({ played: ct / dur, playedSeconds: ct });
       }
     });
 
-    // Play/pause state
     player.on('play', () => onPlayingChangeRef.current?.(true));
     player.on('pause', () => onPlayingChangeRef.current?.(false));
     player.on('ended', () => onPlayingChangeRef.current?.(false));
 
-    // Error handling — fallback to direct stream
     player.on('error', () => {
-      const err = player.error();
-      console.error('Video.js error:', err);
+      console.error('Video.js error:', player.error());
       if (fallbackUrl) {
         player.src({ src: fallbackUrl, type: 'video/mp4' });
       } else {
@@ -208,11 +171,10 @@ export default function HLSPlayer({
     };
   }, [hlsUrl, fallbackUrl, downloadUrl]);
 
-  // Intro overlay — show on first play
+  // Intro overlay on first play
   useEffect(() => {
     const player = playerRef.current;
     if (!player || introShown) return;
-
     const handleFirstPlay = () => {
       if (!introShown) {
         player.pause();
@@ -226,62 +188,42 @@ export default function HLSPlayer({
         }, 3000);
       }
     };
-
     player.on('play', handleFirstPlay);
-    return () => {
-      player.off('play', handleFirstPlay);
-    };
+    return () => { player.off('play', handleFirstPlay); };
   }, [introShown]);
 
   return (
-    <div className="w-full relative" style={{ aspectRatio: '16/9' }}>
-      {/* Video.js container */}
-      <div ref={videoRef} className="w-full h-full relative" />
+    <div className="w-full relative bg-black" style={{ aspectRatio: '16/9' }}>
+      {/* Static video element — Video.js initializes on this directly */}
+      <video
+        ref={videoRef}
+        className="video-js vjs-big-play-centered absolute inset-0"
+        playsInline
+      />
 
-      {/* Digitech Solutions Premium Intro Overlay */}
+      {/* Intro Overlay */}
       {showIntro && (
         <div className="absolute inset-0 flex items-center justify-center bg-black z-30 overflow-hidden">
           <div className="absolute inset-0">
             <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-blue-600/15 rounded-full blur-[80px] animate-intro-particles" />
             <div className="absolute bottom-1/4 right-1/6 w-56 h-56 bg-emerald-500/12 rounded-full blur-[80px] animate-intro-particles" style={{ animationDelay: '0.2s' }} />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-500/8 rounded-full blur-[100px] animate-intro-particles" style={{ animationDelay: '0.4s' }} />
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
           </div>
           <div className="flex flex-col items-center relative z-10">
             <div className="animate-intro-logo">
-              <img
-                src="/digitech-logo.svg"
-                alt="Digitech Solutions"
-                className="h-16 sm:h-20 md:h-24 w-auto drop-shadow-2xl"
-                style={{ filter: 'brightness(0) invert(1) drop-shadow(0 0 30px rgba(59,130,246,0.3))' }}
-              />
+              <img src="/digitech-logo.svg" alt="Digitech Solutions" className="h-16 sm:h-20 md:h-24 w-auto drop-shadow-2xl" style={{ filter: 'brightness(0) invert(1) drop-shadow(0 0 30px rgba(59,130,246,0.3))' }} />
             </div>
             <div className="mt-5 h-[1px] bg-gradient-to-r from-transparent via-blue-400/50 to-transparent rounded-full animate-intro-line" />
-            <p className="mt-3 text-[10px] sm:text-xs text-white/30 tracking-[0.4em] uppercase font-light animate-intro-subtitle">
-              Premium Video Experience
-            </p>
+            <p className="mt-3 text-[10px] sm:text-xs text-white/30 tracking-[0.4em] uppercase font-light animate-intro-subtitle">Premium Video Experience</p>
           </div>
-          <div className="absolute top-6 left-6 w-8 h-8 border-l border-t border-white/10 animate-intro-subtitle" />
-          <div className="absolute bottom-6 right-6 w-8 h-8 border-r border-b border-white/10 animate-intro-subtitle" />
         </div>
       )}
 
-      {/* Error state */}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
           <div className="text-center">
             <p className="text-red-400 text-sm mb-3">Failed to load video</p>
-            <button
-              onClick={() => {
-                setError(false);
-                if (playerRef.current) {
-                  playerRef.current.src({ src: fallbackUrl, type: 'video/mp4' });
-                }
-              }}
-              className="text-sm text-gray-300 hover:text-white px-4 py-1.5 border border-gray-600 rounded-md transition-colors"
-            >
-              Try Again
-            </button>
+            <button onClick={() => { setError(false); playerRef.current?.src({ src: fallbackUrl, type: 'video/mp4' }); }} className="text-sm text-gray-300 hover:text-white px-4 py-1.5 border border-gray-600 rounded-md transition-colors">Try Again</button>
           </div>
         </div>
       )}
