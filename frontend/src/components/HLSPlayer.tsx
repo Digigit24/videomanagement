@@ -57,17 +57,17 @@ export default function HLSPlayer({
 
     const token = localStorage.getItem('token');
 
-    // Create a <video> element — Video.js wraps it in a <div> with proper sizing
-    const videoEl = document.createElement('video');
-    videoEl.classList.add('video-js', 'vjs-big-play-centered');
-    videoEl.setAttribute('playsinline', '');
-    containerRef.current.appendChild(videoEl);
+    // Use <video-js> custom element — Video.js handles it natively
+    const videoElement = document.createElement('video-js');
+    videoElement.classList.add('vjs-big-play-centered');
+    containerRef.current.appendChild(videoElement);
 
-    const player = videojs(videoEl, {
+    const player = videojs(videoElement as any, {
       controls: true,
       autoplay: false,
       preload: 'auto',
-      fluid: true,
+      playsinline: true,
+      fill: true,
       html5: {
         vhs: {
           overrideNative: true,

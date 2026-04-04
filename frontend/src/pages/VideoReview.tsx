@@ -212,16 +212,15 @@ export default function VideoReview() {
 
     const hlsUrl = publicVideoService.getHLSUrl(videoData.id, token);
 
-    // Create <video> element — Video.js wraps it in a <div> with proper sizing
-    const videoEl = document.createElement('video');
-    videoEl.classList.add('video-js', 'vjs-big-play-centered');
-    videoEl.setAttribute('playsinline', '');
-    playerContainerRef.current.appendChild(videoEl);
+    const videoElement = document.createElement('video-js');
+    videoElement.classList.add('vjs-big-play-centered');
+    playerContainerRef.current.appendChild(videoElement);
 
-    const player = videojs(videoEl, {
+    const player = videojs(videoElement as any, {
       controls: true,
       autoplay: false,
       preload: 'auto',
+      playsinline: true,
       fill: true,
       html5: {
         vhs: {
