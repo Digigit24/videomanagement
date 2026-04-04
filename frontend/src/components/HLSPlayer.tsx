@@ -152,9 +152,12 @@ export default function HLSPlayer({
     player.on('pause', () => onPlayingChangeRef.current?.(false));
     player.on('ended', () => onPlayingChangeRef.current?.(false));
 
+    let errorCount = 0;
     player.on('error', () => {
       console.error('Video.js error:', player.error());
-      if (fallbackUrl) {
+      errorCount++;
+      if (errorCount === 1 && fallbackUrl) {
+        // First error: try direct stream as fallback
         player.src({ src: fallbackUrl, type: 'video/mp4' });
       } else {
         setError(true);
