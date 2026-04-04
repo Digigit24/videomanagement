@@ -331,48 +331,17 @@ export const videoService = {
     replaceVideoId?: string,
     folderId?: string,
   ) => {
-    // Step 1: Get presigned S3 URL from server
-    const { data: presignData } = await api.post("/upload/presign", {
-      filename: file.name,
-      mimetype: file.type,
-      size: file.size,
-      replaceVideoId: replaceVideoId || undefined,
-      folderId: folderId || undefined,
-    }, { params: { bucket } });
+    const formData = new FormData();
+    formData.append("video", file);
+    if (replaceVideoId) formData.append("replaceVideoId", replaceVideoId);
+    if (folderId) formData.append("folderId", folderId);
 
-    const { uploadUrl, videoId } = presignData;
-
-    // Step 2: Upload directly to S3 using presigned URL
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", file.type);
-
-      if (onProgress) {
-        xhr.upload.onprogress = (e) => {
-          onProgress({ loaded: e.loaded, total: e.total || file.size });
-        };
-      }
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          reject(new Error(`S3 upload failed with status ${xhr.status}`));
-        }
-      };
-      xhr.onerror = () => reject(new Error("Network error during upload"));
-      xhr.onabort = () => reject(new Error("Upload aborted"));
-
-      xhr.send(file);
+    const { data } = await api.post("/upload", formData, {
+      params: { bucket },
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: onProgress,
     });
-
-    // Step 3: Confirm upload with server (triggers processing)
-    const { data: confirmData } = await api.post("/upload/confirm", {
-      videoId,
-    }, { params: { bucket } });
-
-    return confirmData.video as Video;
+    return data.video as Video;
   },
 
   pollVideos: async (bucket: string) => {
