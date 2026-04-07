@@ -195,9 +195,9 @@ export default function HLSPlayer({
   }, [introShown]);
 
   return (
-    <div className="w-full relative bg-black">
+    <div className="w-full relative bg-black" style={{ aspectRatio: '16/9' }}>
       {/* Video.js creates its wrapper div here */}
-      <div ref={containerRef} />
+      <div ref={containerRef} className="absolute inset-0" />
 
       {/* Intro Overlay */}
       {showIntro && (
