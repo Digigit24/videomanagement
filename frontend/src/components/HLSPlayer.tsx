@@ -103,16 +103,29 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Mobile: auto-fullscreen on first play + lock orientation
+    // Mobile: auto-fullscreen on first play + lock orientation to match video aspect
     if (isMobile) {
+      const lockOrientation = () => {
+        const vid = player.el().querySelector('video') as HTMLVideoElement | null;
+        if (!vid || !vid.videoWidth || !vid.videoHeight) return;
+        const portrait = vid.videoHeight > vid.videoWidth;
+        if (screen.orientation && 'lock' in screen.orientation) {
+          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
+        }
+      };
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
         try { player.requestFullscreen(); } catch {}
-        const vid = player.el().querySelector('video') as HTMLVideoElement | null;
-        if (vid && screen.orientation && 'lock' in screen.orientation) {
-          const portrait = vid.videoHeight > vid.videoWidth;
-          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
+        // Try immediately and again after metadata loads
+        lockOrientation();
+        player.one('loadedmetadata', lockOrientation);
+        setTimeout(lockOrientation, 300);
+      });
+      // Release lock when leaving fullscreen
+      player.on('fullscreenchange', () => {
+        if (!player.isFullscreen() && screen.orientation && 'unlock' in screen.orientation) {
+          try { (screen.orientation as any).unlock(); } catch {}
         }
       });
     }
