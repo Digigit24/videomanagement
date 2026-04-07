@@ -93,6 +93,8 @@ export function registerCustomComponents() {
         qualityLevels[i].enabled = selectedHeight === -1 || qualityLevels[i].height === selectedHeight;
       }
 
+      // Mark as user-chosen so auto-highest doesn't override later
+      player._userPickedQuality = true;
       // Store selection on the player and fire event so MenuButton can update
       player._selectedQualityHeight = selectedHeight;
       player.trigger('qualityselected');
@@ -120,6 +122,25 @@ export function registerCustomComponents() {
         (player as any)._selectedQualityHeight = -1;
       }
 
+      // Auto-select highest quality on first load
+      const selectHighest = () => {
+        const ql = (player as any).qualityLevels?.();
+        if (!ql || ql.length === 0) return;
+        // Only auto-pick if user hasn't manually chosen yet
+        if ((player as any)._userPickedQuality) return;
+        let maxH = 0;
+        for (let i = 0; i < ql.length; i++) {
+          if (ql[i].height && ql[i].height > maxH) maxH = ql[i].height;
+        }
+        if (maxH > 0) {
+          for (let i = 0; i < ql.length; i++) {
+            ql[i].enabled = ql[i].height === maxH;
+          }
+          (player as any)._selectedQualityHeight = maxH;
+          player.trigger('qualityselected');
+        }
+      };
+
       // Listen for quality selection changes
       player.on('qualityselected', () => {
         const h = (player as any)._selectedQualityHeight;
@@ -130,7 +151,12 @@ export function registerCustomComponents() {
 
       player.ready(() => {
         const ql = (player as any).qualityLevels?.();
-        if (ql) ql.on('addqualitylevel', () => this.update());
+        if (ql) {
+          ql.on('addqualitylevel', () => {
+            this.update();
+            selectHighest();
+          });
+        }
       });
     }
 
