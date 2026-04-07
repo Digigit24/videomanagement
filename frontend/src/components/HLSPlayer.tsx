@@ -103,29 +103,105 @@ export default function HLSPlayer({
 
     playerRef.current = player;
 
-    // Mobile: auto-fullscreen on first play + lock orientation to match video aspect
+    // Mobile: auto-fullscreen on first play + force portrait for vertical videos
     if (isMobile) {
-      const lockOrientation = () => {
-        const vid = player.el().querySelector('video') as HTMLVideoElement | null;
-        if (!vid || !vid.videoWidth || !vid.videoHeight) return;
-        const portrait = vid.videoHeight > vid.videoWidth;
-        if (screen.orientation && 'lock' in screen.orientation) {
-          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
+      const getVideoEl = () => player.el().querySelector('video') as HTMLVideoElement | null;
+      const isPortraitVideo = (): boolean | null => {
+        const vid = getVideoEl();
+        if (!vid || !vid.videoWidth || !vid.videoHeight) return null;
+        return vid.videoHeight > vid.videoWidth;
+      };
+
+      const applyRotationFallback = () => {
+        const portrait = isPortraitVideo();
+        const playerEl = player.el() as HTMLElement;
+        const vid = getVideoEl();
+        if (!vid) return;
+        // Clear previous transform
+        vid.style.transform = '';
+        vid.style.width = '';
+        vid.style.height = '';
+        vid.style.position = '';
+        vid.style.top = '';
+        vid.style.left = '';
+        if (!player.isFullscreen() || portrait === null) return;
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+        const screenLandscape = screenW > screenH;
+        // Vertical video on landscape phone → rotate 90deg
+        if (portrait && screenLandscape) {
+          playerEl.style.background = '#000';
+          vid.style.position = 'absolute';
+          vid.style.top = '50%';
+          vid.style.left = '50%';
+          vid.style.width = `${screenH}px`;
+          vid.style.height = `${screenW}px`;
+          vid.style.transform = 'translate(-50%, -50%) rotate(90deg)';
+          vid.style.objectFit = 'contain';
         }
       };
+
+      const tryLockOrientation = () => {
+        const portrait = isPortraitVideo();
+        if (portrait === null) return;
+        if (screen.orientation && 'lock' in screen.orientation) {
+          (screen.orientation as any)
+            .lock(portrait ? 'portrait' : 'landscape')
+            .then(() => {
+              // Lock worked — clear any rotation fallback
+              setTimeout(applyRotationFallback, 100);
+            })
+            .catch(() => {
+              // Lock failed — use CSS rotation fallback instead
+              applyRotationFallback();
+            });
+        } else {
+          applyRotationFallback();
+        }
+      };
+
+      const enterFullscreenAndOrient = async () => {
+        try {
+          const fs = player.requestFullscreen();
+          if (fs && typeof (fs as any).then === 'function') await fs;
+        } catch {}
+        if (isPortraitVideo() === null) {
+          player.one('loadedmetadata', () => {
+            tryLockOrientation();
+            setTimeout(tryLockOrientation, 200);
+          });
+        } else {
+          tryLockOrientation();
+        }
+        setTimeout(tryLockOrientation, 500);
+      };
+
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
-        try { player.requestFullscreen(); } catch {}
-        // Try immediately and again after metadata loads
-        lockOrientation();
-        player.one('loadedmetadata', lockOrientation);
-        setTimeout(lockOrientation, 300);
+        enterFullscreenAndOrient();
       });
-      // Release lock when leaving fullscreen
+
+      // Re-apply rotation on resize (e.g. when device rotates)
+      window.addEventListener('resize', applyRotationFallback);
+
+      // Release lock + clear rotation when leaving fullscreen
       player.on('fullscreenchange', () => {
-        if (!player.isFullscreen() && screen.orientation && 'unlock' in screen.orientation) {
-          try { (screen.orientation as any).unlock(); } catch {}
+        if (player.isFullscreen()) {
+          setTimeout(tryLockOrientation, 100);
+        } else {
+          if (screen.orientation && 'unlock' in screen.orientation) {
+            try { (screen.orientation as any).unlock(); } catch {}
+          }
+          const vid = getVideoEl();
+          if (vid) {
+            vid.style.transform = '';
+            vid.style.width = '';
+            vid.style.height = '';
+            vid.style.position = '';
+            vid.style.top = '';
+            vid.style.left = '';
+          }
         }
       });
     }
