@@ -105,22 +105,40 @@ export default function HLSPlayer({
 
     // Mobile: auto-fullscreen on first play + lock orientation to match video aspect
     if (isMobile) {
-      const lockOrientation = () => {
+      const getPortrait = (): boolean | null => {
         const vid = player.el().querySelector('video') as HTMLVideoElement | null;
-        if (!vid || !vid.videoWidth || !vid.videoHeight) return;
-        const portrait = vid.videoHeight > vid.videoWidth;
+        if (!vid || !vid.videoWidth || !vid.videoHeight) return null;
+        return vid.videoHeight > vid.videoWidth;
+      };
+      const tryLock = () => {
+        const portrait = getPortrait();
+        if (portrait === null) return false;
         if (screen.orientation && 'lock' in screen.orientation) {
-          (screen.orientation as any).lock(portrait ? 'portrait' : 'landscape').catch(() => {});
+          (screen.orientation as any)
+            .lock(portrait ? 'portrait' : 'landscape')
+            .catch((e: any) => console.warn('orientation.lock failed:', e?.message || e));
         }
+        return true;
+      };
+      const enterFullscreenAndLock = async () => {
+        try {
+          const fs = player.requestFullscreen();
+          if (fs && typeof (fs as any).then === 'function') await fs;
+        } catch {}
+        // After fullscreen is active, try to lock orientation
+        if (!tryLock()) {
+          // metadata not ready yet — wait for it
+          player.one('loadedmetadata', () => {
+            tryLock();
+            setTimeout(tryLock, 200);
+          });
+        }
+        setTimeout(tryLock, 500);
       };
       player.on('play', () => {
         if (autoFsDone.current) return;
         autoFsDone.current = true;
-        try { player.requestFullscreen(); } catch {}
-        // Try immediately and again after metadata loads
-        lockOrientation();
-        player.one('loadedmetadata', lockOrientation);
-        setTimeout(lockOrientation, 300);
+        enterFullscreenAndLock();
       });
       // Release lock when leaving fullscreen
       player.on('fullscreenchange', () => {
