@@ -57,6 +57,11 @@ export default function HLSPlayer({
 
     const token = localStorage.getItem('token');
 
+    // Ensure container is empty before mounting a new player (handles re-init / StrictMode)
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild);
+    }
+
     // Create a <video> element — Video.js wraps it in a <div> with proper sizing
     const videoEl = document.createElement('video');
     videoEl.classList.add('video-js', 'vjs-big-play-centered');
@@ -162,10 +167,17 @@ export default function HLSPlayer({
       }
     });
 
+    const container = containerRef.current;
     return () => {
       if (playerRef.current && !playerRef.current.isDisposed()) {
         playerRef.current.dispose();
         playerRef.current = null;
+      }
+      // Remove any leftover DOM nodes left behind by Video.js so the next mount starts clean
+      if (container) {
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
       }
     };
   }, [hlsUrl, fallbackUrl, downloadUrl]);
@@ -194,7 +206,7 @@ export default function HLSPlayer({
   return (
     <div className="w-full relative bg-black">
       {/* Video.js creates its wrapper div here */}
-      <div ref={containerRef} />
+      <div ref={containerRef} className="w-full" />
 
       {/* Intro Overlay */}
       {showIntro && (
