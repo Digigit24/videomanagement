@@ -693,39 +693,82 @@ export async function streamHLS(req, res) {
     // so that hls.js sub-requests don't lose authentication/bucket context.
     if (hlsFile.endsWith(".m3u8")) {
       const token = req.query.token || req.headers.authorization?.substring(7);
-      const chunks = [];
-      stream.on("data", (chunk) => chunks.push(chunk));
-      stream.on("error", (err) => {
-        console.error(`[HLS] Stream read error for ${objectKey}: ${err.message}`);
+
+      // Read the entire playlist using an awaited promise so we never silently
+      // hang if the underlying stream is in an unexpected mode. Hard timeout
+      // guards against S3 stalls. Aborts on client disconnect.
+      let playlist;
+      try {
+        playlist = await new Promise((resolve, reject) => {
+          const chunks = [];
+          let settled = false;
+          const settle = (fn, val) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            req.removeListener("close", onAbort);
+            try { stream.destroy?.(); } catch {}
+            fn(val);
+          };
+          const timer = setTimeout(
+            () => settle(reject, new Error("S3 read timeout after 15s")),
+            15000,
+          );
+          const onAbort = () => settle(reject, new Error("Client aborted"));
+          req.on("close", onAbort);
+          stream.on("data", (chunk) => chunks.push(chunk));
+          stream.on("error", (err) => settle(reject, err));
+          stream.on("end", () =>
+            settle(resolve, Buffer.concat(chunks).toString("utf8")),
+          );
+        });
+      } catch (readErr) {
+        console.error(
+          `[HLS] Failed to read m3u8 ${objectKey}: ${readErr.message}`,
+        );
         if (!res.headersSent) {
-          res.status(500).json({ error: "Failed to read HLS playlist" });
-        } else {
-          res.end();
+          return res
+            .status(502)
+            .json({ error: "Failed to read HLS playlist from storage" });
         }
-      });
-      stream.on("end", () => {
-        let playlist = Buffer.concat(chunks).toString("utf8");
-        // Rewrite relative URIs (lines not starting with #) to include query params
-        const params = new URLSearchParams();
-        if (bucket) params.set("bucket", bucket);
-        if (token) params.set("token", token);
-        const qs = params.toString();
-        if (qs) {
-          playlist = playlist
-            .split("\n")
-            .map((line) => {
-              const trimmed = line.trim();
-              if (trimmed && !trimmed.startsWith("#")) {
-                return `${trimmed}?${qs}`;
-              }
-              return line;
-            })
-            .join("\n");
+        return res.end();
+      }
+
+      if (!playlist || playlist.length === 0) {
+        console.error(`[HLS] Empty playlist body for ${objectKey}`);
+        if (!res.headersSent) {
+          return res.status(502).json({ error: "Empty HLS playlist" });
         }
-        res.send(playlist);
-      });
+        return res.end();
+      }
+
+      // Rewrite relative URIs (lines not starting with #) to include query params.
+      // Skip absolute URLs (http/https) — we never want to leak our auth token to
+      // a third-party origin. Preserve any existing query string on the line by
+      // joining with `&` instead of `?` when needed.
+      const params = new URLSearchParams();
+      if (bucket) params.set("bucket", bucket);
+      if (token) params.set("token", token);
+      const qs = params.toString();
+      if (qs) {
+        playlist = playlist
+          .split(/\r?\n/)
+          .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) return line;
+            // Don't rewrite absolute URLs — they go to a different origin
+            if (/^https?:\/\//i.test(trimmed)) return line;
+            const sep = trimmed.includes("?") ? "&" : "?";
+            return `${trimmed}${sep}${qs}`;
+          })
+          .join("\n");
+      }
+      return res.send(playlist);
     } else {
-      // For .ts segments, pipe directly
+      // For .ts segments, pipe directly. Destroy the upstream stream if the
+      // client disconnects so we don't leak S3 connections.
+      const onAbort = () => { try { stream.destroy?.(); } catch {} };
+      req.on("close", onAbort);
       stream.on("error", (err) => {
         console.error(`[HLS] Stream error for ${objectKey}: ${err.message}`);
         if (!res.headersSent) {
@@ -735,6 +778,7 @@ export async function streamHLS(req, res) {
         }
       });
       stream.pipe(res);
+      return;
     }
   } catch (error) {
     apiError(req, error);

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
 import { registerCustomComponents } from './videojs-custom-plugins';
 
@@ -57,6 +56,17 @@ export default function HLSPlayer({
 
     const token = localStorage.getItem('token');
 
+    // Pull the auth params from the initial hlsUrl so VHS sub-requests
+    // (variant playlists, segments) can carry them even if the server-side
+    // playlist rewrite fails or is bypassed by a CDN/proxy.
+    let inheritedBucket = '';
+    let inheritedToken = '';
+    try {
+      const u = new URL(hlsUrl, window.location.origin);
+      inheritedBucket = u.searchParams.get('bucket') || '';
+      inheritedToken = u.searchParams.get('token') || '';
+    } catch { /* ignore parse failures */ }
+
     // Use <video-js> custom element — Video.js handles it natively
     const videoElement = document.createElement('video-js');
     videoElement.classList.add('vjs-big-play-centered');
@@ -76,6 +86,22 @@ export default function HLSPlayer({
               if (token) {
                 if (!options.headers) options.headers = {};
                 options.headers.Authorization = `Bearer ${token}`;
+              }
+              // Defense-in-depth: ensure bucket+token are present on every
+              // sub-request URL. validateBucket middleware requires bucket as
+              // a query param, and a CDN/proxy that strips them would cause
+              // a 400 → MEDIA_ERR_SRC_NOT_SUPPORTED in the player.
+              if (typeof options.uri === 'string' && (inheritedBucket || inheritedToken)) {
+                try {
+                  const u = new URL(options.uri, window.location.origin);
+                  if (inheritedBucket && !u.searchParams.has('bucket')) {
+                    u.searchParams.set('bucket', inheritedBucket);
+                  }
+                  if (inheritedToken && !u.searchParams.has('token')) {
+                    u.searchParams.set('token', inheritedToken);
+                  }
+                  options.uri = u.toString();
+                } catch { /* leave uri as-is on parse failure */ }
               }
               return options;
             },

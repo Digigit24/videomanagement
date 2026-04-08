@@ -1,8 +1,13 @@
 /**
  * Custom Video.js components: Skip buttons + Quality selector menu
  * Also injects CSS overrides that MUST load after Video.js + Tailwind.
+ *
+ * The videojs-contrib-quality-levels plugin is imported here (the single
+ * registration site) so that it cannot be imported by multiple pages and
+ * trigger "A plugin named 'qualityLevels' already exists" warnings.
  */
 import videojs from 'video.js';
+import 'videojs-contrib-quality-levels';
 
 let registered = false;
 

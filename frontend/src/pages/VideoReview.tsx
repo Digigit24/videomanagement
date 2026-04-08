@@ -3,7 +3,6 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { publicVideoService } from '@/services/api.service';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
-import 'videojs-contrib-quality-levels';
 import type Player from 'video.js/dist/types/player';
 import { registerCustomComponents } from '@/components/videojs-custom-plugins';
 

@@ -692,35 +692,69 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
 
       // Rewrite relative URIs to include share token so sub-requests authenticate
       const shareToken = req.query.token || req.headers["x-share-token"];
-      const chunks = [];
-      stream.on("data", (chunk) => chunks.push(chunk));
-      stream.on("error", (err) => {
-        console.error(`[Public HLS] Stream read error: ${err.message}`);
-        if (!res.headersSent) res.status(500).json({ error: "Failed to read playlist" });
-        else res.end();
-      });
-      stream.on("end", () => {
-        let playlist = Buffer.concat(chunks).toString("utf8");
-        if (shareToken) {
-          playlist = playlist
-            .split("\n")
-            .map((line) => {
-              const trimmed = line.trim();
-              if (trimmed && !trimmed.startsWith("#")) {
-                return `${trimmed}?token=${encodeURIComponent(shareToken)}`;
-              }
-              return line;
-            })
-            .join("\n");
+
+      // Read playlist with timeout/abort guards (matches authenticated streamHLS)
+      let playlist;
+      try {
+        playlist = await new Promise((resolve, reject) => {
+          const chunks = [];
+          let settled = false;
+          const settle = (fn, val) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            req.removeListener("close", onAbort);
+            try { stream.destroy?.(); } catch {}
+            fn(val);
+          };
+          const timer = setTimeout(
+            () => settle(reject, new Error("S3 read timeout after 15s")),
+            15000,
+          );
+          const onAbort = () => settle(reject, new Error("Client aborted"));
+          req.on("close", onAbort);
+          stream.on("data", (chunk) => chunks.push(chunk));
+          stream.on("error", (err) => settle(reject, err));
+          stream.on("end", () =>
+            settle(resolve, Buffer.concat(chunks).toString("utf8")),
+          );
+        });
+      } catch (readErr) {
+        console.error(`[Public HLS] Failed to read m3u8: ${readErr.message}`);
+        if (!res.headersSent) {
+          return res.status(502).json({ error: "Failed to read playlist" });
         }
-        res.send(playlist);
-      });
+        return res.end();
+      }
+
+      if (!playlist) {
+        if (!res.headersSent) {
+          return res.status(502).json({ error: "Empty playlist" });
+        }
+        return res.end();
+      }
+
+      if (shareToken) {
+        playlist = playlist
+          .split(/\r?\n/)
+          .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) return line;
+            if (/^https?:\/\//i.test(trimmed)) return line;
+            const sep = trimmed.includes("?") ? "&" : "?";
+            return `${trimmed}${sep}token=${encodeURIComponent(shareToken)}`;
+          })
+          .join("\n");
+      }
+      return res.send(playlist);
     } else {
       if (hlsPath.endsWith(".ts")) {
         res.setHeader("Content-Type", "video/mp2t");
       }
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+      const onAbort = () => { try { stream.destroy?.(); } catch {} };
+      req.on("close", onAbort);
       stream.on("error", (err) => {
         console.error(`[Public HLS] Stream error: ${err.message}`);
         if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
