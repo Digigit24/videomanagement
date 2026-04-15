@@ -8,6 +8,9 @@ import {
   DeleteObjectsCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+import { Agent as HttpsAgent } from "https";
+import { Agent as HttpAgent } from "http";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 import { pipeline } from "stream/promises";
@@ -35,6 +38,20 @@ export function resolveBucket(bucketName) {
 
 let s3Client;
 
+// HLS streaming makes many parallel S3 GETs per playing video (master + variant
+// playlists + every .ts segment). The AWS SDK default of 50 sockets per host
+// gets exhausted quickly under real traffic and queues subsequent requests,
+// which appears to clients as m3u8 requests hanging forever. Keep-alive lets
+// sockets be reused across requests instead of re-handshaking TLS each time.
+// Allow override via env so it can be tuned without a code change.
+const S3_MAX_SOCKETS = parseInt(process.env.S3_MAX_SOCKETS, 10) || 500;
+
+const keepAliveOpts = {
+  keepAlive: true,
+  keepAliveMsecs: 1000,
+  maxSockets: S3_MAX_SOCKETS,
+};
+
 function getS3Client() {
   if (!s3Client) {
     s3Client = new S3Client({
@@ -47,6 +64,13 @@ function getS3Client() {
       forcePathStyle: true,
       tls: true,
       signatureVersion: "v4",
+      requestHandler: new NodeHttpHandler({
+        httpAgent: new HttpAgent(keepAliveOpts),
+        httpsAgent: new HttpsAgent(keepAliveOpts),
+        // Don't let a stalled S3 socket hang our request indefinitely.
+        connectionTimeout: 5000,
+        socketTimeout: 30000,
+      }),
     });
   }
   return s3Client;
