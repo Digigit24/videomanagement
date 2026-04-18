@@ -29,6 +29,7 @@ import {
   getFolderFileIds,
   createFolderShareToken,
   getSharedFolder,
+  downloadSharedFolder,
 } from "../controllers/folder.js";
 import {
   getUserPermissions,
@@ -837,6 +838,112 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
     res.status(500).json({ error: "Stream failed" });
   }
 });
+
+// Public: download a single shared video/photo (requires valid share token)
+router.get("/public/video/:videoId/download", validateShareAccess, async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const { getObjectStream, getVideoStream } = await import("../services/storage.js");
+
+    const videoResult = await pool.query(
+      `SELECT id, filename, object_key, bucket, media_type, hls_ready, hls_path
+       FROM videos WHERE id = $1 AND is_active_version = TRUE`,
+      [req.params.videoId],
+    );
+    const video = videoResult.rows[0];
+    if (!video) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Photos: serve original directly
+    if (video.media_type === "photo") {
+      try {
+        const stream = await getObjectStream(video.bucket, video.object_key);
+        const ext = (video.filename || "").split(".").pop()?.toLowerCase() || "jpg";
+        const contentTypes = {
+          jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+          gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+          tiff: "image/tiff", svg: "image/svg+xml",
+        };
+        res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${video.filename}"`,
+        );
+        stream.pipe(res);
+      } catch (streamErr) {
+        console.error("[PublicDownload] Photo stream error:", streamErr);
+        return res.status(404).json({ error: "Photo file not found" });
+      }
+      return;
+    }
+
+    // Videos: try original first, fall back to HLS playlist
+    try {
+      const stream = await getVideoStream(video.bucket, video.object_key);
+      const ext = (video.filename || "").split(".").pop()?.toLowerCase();
+      const mimeTypes = {
+        mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
+        avi: "video/x-msvideo", mkv: "video/x-matroska",
+        wmv: "video/x-ms-wmv", flv: "video/x-flv",
+      };
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${video.filename}"`,
+      );
+      res.setHeader(
+        "Content-Type",
+        mimeTypes[ext] || "application/octet-stream",
+      );
+      stream.pipe(res);
+      return;
+    } catch (originalErr) {
+      console.warn(
+        `[PublicDownload] Original not found for ${video.id}, falling back to HLS.`,
+      );
+    }
+
+    if (!video.hls_ready || !video.hls_path) {
+      return res.status(202).json({
+        error: "Video is still being processed. Please try again later.",
+      });
+    }
+
+    const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
+    const qualityOrder = ["4k", "1080p", "720p", "360p"];
+    let bestPlaylistKey = null;
+    for (const q of qualityOrder) {
+      try {
+        const testKey = `${hlsDir}/${q}/playlist.m3u8`;
+        await getVideoStream(video.bucket, testKey);
+        bestPlaylistKey = testKey;
+        break;
+      } catch (_) {
+        // try next
+      }
+    }
+
+    if (!bestPlaylistKey) {
+      return res.status(404).json({ error: "No downloadable quality found" });
+    }
+
+    const stream = await getVideoStream(video.bucket, bestPlaylistKey);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${(video.filename || "video").replace(/\.[^/.]+$/, "")}.m3u8"`,
+    );
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    stream.pipe(res);
+  } catch (error) {
+    console.error("[PublicDownload] Error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to download" });
+    }
+  }
+});
+
+// Public: download the entire shared folder as a zip (token is in URL path)
+router.get("/public/folder/:token/download", downloadSharedFolder);
 
 // Share token management (authenticated)
 router.post("/video/:videoId/share-token", authenticate, generateShareToken);

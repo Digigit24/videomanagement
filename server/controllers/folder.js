@@ -389,6 +389,70 @@ export async function getSharedFolder(req, res) {
   }
 }
 
+// Public: download an entire shared folder as a zip via share token
+export async function downloadSharedFolder(req, res) {
+  try {
+    const { token } = req.params;
+    const pool = getPool();
+
+    // Resolve folder by active share token
+    const tokenResult = await pool.query(
+      `SELECT fst.folder_id, f.name as folder_name
+       FROM folder_share_tokens fst
+       JOIN folders f ON fst.folder_id = f.id
+       WHERE fst.token = $1 AND fst.active = true`,
+      [token],
+    );
+
+    if (!tokenResult.rows[0]) {
+      return res.status(404).json({ error: "Invalid or expired share link" });
+    }
+
+    const { folder_id: folderId, folder_name: folderName } = tokenResult.rows[0];
+
+    const videosResult = await pool.query(
+      `SELECT id, filename, object_key, bucket, media_type, size
+       FROM videos WHERE folder_id = $1 AND is_active_version = TRUE ORDER BY created_at`,
+      [folderId],
+    );
+    const files = videosResult.rows;
+
+    if (files.length === 0) {
+      return res.status(400).json({ error: "Folder is empty — nothing to download" });
+    }
+
+    const safeFolderName = (folderName || "folder").replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFolderName}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 5 } });
+    archive.on("error", (err) => {
+      console.error("[SharedFolderDownload] Archive error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to create zip" });
+      }
+    });
+    archive.pipe(res);
+
+    const usedNames = new Set();
+    for (const file of files) {
+      const fname = deduplicateFilename(file.filename, usedNames);
+      try {
+        await appendFileToArchive(archive, file.bucket, file.object_key, fname);
+      } catch (err) {
+        console.warn(`[SharedFolderDownload] Skipping file ${file.id} (${file.filename}): ${err.message}`);
+      }
+    }
+
+    await archive.finalize();
+  } catch (error) {
+    apiError(req, error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to download folder" });
+    }
+  }
+}
+
 // Get all video IDs in given folders (for "download original" of folders)
 export async function getFolderFileIds(req, res) {
   try {
