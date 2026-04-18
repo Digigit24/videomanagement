@@ -647,6 +647,69 @@ export async function streamVideo(req, res) {
 }
 
 // Stream HLS files (master playlist, variant playlists, segments)
+// Self-healing: if the DB says hls_ready=true but S3 no longer has the file,
+// we automatically flip hls_ready back to false and re-queue the video for
+// transcoding (if the original still exists). The frontend's existing
+// "processing..." UI then takes over until the new HLS is ready.
+async function autoHealMissingHLS(video, bucket) {
+  try {
+    const { s3ObjectExists, resolveBucket: resolve } = await import(
+      "../services/storage.js"
+    );
+    const { getPool } = await import("../db/index.js");
+
+    // Locate the original file. Try the permanent canonical location first,
+    // then fall back to whatever object_key the DB still holds.
+    const { prefix } = resolve(bucket);
+    const safeName = (video.filename || "").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const permanentKey = `${prefix}videos/${video.id}/${safeName}`;
+
+    let sourceKey = null;
+    if (safeName && (await s3ObjectExists(bucket, permanentKey))) {
+      sourceKey = permanentKey;
+    } else if (
+      video.object_key &&
+      (await s3ObjectExists(bucket, video.object_key))
+    ) {
+      sourceKey = video.object_key;
+    }
+
+    // Flip hls_ready back to false so the frontend stops trying to play a
+    // phantom stream and switches to the polling/processing UI instead.
+    await getPool().query(
+      "UPDATE videos SET hls_ready = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [video.id],
+    );
+
+    if (!sourceKey) {
+      console.warn(
+        `[HLS] Auto-heal: original also missing for ${video.id}, cannot reprocess`,
+      );
+      return { requeued: false };
+    }
+
+    // Avoid double-enqueue if something else already has it in flight.
+    const info = await processingQueue.getProcessingInfo(video.id);
+    if (
+      info &&
+      (info.processing_status === "queued" ||
+        info.processing_status === "processing")
+    ) {
+      console.log(`[HLS] Auto-heal: ${video.id} already in queue, skipping`);
+      return { requeued: true };
+    }
+
+    await processingQueue.enqueue(video.id, sourceKey, bucket, safeName);
+    console.log(
+      `[HLS] Auto-heal: re-queued ${video.id} for reprocessing from ${sourceKey}`,
+    );
+    return { requeued: true };
+  } catch (err) {
+    console.error(`[HLS] Auto-heal failed for ${video?.id}: ${err.message}`);
+    return { requeued: false };
+  }
+}
+
 export async function streamHLS(req, res) {
   try {
     const { id } = req.params;
@@ -677,7 +740,19 @@ export async function streamHLS(req, res) {
       console.error(
         `[HLS] S3 fetch failed: bucket=${bucket}, key=${objectKey}, error=${s3Error.message}`,
       );
-      return res.status(404).json({ error: "HLS file not found in storage" });
+      // Self-heal only when fetching the master playlist — the first thing
+      // the player asks for. If the master is gone, every variant/segment
+      // is gone too, so there is no point letting the player chase them.
+      let healed = { requeued: false };
+      if (hlsFile === "master.m3u8") {
+        healed = await autoHealMissingHLS(video, bucket || video.bucket);
+      }
+      return res.status(404).json({
+        error: healed.requeued
+          ? "HLS files were missing; video has been re-queued for processing"
+          : "HLS file not found in storage",
+        rebuilding: healed.requeued,
+      });
     }
 
     // Playlists (.m3u8) must not be cached so replacements are picked up immediately.
