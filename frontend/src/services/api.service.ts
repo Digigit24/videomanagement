@@ -16,6 +16,7 @@ import {
   ProcessingStatus,
   Folder,
   WorkspacePermissions,
+  CalendarNote,
 } from "@/types";
 
 export const authService = {
@@ -685,5 +686,46 @@ export const activityService = {
       params: { limit },
     });
     return data.activities;
+  },
+};
+
+export const calendarNoteService = {
+  getNotes: async (bucket: string, year: number, month: number) => {
+    const { data } = await api.get("/calendar-notes", {
+      params: { bucket, year, month },
+    });
+    return data.notes as CalendarNote[];
+  },
+
+  create: async (note: {
+    bucket: string;
+    videoId?: string;
+    noteDate: string;
+    noteTime?: string;
+    title: string;
+    content?: string;
+    color?: string;
+  }) => {
+    const { data } = await api.post("/calendar-notes", note);
+    return data.note as CalendarNote;
+  },
+
+  update: async (
+    id: string,
+    updates: {
+      title?: string;
+      content?: string;
+      noteDate?: string;
+      noteTime?: string;
+      color?: string;
+      videoId?: string | null;
+    },
+  ) => {
+    const { data } = await api.patch(`/calendar-notes/${id}`, updates);
+    return data.note as CalendarNote;
+  },
+
+  delete: async (id: string) => {
+    await api.delete(`/calendar-notes/${id}`);
   },
 };

@@ -98,6 +98,12 @@ import {
   getPresignedUploadUrl,
   confirmUpload,
 } from "../controllers/presignedUpload.js";
+import {
+  listNotes,
+  addNote,
+  editNote,
+  removeNote,
+} from "../controllers/calendarNote.js";
 import { getWorkspaceAnalytics } from "../services/workspaceStats.js";
 import {
   authenticate,
@@ -313,6 +319,12 @@ router.delete(
   refreshUserRole,
   permanentDeleteVideo,
 );
+
+// Calendar notes
+router.get("/calendar-notes", authenticate, listNotes);
+router.post("/calendar-notes", authenticate, addNote);
+router.patch("/calendar-notes/:id", authenticate, editNote);
+router.delete("/calendar-notes/:id", authenticate, removeNote);
 
 // Folders
 router.get("/workspace/:workspaceId/folders", authenticate, requireWorkspaceMember, listFolders);
