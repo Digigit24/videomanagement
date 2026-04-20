@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Video, CalendarNote } from '@/types';
 import { videoService, calendarNoteService } from '@/services/api.service';
-import { ChevronLeft, ChevronRight, Play, Image, Plus, X, Clock, StickyNote, Trash2, Edit3, FileVideo, Search, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Image, Plus, X, Clock, FileVideo, Search, ChevronDown } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from 'date-fns';
 
 interface CalendarViewProps {
@@ -32,10 +32,10 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
   const navigate = useNavigate();
   const { bucket } = useParams<{ bucket: string }>();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [notes, setNotes] = useState<CalendarNote[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [editingNote, setEditingNote] = useState<CalendarNote | null>(null);
+  const [modalDate, setModalDate] = useState<string>('');
   const [noteForm, setNoteForm] = useState({ title: '', content: '', noteTime: '', color: 'blue', videoId: '' });
   const [saving, setSaving] = useState(false);
 
@@ -80,18 +80,16 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
     return map;
   }, [notes]);
 
-  const selectedDateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
-  const selectedVideos = selectedDateKey ? (videosByDate[selectedDateKey] || []) : [];
-  const selectedNotes = selectedDateKey ? (notesByDate[selectedDateKey] || []) : [];
-
-  const openAddNote = () => {
+  const openAddNote = (dateKey: string) => {
     setEditingNote(null);
+    setModalDate(dateKey);
     setNoteForm({ title: '', content: '', noteTime: '', color: 'blue', videoId: '' });
     setShowNoteModal(true);
   };
 
   const openEditNote = (note: CalendarNote) => {
     setEditingNote(note);
+    setModalDate(note.note_date.slice(0, 10));
     setNoteForm({
       title: note.title,
       content: note.content || '',
@@ -103,7 +101,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
   };
 
   const handleSaveNote = async () => {
-    if (!noteForm.title.trim() || !selectedDateKey || !bucket) return;
+    if (!noteForm.title.trim() || !modalDate || !bucket) return;
     setSaving(true);
     try {
       if (editingNote) {
@@ -118,7 +116,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
       } else {
         const created = await calendarNoteService.create({
           bucket,
-          noteDate: selectedDateKey,
+          noteDate: modalDate,
           noteTime: noteForm.noteTime || undefined,
           title: noteForm.title,
           content: noteForm.content || undefined,
@@ -135,7 +133,8 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
+  const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await calendarNoteService.delete(noteId);
       setNotes(prev => prev.filter(n => n.id !== noteId));
@@ -145,14 +144,14 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
   };
 
   return (
-    <div className="space-y-4">
-      {/* Calendar Grid */}
+    <div>
+      {/* Calendar */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         {/* Month Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
           <button
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-200/60 rounded-lg transition-colors"
           >
             <ChevronLeft className="h-4 w-4 text-gray-600" />
           </button>
@@ -161,14 +160,14 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
           </h2>
           <button
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-gray-200/60 rounded-lg transition-colors"
           >
             <ChevronRight className="h-4 w-4 text-gray-600" />
           </button>
         </div>
 
         {/* Day Headers */}
-        <div className="grid grid-cols-7 border-b border-gray-100">
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/30">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
             <div key={d} className="text-center py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
               {d}
@@ -179,194 +178,87 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
         {/* Days Grid */}
         <div className="grid grid-cols-7">
           {Array.from({ length: startDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="aspect-square border-b border-r border-gray-50" />
+            <div key={`empty-${i}`} className="min-h-[120px] border-b border-r border-gray-100 bg-gray-50/30" />
           ))}
 
           {days.map(day => {
             const dateKey = format(day, 'yyyy-MM-dd');
             const dayVideos = videosByDate[dateKey] || [];
             const dayNotes = notesByDate[dateKey] || [];
-            const isSelected = selectedDate && isSameDay(day, selectedDate);
             const isToday = isSameDay(day, new Date());
-            const hasItems = dayVideos.length > 0 || dayNotes.length > 0;
 
             return (
-              <button
+              <div
                 key={dateKey}
-                onClick={() => setSelectedDate(isSelected ? null : day)}
-                className={`aspect-square border-b border-r border-gray-50 p-1 flex flex-col items-center justify-start transition-all relative ${
-                  isSelected ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : 'hover:bg-gray-50'
-                }`}
+                className="min-h-[120px] border-b border-r border-gray-100 p-1 flex flex-col group/cell relative hover:bg-blue-50/30 transition-colors"
               >
-                <span className={`text-xs font-medium mt-0.5 w-6 h-6 flex items-center justify-center rounded-full ${
-                  isToday ? 'bg-blue-600 text-white' : isSelected ? 'text-blue-700' : 'text-gray-700'
-                }`}>
-                  {format(day, 'd')}
-                </span>
-                {hasItems && (
-                  <div className="flex items-center gap-0.5 mt-1 flex-wrap justify-center">
-                    {dayVideos.length > 0 && dayVideos.length <= 3 && dayVideos.map((v, i) => (
-                      <div key={`v-${i}`} className={`w-1.5 h-1.5 rounded-full ${statusDot[v.status] || 'bg-gray-300'}`} />
-                    ))}
-                    {dayVideos.length > 3 && (
-                      <>
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                        <span className="text-[8px] font-bold text-gray-500">{dayVideos.length}</span>
-                      </>
-                    )}
-                    {dayNotes.length > 0 && (
-                      <div className="flex items-center gap-0.5 ml-0.5">
-                        {dayNotes.slice(0, 2).map((n, i) => (
-                          <div key={`n-${i}`} className={`w-1.5 h-1.5 rounded-sm ${getNoteColor(n.color).dot}`} />
-                        ))}
-                        {dayNotes.length > 2 && (
-                          <span className="text-[7px] font-bold text-gray-400">+{dayNotes.length - 2}</span>
+                {/* Date number + add button */}
+                <div className="flex items-center justify-between mb-0.5 px-0.5">
+                  <span className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full ${
+                    isToday ? 'bg-blue-600 text-white' : 'text-gray-600'
+                  }`}>
+                    {format(day, 'd')}
+                  </span>
+                  <button
+                    onClick={() => openAddNote(dateKey)}
+                    className="opacity-0 group-hover/cell:opacity-100 p-0.5 hover:bg-blue-100 rounded transition-all"
+                    title="Add note"
+                  >
+                    <Plus className="h-3 w-3 text-blue-500" />
+                  </button>
+                </div>
+
+                {/* Inline items */}
+                <div className="flex-1 space-y-0.5 overflow-hidden">
+                  {/* Notes rendered inline */}
+                  {dayNotes.map(note => {
+                    const color = getNoteColor(note.color);
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() => openEditNote(note)}
+                        className={`${color.bg} rounded px-1.5 py-0.5 cursor-pointer group/note flex items-center gap-1 hover:shadow-sm transition-shadow`}
+                      >
+                        <div className={`w-1.5 h-1.5 rounded-full ${color.dot} flex-shrink-0`} />
+                        <span className={`text-[10px] font-medium ${color.text} truncate flex-1`}>{note.title}</span>
+                        {note.note_time && (
+                          <span className="text-[8px] text-gray-500 flex-shrink-0">{note.note_time.slice(0, 5)}</span>
                         )}
+                        <button
+                          onClick={(e) => handleDeleteNote(note.id, e)}
+                          className="opacity-0 group-hover/note:opacity-100 p-0.5 hover:bg-red-200/60 rounded flex-shrink-0"
+                        >
+                          <X className="h-2.5 w-2.5 text-red-500" />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
-              </button>
+                    );
+                  })}
+
+                  {/* Videos rendered inline */}
+                  {dayVideos.slice(0, 2).map(v => (
+                    <div
+                      key={v.id}
+                      onClick={() => navigate(`/workspace/${bucket}/video/${v.id}`)}
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot[v.status] || 'bg-gray-300'}`} />
+                      <span className="text-[10px] text-gray-600 truncate">{v.filename}</span>
+                    </div>
+                  ))}
+                  {dayVideos.length > 2 && (
+                    <div className="text-[9px] text-gray-400 px-1.5">+{dayVideos.length - 2} more</div>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Selected Date Panel */}
-      {selectedDate && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-fade-in">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900">
-              {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-            </h3>
-            <button
-              onClick={openAddNote}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-            >
-              <Plus className="h-3 w-3" />
-              Add Note
-            </button>
-          </div>
-
-          {/* Notes Section */}
-          {selectedNotes.length > 0 && (
-            <div className="mb-4">
-              <div className="flex items-center gap-1.5 mb-2">
-                <StickyNote className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</span>
-              </div>
-              <div className="space-y-2">
-                {selectedNotes.map(note => {
-                  const color = getNoteColor(note.color);
-                  return (
-                    <div key={note.id} className={`${color.bg} border ${color.border} rounded-lg p-3 group`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className={`text-sm font-medium ${color.text}`}>{note.title}</h4>
-                            {note.note_time && (
-                              <span className="flex items-center gap-0.5 text-[10px] text-gray-500 bg-white/60 px-1.5 py-0.5 rounded">
-                                <Clock className="h-2.5 w-2.5" />
-                                {note.note_time.slice(0, 5)}
-                              </span>
-                            )}
-                          </div>
-                          {note.content && (
-                            <p className="text-xs text-gray-600 mt-1 whitespace-pre-line">{note.content}</p>
-                          )}
-                          {note.video_filename && (
-                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-500">
-                              <FileVideo className="h-2.5 w-2.5" />
-                              <span>{note.video_filename}</span>
-                            </div>
-                          )}
-                          {note.created_by_name && (
-                            <p className="text-[10px] text-gray-400 mt-1">by {note.created_by_name}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEditNote(note)}
-                            className="p-1 hover:bg-white/60 rounded transition-colors"
-                          >
-                            <Edit3 className="h-3 w-3 text-gray-400" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteNote(note.id)}
-                            className="p-1 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <Trash2 className="h-3 w-3 text-red-400" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Videos Section */}
-          {selectedVideos.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <FileVideo className="h-3.5 w-3.5 text-gray-400" />
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Uploads ({selectedVideos.length})
-                </span>
-              </div>
-              <div className="space-y-2">
-                {selectedVideos.map(v => (
-                  <div
-                    key={v.id}
-                    onClick={() => navigate(`/workspace/${bucket}/video/${v.id}`)}
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
-                  >
-                    <div className="w-16 h-10 rounded-md bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
-                      {(v.media_type || 'video') === 'photo' ? (
-                        <Image className="h-4 w-4 text-gray-400" />
-                      ) : (
-                        <div className="relative w-full h-full bg-gray-900 flex items-center justify-center">
-                          {v.thumbnail_key ? (
-                            <img src={videoService.getThumbnailUrl(v.id)} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <Play className="h-4 w-4 text-gray-500" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                        {v.filename}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium">
-                          <span className={`w-1.5 h-1.5 rounded-full mr-1 ${statusDot[v.status] || 'bg-gray-300'}`} />
-                          {v.status}
-                        </span>
-                        {v.uploaded_by_name && (
-                          <span className="text-[10px] text-gray-400">by {v.uploaded_by_name}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {selectedVideos.length === 0 && selectedNotes.length === 0 && (
-            <p className="text-xs text-gray-400 py-4 text-center">
-              No items on this day. Click "Add Note" to add a note or schedule a post.
-            </p>
-          )}
-        </div>
-      )}
-
       {/* Note Modal */}
-      {showNoteModal && selectedDate && (
+      {showNoteModal && modalDate && (
         <NoteModal
-          date={selectedDate}
+          dateLabel={format(new Date(modalDate + 'T12:00:00'), 'MMM d, yyyy')}
           videos={folderVideos}
           form={noteForm}
           setForm={setNoteForm}
@@ -381,7 +273,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
 }
 
 interface NoteModalProps {
-  date: Date;
+  dateLabel: string;
   videos: Video[];
   form: { title: string; content: string; noteTime: string; color: string; videoId: string };
   setForm: (form: { title: string; content: string; noteTime: string; color: string; videoId: string }) => void;
@@ -391,7 +283,7 @@ interface NoteModalProps {
   onClose: () => void;
 }
 
-function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onClose }: NoteModalProps) {
+function NoteModal({ dateLabel, videos, form, setForm, saving, isEditing, onSave, onClose }: NoteModalProps) {
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -406,7 +298,7 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-900">
-            {isEditing ? 'Edit Note' : 'Add Note'} — {format(date, 'MMM d, yyyy')}
+            {isEditing ? 'Edit Note' : 'Add Note'} — {dateLabel}
           </h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
             <X className="h-4 w-4 text-gray-400" />
@@ -414,7 +306,6 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
         </div>
 
         <div className="p-4 space-y-3">
-          {/* Title */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Title *</label>
             <input
@@ -428,7 +319,6 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
             />
           </div>
 
-          {/* Content */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Details</label>
             <textarea
@@ -440,7 +330,6 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
             />
           </div>
 
-          {/* Time */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">
               <Clock className="h-3 w-3 inline mr-1" />
@@ -454,7 +343,6 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
             />
           </div>
 
-          {/* Link Video — custom dropdown with thumbnails */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">
               <FileVideo className="h-3 w-3 inline mr-1" />
@@ -467,7 +355,6 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
             />
           </div>
 
-          {/* Color */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1.5 block">Color</label>
             <div className="flex items-center gap-2">
@@ -538,7 +425,6 @@ function VideoPickerDropdown({ videos, selectedId, onSelect }: VideoPickerDropdo
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -560,10 +446,8 @@ function VideoPickerDropdown({ videos, selectedId, onSelect }: VideoPickerDropdo
         <ChevronDown className={`h-3.5 w-3.5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-          {/* Search */}
           <div className="p-2 border-b border-gray-100">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -578,9 +462,7 @@ function VideoPickerDropdown({ videos, selectedId, onSelect }: VideoPickerDropdo
             </div>
           </div>
 
-          {/* Options list */}
           <div className="max-h-52 overflow-y-auto">
-            {/* Clear option */}
             {selectedId && (
               <button
                 onClick={() => { onSelect(''); setOpen(false); setSearch(''); }}

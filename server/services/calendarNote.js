@@ -1,11 +1,18 @@
 import getPool from "../db/index.js";
 
+// Cast note_date to TEXT so the pg driver returns 'YYYY-MM-DD' strings
+// instead of JS Date objects (which shift the day due to timezone conversion).
+const DATE_COL = "TO_CHAR(cn.note_date, 'YYYY-MM-DD') AS note_date";
+
 export async function getCalendarNotes(workspaceBucket, year, month) {
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
   const endDate = `${year}-${String(month).padStart(2, "0")}-${new Date(year, month, 0).getDate()}`;
 
   const result = await getPool().query(
-    `SELECT cn.*, u.name AS created_by_name, v.filename AS video_filename
+    `SELECT cn.id, cn.workspace_bucket, cn.video_id, ${DATE_COL},
+            cn.note_time, cn.title, cn.content, cn.color,
+            cn.created_by, cn.created_at, cn.updated_at,
+            u.name AS created_by_name, v.filename AS video_filename
      FROM calendar_notes cn
      LEFT JOIN users u ON cn.created_by = u.id
      LEFT JOIN videos v ON cn.video_id = v.id
@@ -23,7 +30,10 @@ export async function createCalendarNote(data) {
   const result = await getPool().query(
     `INSERT INTO calendar_notes (workspace_bucket, video_id, note_date, note_time, title, content, color, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING *`,
+     RETURNING id, workspace_bucket, video_id,
+               TO_CHAR(note_date, 'YYYY-MM-DD') AS note_date,
+               note_time, title, content, color,
+               created_by, created_at, updated_at`,
     [workspaceBucket, videoId || null, noteDate, noteTime || null, title, content || null, color || "blue", createdBy],
   );
 
@@ -34,6 +44,8 @@ export async function createCalendarNote(data) {
   if (note.video_id) {
     const video = await getPool().query("SELECT filename FROM videos WHERE id = $1", [note.video_id]);
     note.video_filename = video.rows[0]?.filename || null;
+  } else {
+    note.video_filename = null;
   }
 
   return note;
@@ -52,10 +64,27 @@ export async function updateCalendarNote(id, data) {
          video_id = $7,
          updated_at = NOW()
      WHERE id = $1
-     RETURNING *`,
+     RETURNING id, workspace_bucket, video_id,
+               TO_CHAR(note_date, 'YYYY-MM-DD') AS note_date,
+               note_time, title, content, color,
+               created_by, created_at, updated_at`,
     [id, title, content, noteDate, noteTime, color, videoId],
   );
-  return result.rows[0];
+
+  const note = result.rows[0];
+  if (!note) return null;
+
+  const user = await getPool().query("SELECT name FROM users WHERE id = $1", [note.created_by]);
+  note.created_by_name = user.rows[0]?.name || null;
+
+  if (note.video_id) {
+    const video = await getPool().query("SELECT filename FROM videos WHERE id = $1", [note.video_id]);
+    note.video_filename = video.rows[0]?.filename || null;
+  } else {
+    note.video_filename = null;
+  }
+
+  return note;
 }
 
 export async function deleteCalendarNote(id) {
