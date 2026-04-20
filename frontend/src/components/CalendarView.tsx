@@ -146,31 +146,40 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
   return (
     <div>
       {/* Calendar */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
         {/* Month Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50/60 to-violet-50/60">
           <button
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            className="p-1.5 hover:bg-gray-200/60 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/70 rounded-full transition-colors shadow-sm bg-white/40"
           >
             <ChevronLeft className="h-4 w-4 text-gray-600" />
           </button>
-          <h2 className="text-sm font-semibold text-gray-900">
-            {format(currentMonth, 'MMMM yyyy')}
-          </h2>
+          <div className="text-center">
+            <h2 className="text-base font-bold text-gray-900 tracking-tight">
+              {format(currentMonth, 'MMMM yyyy')}
+            </h2>
+            <button
+              onClick={() => setCurrentMonth(new Date())}
+              className="text-[10px] text-blue-500 hover:text-blue-700 font-medium mt-0.5 transition-colors"
+            >
+              Today
+            </button>
+          </div>
           <button
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="p-1.5 hover:bg-gray-200/60 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/70 rounded-full transition-colors shadow-sm bg-white/40"
           >
             <ChevronRight className="h-4 w-4 text-gray-600" />
           </button>
         </div>
 
         {/* Day Headers */}
-        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/30">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-            <div key={d} className="text-center py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-              {d}
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
+          {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(d => (
+            <div key={d} className="text-center py-2.5 text-[11px] font-semibold text-gray-500 tracking-wide">
+              <span className="hidden sm:inline">{d}</span>
+              <span className="sm:hidden">{d.slice(0, 3)}</span>
             </div>
           ))}
         </div>
@@ -178,7 +187,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
         {/* Days Grid */}
         <div className="grid grid-cols-7">
           {Array.from({ length: startDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[120px] border-b border-r border-gray-100 bg-gray-50/30" />
+            <div key={`empty-${i}`} className="min-h-[130px] border-b border-r border-gray-100 bg-gray-50/20" />
           ))}
 
           {days.map(day => {
@@ -186,22 +195,27 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
             const dayVideos = videosByDate[dateKey] || [];
             const dayNotes = notesByDate[dateKey] || [];
             const isToday = isSameDay(day, new Date());
+            const isSun = getDay(day) === 0;
 
             return (
               <div
                 key={dateKey}
-                className="min-h-[120px] border-b border-r border-gray-100 p-1 flex flex-col group/cell relative hover:bg-blue-50/30 transition-colors"
+                className={`min-h-[130px] border-b border-r border-gray-100 p-1.5 flex flex-col group/cell relative transition-colors ${
+                  isToday ? 'bg-blue-50/40' : isSun ? 'bg-gray-50/30' : 'hover:bg-blue-50/20'
+                }`}
               >
                 {/* Date number + add button */}
-                <div className="flex items-center justify-between mb-0.5 px-0.5">
-                  <span className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full ${
-                    isToday ? 'bg-blue-600 text-white' : 'text-gray-600'
+                <div className="flex items-center justify-between mb-1 px-0.5">
+                  <span className={`text-[11px] font-semibold w-6 h-6 flex items-center justify-center rounded-full transition-colors ${
+                    isToday
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                      : 'text-gray-500 hover:text-gray-700'
                   }`}>
                     {format(day, 'd')}
                   </span>
                   <button
                     onClick={() => openAddNote(dateKey)}
-                    className="opacity-0 group-hover/cell:opacity-100 p-0.5 hover:bg-blue-100 rounded transition-all"
+                    className="opacity-0 group-hover/cell:opacity-100 p-1 hover:bg-blue-100 rounded-full transition-all"
                     title="Add note"
                   >
                     <Plus className="h-3 w-3 text-blue-500" />
@@ -209,7 +223,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                 </div>
 
                 {/* Inline items */}
-                <div className="flex-1 space-y-0.5 overflow-hidden">
+                <div className="flex-1 space-y-1 overflow-hidden">
                   {/* Notes rendered inline */}
                   {dayNotes.map(note => {
                     const color = getNoteColor(note.color);
@@ -217,12 +231,12 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                       <div
                         key={note.id}
                         onClick={() => openEditNote(note)}
-                        className={`${color.bg} rounded px-1.5 py-0.5 cursor-pointer group/note flex items-center gap-1 hover:shadow-sm transition-shadow`}
+                        className={`${color.bg} border ${color.border} rounded-md px-1.5 py-[3px] cursor-pointer group/note flex items-center gap-1 hover:shadow-sm transition-all`}
                       >
                         <div className={`w-1.5 h-1.5 rounded-full ${color.dot} flex-shrink-0`} />
-                        <span className={`text-[10px] font-medium ${color.text} truncate flex-1`}>{note.title}</span>
+                        <span className={`text-[10px] font-semibold ${color.text} truncate flex-1`}>{note.title}</span>
                         {note.note_time && (
-                          <span className="text-[8px] text-gray-500 flex-shrink-0">{note.note_time.slice(0, 5)}</span>
+                          <span className="text-[8px] text-gray-500 bg-white/50 px-1 rounded flex-shrink-0">{note.note_time.slice(0, 5)}</span>
                         )}
                         <button
                           onClick={(e) => handleDeleteNote(note.id, e)}
@@ -234,19 +248,19 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                     );
                   })}
 
-                  {/* Videos rendered inline */}
+                  {/* Videos rendered inline with thumbnail */}
                   {dayVideos.slice(0, 2).map(v => (
                     <div
                       key={v.id}
                       onClick={() => navigate(`/workspace/${bucket}/video/${v.id}`)}
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                      className="flex items-center gap-1.5 p-1 rounded-md bg-gray-50/80 hover:bg-gray-100 cursor-pointer transition-colors border border-gray-100"
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot[v.status] || 'bg-gray-300'}`} />
-                      <span className="text-[10px] text-gray-600 truncate">{v.filename}</span>
+                      <VideoThumb video={v} size="cell" />
+                      <span className="text-[10px] text-gray-700 font-medium truncate flex-1">{v.filename}</span>
                     </div>
                   ))}
                   {dayVideos.length > 2 && (
-                    <div className="text-[9px] text-gray-400 px-1.5">+{dayVideos.length - 2} more</div>
+                    <div className="text-[9px] text-gray-400 px-1.5 font-medium">+{dayVideos.length - 2} more</div>
                   )}
                 </div>
               </div>
@@ -509,9 +523,9 @@ function VideoPickerDropdown({ videos, selectedId, onSelect }: VideoPickerDropdo
   );
 }
 
-function VideoThumb({ video, size }: { video: Video; size: 'sm' | 'md' }) {
+function VideoThumb({ video, size }: { video: Video; size: 'sm' | 'md' | 'cell' }) {
   const [error, setError] = useState(false);
-  const dim = size === 'sm' ? 'w-8 h-5' : 'w-12 h-7';
+  const dim = size === 'cell' ? 'w-7 h-5' : size === 'sm' ? 'w-8 h-5' : 'w-12 h-7';
 
   if (video.thumbnail_key && !error) {
     return (
