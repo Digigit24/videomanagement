@@ -227,23 +227,38 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                   {/* Notes rendered inline */}
                   {dayNotes.map(note => {
                     const color = getNoteColor(note.color);
+                    const linkedVideo = note.video_id ? videos.find(v => v.id === note.video_id) || folderVideos.find(v => v.id === note.video_id) : null;
                     return (
                       <div
                         key={note.id}
                         onClick={() => openEditNote(note)}
-                        className={`${color.bg} border ${color.border} rounded-md px-1.5 py-[3px] cursor-pointer group/note flex items-center gap-1 hover:shadow-sm transition-all`}
+                        className={`${color.bg} border ${color.border} rounded-md px-1.5 py-[3px] cursor-pointer group/note hover:shadow-sm transition-all`}
                       >
-                        <div className={`w-1.5 h-1.5 rounded-full ${color.dot} flex-shrink-0`} />
-                        <span className={`text-[10px] font-semibold ${color.text} truncate flex-1`}>{note.title}</span>
-                        {note.note_time && (
-                          <span className="text-[8px] text-gray-500 bg-white/50 px-1 rounded flex-shrink-0">{note.note_time.slice(0, 5)}</span>
+                        <div className="flex items-center gap-1">
+                          <div className={`w-1.5 h-1.5 rounded-full ${color.dot} flex-shrink-0`} />
+                          <span className={`text-[10px] font-semibold ${color.text} truncate flex-1`}>{note.title}</span>
+                          {note.note_time && (
+                            <span className="text-[8px] text-gray-500 bg-white/50 px-1 rounded flex-shrink-0">{note.note_time.slice(0, 5)}</span>
+                          )}
+                          <button
+                            onClick={(e) => handleDeleteNote(note.id, e)}
+                            className="opacity-0 group-hover/note:opacity-100 p-0.5 hover:bg-red-200/60 rounded flex-shrink-0"
+                          >
+                            <X className="h-2.5 w-2.5 text-red-500" />
+                          </button>
+                        </div>
+                        {(linkedVideo || note.video_filename) && (
+                          <div className="flex items-center gap-1 mt-0.5 ml-3">
+                            {linkedVideo ? (
+                              <VideoThumb video={linkedVideo} size="cell" />
+                            ) : (
+                              <div className="w-7 h-5 rounded bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center flex-shrink-0">
+                                <Play className="h-2.5 w-2.5 text-gray-400" />
+                              </div>
+                            )}
+                            <span className="text-[9px] text-gray-600 truncate">{linkedVideo?.filename || note.video_filename}</span>
+                          </div>
                         )}
-                        <button
-                          onClick={(e) => handleDeleteNote(note.id, e)}
-                          className="opacity-0 group-hover/note:opacity-100 p-0.5 hover:bg-red-200/60 rounded flex-shrink-0"
-                        >
-                          <X className="h-2.5 w-2.5 text-red-500" />
-                        </button>
                       </div>
                     );
                   })}
