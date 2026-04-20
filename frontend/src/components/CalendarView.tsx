@@ -2,11 +2,12 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Video, CalendarNote } from '@/types';
 import { videoService, calendarNoteService } from '@/services/api.service';
-import { ChevronLeft, ChevronRight, Play, Image, Plus, X, Clock, StickyNote, Trash2, Edit3, FileVideo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Image, Plus, X, Clock, StickyNote, Trash2, Edit3, FileVideo, Search, ChevronDown } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from 'date-fns';
 
 interface CalendarViewProps {
   videos: Video[];
+  folderVideos: Video[];
 }
 
 const statusDot: Record<string, string> = {
@@ -27,7 +28,7 @@ function getNoteColor(color: string) {
   return NOTE_COLORS.find(c => c.name === color) || NOTE_COLORS[0];
 }
 
-export default function CalendarView({ videos }: CalendarViewProps) {
+export default function CalendarView({ videos, folderVideos }: CalendarViewProps) {
   const navigate = useNavigate();
   const { bucket } = useParams<{ bucket: string }>();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -366,7 +367,7 @@ export default function CalendarView({ videos }: CalendarViewProps) {
       {showNoteModal && selectedDate && (
         <NoteModal
           date={selectedDate}
-          videos={videos}
+          videos={folderVideos}
           form={noteForm}
           setForm={setNoteForm}
           saving={saving}
@@ -453,22 +454,17 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
             />
           </div>
 
-          {/* Link Video */}
+          {/* Link Video — custom dropdown with thumbnails */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">
               <FileVideo className="h-3 w-3 inline mr-1" />
               Link to Video (optional)
             </label>
-            <select
-              value={form.videoId}
-              onChange={(e) => setForm({ ...form, videoId: e.target.value })}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white"
-            >
-              <option value="">No video linked</option>
-              {videos.map(v => (
-                <option key={v.id} value={v.id}>{v.filename}</option>
-              ))}
-            </select>
+            <VideoPickerDropdown
+              videos={videos}
+              selectedId={form.videoId}
+              onSelect={(id) => setForm({ ...form, videoId: id })}
+            />
           </div>
 
           {/* Color */}
@@ -504,6 +500,157 @@ function NoteModal({ date, videos, form, setForm, saving, isEditing, onSave, onC
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+interface VideoPickerDropdownProps {
+  videos: Video[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}
+
+function VideoPickerDropdown({ videos, selectedId, onSelect }: VideoPickerDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const selected = videos.find(v => v.id === selectedId);
+
+  const filtered = search
+    ? videos.filter(v => v.filename.toLowerCase().includes(search.toLowerCase()))
+    : videos;
+
+  useEffect(() => {
+    if (open) searchRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`w-full flex items-center gap-2 text-sm border rounded-lg px-3 py-2 transition-all text-left bg-white ${
+          open ? 'ring-2 ring-blue-400 border-transparent' : 'border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        {selected ? (
+          <>
+            <VideoThumb video={selected} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-900 truncate">{selected.filename}</p>
+              <p className="text-[10px] text-gray-400">{selected.status}</p>
+            </div>
+          </>
+        ) : (
+          <span className="flex-1 text-gray-400">Select a video...</span>
+        )}
+        <ChevronDown className={`h-3.5 w-3.5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+          {/* Search */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search videos..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full text-sm pl-8 pr-3 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Options list */}
+          <div className="max-h-52 overflow-y-auto">
+            {/* Clear option */}
+            {selectedId && (
+              <button
+                onClick={() => { onSelect(''); setOpen(false); setSearch(''); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors border-b border-gray-50"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>No video linked</span>
+              </button>
+            )}
+
+            {filtered.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-gray-400">
+                {search ? 'No videos match your search' : 'No videos in this folder'}
+              </div>
+            ) : (
+              filtered.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => { onSelect(v.id); setOpen(false); setSearch(''); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-blue-50 transition-colors ${
+                    v.id === selectedId ? 'bg-blue-50' : ''
+                  }`}
+                >
+                  <VideoThumb video={v} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{v.filename}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="inline-flex items-center text-[10px] text-gray-500">
+                        <span className={`w-1.5 h-1.5 rounded-full mr-1 ${statusDot[v.status] || 'bg-gray-300'}`} />
+                        {v.status}
+                      </span>
+                      {v.uploaded_by_name && (
+                        <span className="text-[10px] text-gray-400">{v.uploaded_by_name}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoThumb({ video, size }: { video: Video; size: 'sm' | 'md' }) {
+  const [error, setError] = useState(false);
+  const dim = size === 'sm' ? 'w-8 h-5' : 'w-12 h-7';
+
+  if (video.thumbnail_key && !error) {
+    return (
+      <div className={`${dim} rounded bg-gray-900 overflow-hidden flex-shrink-0`}>
+        <img
+          src={videoService.getThumbnailUrl(video.id)}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={() => setError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${dim} rounded bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center flex-shrink-0`}>
+      {(video.media_type || 'video') === 'photo' ? (
+        <Image className="h-2.5 w-2.5 text-gray-400" />
+      ) : (
+        <Play className="h-2.5 w-2.5 text-gray-400" />
+      )}
     </div>
   );
 }
