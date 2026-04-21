@@ -38,6 +38,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
   const [modalDate, setModalDate] = useState<string>('');
   const [noteForm, setNoteForm] = useState({ title: '', content: '', noteTime: '', color: 'blue', videoId: '' });
   const [saving, setSaving] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -146,9 +147,9 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
   return (
     <div>
       {/* Calendar */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-md">
+      <div className="bg-white border border-gray-200 rounded-xl md:rounded-2xl overflow-hidden shadow-md">
         {/* Month Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50/60 to-violet-50/60">
+        <div className="flex items-center justify-between px-3 md:px-5 py-3 md:py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50/60 to-violet-50/60">
           <button
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
             className="p-2 hover:bg-white/70 rounded-full transition-colors shadow-sm bg-white/40"
@@ -156,7 +157,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
             <ChevronLeft className="h-4 w-4 text-gray-600" />
           </button>
           <div className="text-center">
-            <h2 className="text-base font-bold text-gray-900 tracking-tight">
+            <h2 className="text-sm md:text-base font-bold text-gray-900 tracking-tight">
               {format(currentMonth, 'MMMM yyyy')}
             </h2>
             <button
@@ -177,9 +178,10 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
         {/* Day Headers */}
         <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
           {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(d => (
-            <div key={d} className="text-center py-2.5 text-[11px] font-semibold text-gray-500 tracking-wide">
-              <span className="hidden sm:inline">{d}</span>
-              <span className="sm:hidden">{d.slice(0, 3)}</span>
+            <div key={d} className="text-center py-2 md:py-2.5 text-[10px] md:text-[11px] font-semibold text-gray-500 tracking-wide">
+              <span className="hidden md:inline">{d}</span>
+              <span className="hidden sm:inline md:hidden">{d.slice(0, 3)}</span>
+              <span className="sm:hidden">{d.slice(0, 1)}</span>
             </div>
           ))}
         </div>
@@ -187,7 +189,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
         {/* Days Grid */}
         <div className="grid grid-cols-7">
           {Array.from({ length: startDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[130px] border-b border-r border-gray-100 bg-gray-50/20" />
+            <div key={`empty-${i}`} className="min-h-[64px] md:min-h-[130px] border-b border-r border-gray-100 bg-gray-50/20" />
           ))}
 
           {days.map(day => {
@@ -200,13 +202,14 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
             return (
               <div
                 key={dateKey}
-                className={`min-h-[130px] border-b border-r border-gray-100 p-1.5 flex flex-col group/cell relative transition-colors ${
+                onClick={() => setSelectedDay(selectedDay === dateKey ? null : dateKey)}
+                className={`min-h-[64px] md:min-h-[130px] border-b border-r border-gray-100 p-1 md:p-1.5 flex flex-col group/cell relative transition-colors cursor-pointer md:cursor-default ${
                   isToday ? 'bg-blue-50/40' : isSun ? 'bg-gray-50/30' : 'hover:bg-blue-50/20'
-                }`}
+                } ${selectedDay === dateKey ? 'ring-2 ring-inset ring-blue-400 bg-blue-50/30' : ''}`}
               >
                 {/* Date number + add button */}
-                <div className="flex items-center justify-between mb-1 px-0.5">
-                  <span className={`text-[11px] font-semibold w-6 h-6 flex items-center justify-center rounded-full transition-colors ${
+                <div className="flex items-center justify-between mb-0.5 md:mb-1 px-0.5">
+                  <span className={`text-[10px] md:text-[11px] font-semibold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full transition-colors ${
                     isToday
                       ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
                       : 'text-gray-500 hover:text-gray-700'
@@ -214,16 +217,33 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                     {format(day, 'd')}
                   </span>
                   <button
-                    onClick={() => openAddNote(dateKey)}
-                    className="opacity-0 group-hover/cell:opacity-100 p-1 hover:bg-blue-100 rounded-full transition-all"
+                    onClick={(e) => { e.stopPropagation(); openAddNote(dateKey); }}
+                    className="hidden md:inline-flex opacity-0 group-hover/cell:opacity-100 p-1 hover:bg-blue-100 rounded-full transition-all"
                     title="Add note"
                   >
                     <Plus className="h-3 w-3 text-blue-500" />
                   </button>
                 </div>
 
-                {/* Inline items */}
-                <div className="flex-1 space-y-1 overflow-hidden">
+                {/* Mobile: compact dot indicators */}
+                <div className="flex flex-wrap gap-1 px-0.5 md:hidden">
+                  {dayNotes.slice(0, 4).map(note => {
+                    const color = getNoteColor(note.color);
+                    return <div key={note.id} className={`w-2 h-2 rounded-full ${color.dot}`} />;
+                  })}
+                  {dayNotes.length > 4 && (
+                    <span className="text-[8px] text-gray-400 leading-none self-center">+{dayNotes.length - 4}</span>
+                  )}
+                  {dayVideos.length > 0 && (
+                    <div className="flex items-center gap-0.5">
+                      <Play className="w-2 h-2 text-gray-400" />
+                      <span className="text-[8px] text-gray-400 leading-none">{dayVideos.length}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop: full inline content */}
+                <div className="hidden md:block flex-1 space-y-1 overflow-hidden">
                   {/* Notes rendered inline */}
                   {dayNotes.map(note => {
                     const color = getNoteColor(note.color);
@@ -231,7 +251,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                     return (
                       <div
                         key={note.id}
-                        onClick={() => openEditNote(note)}
+                        onClick={(e) => { e.stopPropagation(); openEditNote(note); }}
                         className={`${color.bg} border ${color.border} rounded-md px-1.5 py-[3px] cursor-pointer group/note hover:shadow-sm transition-all`}
                       >
                         <div className="flex items-center gap-1">
@@ -267,7 +287,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                   {dayVideos.slice(0, 2).map(v => (
                     <div
                       key={v.id}
-                      onClick={() => navigate(`/workspace/${bucket}/video/${v.id}`)}
+                      onClick={(e) => { e.stopPropagation(); navigate(`/workspace/${bucket}/video/${v.id}`); }}
                       className="flex items-center gap-1.5 p-1 rounded-md bg-gray-50/80 hover:bg-gray-100 cursor-pointer transition-colors border border-gray-100"
                     >
                       <VideoThumb video={v} size="cell" />
@@ -283,6 +303,97 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
           })}
         </div>
       </div>
+
+      {/* Mobile: Selected day detail panel */}
+      {selectedDay && (() => {
+        const selNotes = notesByDate[selectedDay] || [];
+        const selVideos = videosByDate[selectedDay] || [];
+        return (
+          <div className="md:hidden bg-white border border-gray-200 rounded-xl mt-3 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {format(new Date(selectedDay + 'T12:00:00'), 'EEEE, MMMM d')}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openAddNote(selectedDay)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Note
+                </button>
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <X className="h-3.5 w-3.5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 space-y-2">
+              {selNotes.length === 0 && selVideos.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-4">No notes or videos for this day</p>
+              )}
+
+              {selNotes.map(note => {
+                const color = getNoteColor(note.color);
+                const linkedVideo = note.video_id ? videos.find(v => v.id === note.video_id) || folderVideos.find(v => v.id === note.video_id) : null;
+                return (
+                  <div
+                    key={note.id}
+                    onClick={() => openEditNote(note)}
+                    className={`${color.bg} border ${color.border} rounded-lg px-3 py-2 cursor-pointer active:scale-[0.98] transition-all`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${color.dot} flex-shrink-0`} />
+                      <span className={`text-xs font-semibold ${color.text} truncate flex-1`}>{note.title}</span>
+                      {note.note_time && (
+                        <span className="text-[10px] text-gray-500 bg-white/60 px-1.5 py-0.5 rounded flex-shrink-0">{note.note_time.slice(0, 5)}</span>
+                      )}
+                      <button
+                        onClick={(e) => handleDeleteNote(note.id, e)}
+                        className="p-1 hover:bg-red-200/60 rounded flex-shrink-0"
+                      >
+                        <X className="h-3 w-3 text-red-500" />
+                      </button>
+                    </div>
+                    {note.content && (
+                      <p className="text-[11px] text-gray-600 mt-1 ml-4 line-clamp-2">{note.content}</p>
+                    )}
+                    {(linkedVideo || note.video_filename) && (
+                      <div className="flex items-center gap-1.5 mt-1.5 ml-4">
+                        {linkedVideo ? (
+                          <VideoThumb video={linkedVideo} size="sm" />
+                        ) : (
+                          <div className="w-8 h-5 rounded bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center flex-shrink-0">
+                            <Play className="h-2.5 w-2.5 text-gray-400" />
+                          </div>
+                        )}
+                        <span className="text-[10px] text-gray-600 truncate">{linkedVideo?.filename || note.video_filename}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {selVideos.map(v => (
+                <div
+                  key={v.id}
+                  onClick={() => navigate(`/workspace/${bucket}/video/${v.id}`)}
+                  className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors border border-gray-100 active:scale-[0.98]"
+                >
+                  <VideoThumb video={v} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-900 truncate">{v.filename}</p>
+                    <p className="text-[10px] text-gray-400">{v.status}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Note Modal */}
       {showNoteModal && modalDate && (
@@ -320,11 +431,12 @@ function NoteModal({ dateLabel, videos, form, setForm, saving, isEditing, onSave
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 md:p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-md animate-fade-in"
+        className="bg-white rounded-t-2xl md:rounded-xl shadow-xl w-full md:max-w-md max-h-[90vh] overflow-y-auto animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-2 mb-1 md:hidden" />
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-900">
             {isEditing ? 'Edit Note' : 'Add Note'} — {dateLabel}
@@ -344,7 +456,7 @@ function NoteModal({ dateLabel, videos, form, setForm, saving, isEditing, onSave
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               onKeyDown={(e) => { if (e.key === 'Enter' && form.title.trim()) onSave(); }}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 md:py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
           </div>
 
@@ -400,17 +512,17 @@ function NoteModal({ dateLabel, videos, form, setForm, saving, isEditing, onSave
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-100">
+        <div className="flex items-center justify-end gap-2 px-4 py-3 pb-safe border-t border-gray-100">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-3 py-2 md:py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={onSave}
             disabled={!form.title.trim() || saving}
-            className="px-4 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 md:py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving...' : isEditing ? 'Update' : 'Add Note'}
           </button>
@@ -486,12 +598,12 @@ function VideoPickerDropdown({ videos, selectedId, onSelect }: VideoPickerDropdo
                 placeholder="Search videos..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full text-sm pl-8 pr-3 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
+                className="w-full text-sm pl-8 pr-3 py-2 md:py-1.5 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-transparent"
               />
             </div>
           </div>
 
-          <div className="max-h-52 overflow-y-auto">
+          <div className="max-h-60 md:max-h-52 overflow-y-auto">
             {selectedId && (
               <button
                 onClick={() => { onSelect(''); setOpen(false); setSearch(''); }}
