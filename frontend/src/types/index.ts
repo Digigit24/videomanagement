@@ -250,6 +250,22 @@ export interface Folder {
   updated_at: string;
 }
 
+export interface CalendarNote {
+  id: string;
+  workspace_bucket: string;
+  video_id: string | null;
+  note_date: string;
+  note_time: string | null;
+  title: string;
+  content: string | null;
+  color: string;
+  created_by: string;
+  created_by_name: string | null;
+  video_filename: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkspacePermissions {
   id?: string;
   workspace_id: string;

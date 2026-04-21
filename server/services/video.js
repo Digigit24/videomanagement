@@ -1,6 +1,7 @@
 import pool from "../db/index.js";
 import { listVideos as listStorageVideos } from "./storage.js";
 import { logActivity } from "./activity.js";
+import { VALID_VIDEO_STATUSES } from "../utils/constants.js";
 
 export async function createVideo({
   bucket,
@@ -331,16 +332,7 @@ export async function getVideoVersions(versionGroupId, bucket) {
 
 export async function updateVideoStatus(id, status, userId) {
   try {
-    const validStatuses = [
-      "Pending",
-      "Under Review",
-      "Approved",
-      "Changes Needed",
-      "Rejected",
-      "Posted",
-    ];
-
-    if (!validStatuses.includes(status)) {
+    if (!VALID_VIDEO_STATUSES.includes(status)) {
       throw new Error("Invalid status");
     }
 

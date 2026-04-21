@@ -897,7 +897,10 @@ export default function WorkspaceVideos() {
               </Button>
             </div>
           ) : view === 'calendar' ? (
-            <CalendarView videos={filteredVideos} />
+            <CalendarView
+              videos={filteredVideos}
+              folderVideos={selectedFolder ? videos.filter(v => v.folder_id === selectedFolder) : videos}
+            />
           ) : view === 'list' ? (
             <VideoTable
               videos={filteredVideos}
