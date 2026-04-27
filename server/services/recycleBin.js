@@ -139,6 +139,7 @@ export async function processPermanentDeletions() {
 
     for (const user of expiredUsers.rows) {
       console.log(`Permanently deleting user: ${user.email}`);
+      await getPool().query("UPDATE folders SET created_by = NULL WHERE created_by = $1", [user.id]);
       await getPool().query("DELETE FROM video_views WHERE user_id = $1", [user.id]);
       await getPool().query("DELETE FROM users WHERE id = $1", [user.id]);
     }
@@ -167,6 +168,7 @@ export async function clearEntireRecycleBin() {
     "SELECT * FROM users WHERE deleted_at IS NOT NULL",
   );
   for (const user of deletedUsers.rows) {
+    await pool.query("UPDATE folders SET created_by = NULL WHERE created_by = $1", [user.id]);
     await pool.query("DELETE FROM video_views WHERE user_id = $1", [user.id]);
     await pool.query("DELETE FROM users WHERE id = $1", [user.id]);
   }
