@@ -31,7 +31,6 @@ export function resolveBucket(bucketName) {
     return { bucket: bucketName, prefix: "" };
   }
 
-  // It's a workspace slug, map to workspace folder in main bucket
   return { bucket: MAIN_BUCKET, prefix: `workspaces/${bucketName}/` };
 }
 
@@ -110,7 +109,6 @@ export async function getVideoStream(
       Key: objectKey,
     };
 
-    // Add range if specified for partial content
     if (start !== null && end !== null) {
       commandParams.Range = `bytes=${start}-${end}`;
     }
@@ -128,10 +126,6 @@ export async function getVideoStream(
   }
 }
 
-/**
- * Like getVideoStream but also returns ContentLength, ContentType, and
- * ContentRange so callers can forward those headers to the HTTP response.
- */
 export async function getVideoStreamWithMeta(bucketName, objectKey, rangeHeader = null) {
   try {
     const { bucket } = resolveBucket(bucketName);
@@ -199,10 +193,6 @@ export async function getVideoMetadata(bucketName, objectKey) {
   }
 }
 
-/**
- * Check if an S3 object exists without downloading it.
- * Returns true if the object exists, false otherwise.
- */
 export async function s3ObjectExists(bucketName, objectKey) {
   const { bucket } = resolveBucket(bucketName);
   try {
@@ -217,10 +207,6 @@ export async function s3ObjectExists(bucketName, objectKey) {
   }
 }
 
-/**
- * Download an S3 object to a local file.
- * Used by FFmpeg processing to get the temp original from S3.
- */
 export async function downloadFromS3ToFile(bucketName, objectKey, destPath) {
   const { bucket } = resolveBucket(bucketName);
   try {
@@ -241,10 +227,6 @@ export async function downloadFromS3ToFile(bucketName, objectKey, destPath) {
   }
 }
 
-/**
- * Delete an object from S3.
- * Used to clean up temp originals after HLS processing completes.
- */
 export async function deleteFromS3(bucketName, objectKey) {
   const { bucket } = resolveBucket(bucketName);
   const command = new DeleteObjectCommand({
@@ -254,10 +236,6 @@ export async function deleteFromS3(bucketName, objectKey) {
   await getS3Client().send(command);
 }
 
-/**
- * Copy an S3 object from one key to another.
- * Used for photo uploads to move from temp to final location.
- */
 export async function copyS3Object(srcBucket, srcKey, destBucket, destKey) {
   const command = new CopyObjectCommand({
     Bucket: destBucket,
@@ -267,10 +245,6 @@ export async function copyS3Object(srcBucket, srcKey, destBucket, destKey) {
   await getS3Client().send(command);
 }
 
-/**
- * Delete an S3 object by bucket and key (no prefix resolution).
- * Used when bucket is already resolved.
- */
 export async function deleteS3Object(bucket, key) {
   const command = new DeleteObjectCommand({
     Bucket: bucket,
@@ -279,10 +253,6 @@ export async function deleteS3Object(bucket, key) {
   await getS3Client().send(command);
 }
 
-/**
- * Delete all S3 objects with a given prefix (e.g. an HLS directory).
- * Lists all objects under the prefix and deletes them in batches.
- */
 export async function deleteS3Prefix(bucket, prefix) {
   if (!prefix) return;
 
@@ -312,14 +282,6 @@ export async function deleteS3Prefix(bucket, prefix) {
   } while (continuationToken);
 }
 
-/**
- * Generate a presigned PUT URL for direct browser-to-S3 uploads.
- * @param {string} bucketName - Raw workspace bucket name
- * @param {string} objectKey - Full S3 key (already includes prefix)
- * @param {string} contentType - MIME type of the file
- * @param {number} expiresIn - URL validity in seconds (default 1 hour)
- * @returns {{ url: string, bucket: string, key: string }}
- */
 export async function generatePresignedUploadUrl(bucketName, objectKey, contentType, expiresIn = 3600) {
   const { bucket, prefix } = resolveBucket(bucketName);
   const finalKey = prefix ? `${prefix}${objectKey}` : objectKey;
