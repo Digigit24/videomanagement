@@ -167,6 +167,7 @@ export async function clearEntireRecycleBin() {
     "SELECT * FROM users WHERE deleted_at IS NOT NULL",
   );
   for (const user of deletedUsers.rows) {
+    await pool.query("DELETE FROM video_views WHERE user_id = $1", [user.id]);
     await pool.query("DELETE FROM users WHERE id = $1", [user.id]);
   }
   deletedCounts.users = deletedUsers.rows.length;

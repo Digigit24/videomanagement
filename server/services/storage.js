@@ -40,7 +40,7 @@ let s3Client;
 function getS3Client() {
   if (!s3Client) {
     const agent = new https.Agent({
-      maxSockets: 200,
+      maxSockets: 100,
       keepAlive: true,
       keepAliveMsecs: 10000,
     });
@@ -53,11 +53,11 @@ function getS3Client() {
       },
       forcePathStyle: true,
       tls: true,
-      signatureVersion: "v4",
+      maxAttempts: 5,
       requestHandler: new NodeHttpHandler({
         httpsAgent: agent,
         connectionTimeout: 15000,
-        socketTimeout: 30000,
+        socketTimeout: 60000,
       }),
     });
   }
