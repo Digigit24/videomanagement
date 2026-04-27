@@ -287,12 +287,12 @@ export default function CommentsSection({
   };
 
   return (
-    <div className={cn("flex flex-col h-full bg-white rounded-xl overflow-hidden", className)}>
+    <div className={cn("flex flex-col h-full bg-white dark:bg-gray-900 rounded-xl overflow-hidden", className)}>
       {/* Header - Thread Group Identity */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-950/50">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-blue-600" />
-          <h3 className="text-sm font-semibold text-gray-900">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             Thread <span className="text-gray-400 font-normal">({mergedTimeline.length})</span>
           </h3>
           {members.length > 0 && (
@@ -302,13 +302,13 @@ export default function CommentsSection({
           )}
         </div>
 
-        <div className="flex bg-gray-200/50 p-0.5 rounded-lg">
+        <div className="flex bg-gray-200/50 dark:bg-gray-700/50 p-0.5 rounded-lg">
           <button
             onClick={() => setIncludeTimestamp(true)}
             className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
               includeTimestamp
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
             FEEDBACK
@@ -317,8 +317,8 @@ export default function CommentsSection({
             onClick={() => setIncludeTimestamp(false)}
             className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
               !includeTimestamp
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
             CHAT
@@ -334,11 +334,11 @@ export default function CommentsSection({
       >
         {mergedTimeline.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
               <MessageCircle className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-sm font-medium text-gray-900">No messages yet</p>
-            <p className="text-xs text-gray-500 max-w-[160px] mx-auto mt-1">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">No messages yet</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[160px] mx-auto mt-1">
               Be the first to start the conversation!
             </p>
           </div>
@@ -353,10 +353,10 @@ export default function CommentsSection({
                   </div>
                   <div className="flex flex-col max-w-[85%] items-start">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-[10px] font-bold text-emerald-700">{review.reviewer_name}</span>
-                      <span className="text-[8px] px-1 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium border border-emerald-100">Client</span>
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">{review.reviewer_name}</span>
+                      <span className="text-[8px] px-1 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-100 dark:border-emerald-800">Client</span>
                     </div>
-                    <div className="relative px-3 py-2 rounded-2xl rounded-tl-none text-sm bg-emerald-50 text-gray-800 border border-emerald-100">
+                    <div className="relative px-3 py-2 rounded-2xl rounded-tl-none text-sm bg-emerald-50 dark:bg-emerald-900/20 text-gray-800 dark:text-gray-200 border border-emerald-100 dark:border-emerald-800">
                       <p className="whitespace-pre-wrap leading-relaxed text-[13px]">{review.content}</p>
                       <div className="text-[9px] mt-1 text-right text-emerald-400">
                         {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
@@ -411,7 +411,7 @@ export default function CommentsSection({
                         className={`mt-1.5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono transition-colors ${
                           isOwn
                             ? 'bg-blue-500/50 hover:bg-blue-400 text-white border border-blue-400/50'
-                            : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 shadow-sm'
+                            : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 shadow-sm'
                         }`}
                       >
                         <Clock className="h-2.5 w-2.5" />
@@ -428,7 +428,7 @@ export default function CommentsSection({
                           className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all border text-[11px] ${
                             isOwn
                               ? 'bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400/50'
-                              : 'bg-white hover:bg-blue-50 text-blue-600 border-blue-100'
+                              : 'bg-white dark:bg-gray-900 hover:bg-blue-50 dark:hover:bg-gray-800 text-blue-600 border-blue-100 dark:border-gray-700'
                           }`}
                         >
                           <FileVideo className="h-3.5 w-3.5" />

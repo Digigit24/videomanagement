@@ -434,16 +434,16 @@ export default function VideoReview() {
           <a
             href={att.url}
             download={att.filename}
-            className="flex items-center gap-3 px-3 py-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors w-fit max-w-full"
+            className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors w-fit max-w-full"
           >
             <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
               <Icon className="h-5 w-5 text-blue-600" />
             </div>
             <div className="min-w-0 pr-2">
-              <p className="text-xs font-semibold truncate leading-tight text-gray-900">{att.filename}</p>
-              <p className="text-[10px] mt-0.5 text-gray-500">{formatFileSize(att.size)}</p>
+              <p className="text-xs font-semibold truncate leading-tight text-gray-900 dark:text-gray-100">{att.filename}</p>
+              <p className="text-[10px] mt-0.5 text-gray-500 dark:text-gray-400">{formatFileSize(att.size)}</p>
             </div>
-            <Download className="h-4 w-4 text-gray-400 flex-shrink-0 ml-auto" />
+            <Download className="h-4 w-4 text-gray-400 dark:text-gray-400 flex-shrink-0 ml-auto" />
           </a>
         )}
       </div>
@@ -454,10 +454,10 @@ export default function VideoReview() {
 
   if (loading) {
     return (
-      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center">
+      <div className="h-[100dvh] bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
-          <p className="text-gray-500 text-sm">Loading review...</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading review...</p>
         </div>
       </div>
     );
@@ -465,15 +465,15 @@ export default function VideoReview() {
 
   if (error || !video) {
     return (
-      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
+      <div className="h-[100dvh] bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center mx-auto mb-4">
             {!token ? <ShieldX className="h-8 w-8 text-red-400" /> : <MessageCircle className="h-8 w-8 text-red-400" />}
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             {!token ? 'Access Denied' : 'Review Unavailable'}
           </h1>
-          <p className="text-gray-500 text-sm">{error || 'This review page could not be loaded.'}</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">{error || 'This review page could not be loaded.'}</p>
         </div>
       </div>
     );
@@ -482,17 +482,17 @@ export default function VideoReview() {
   // Login required screen
   if (requiresLogin) {
     return (
-      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-sm text-center">
-          <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+      <div className="h-[100dvh] bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 sm:p-8 w-full max-w-sm text-center">
+          <div className="w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
             <ShieldX className="h-7 w-7 text-amber-500" />
           </div>
-          <h1 className="text-lg font-bold text-gray-900 mb-2">Account Required</h1>
-          <p className="text-sm text-gray-500 mb-1">You need to log in to view this video.</p>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Account Required</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">You need to log in to view this video.</p>
           <p className="text-xs text-gray-400 mb-6 truncate">{video?.filename}</p>
           <button
             onClick={() => navigate('/login')}
-            className="w-full py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-all duration-200 active:scale-[0.98]"
+            className="w-full py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-all duration-200 active:scale-[0.98]"
           >
             Log In
           </button>
@@ -504,14 +504,14 @@ export default function VideoReview() {
   // Name entry screen
   if (!nameSet) {
     return (
-      <div className="h-[100dvh] bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-sm">
+      <div className="h-[100dvh] bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 sm:p-8 w-full max-w-sm">
           <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-3">
+            <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mx-auto mb-3">
               <User className="h-6 w-6 text-blue-600" />
             </div>
-            <h1 className="text-lg font-bold text-gray-900">Join Review</h1>
-            <p className="text-sm text-gray-500 mt-1">Enter your name to start reviewing</p>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">Join Review</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enter your name to start reviewing</p>
             <p className="text-xs text-gray-400 mt-1 truncate">{video.filename}</p>
           </div>
           <form onSubmit={handleSetName} className="space-y-4">
@@ -520,13 +520,13 @@ export default function VideoReview() {
               value={reviewerName}
               onChange={(e) => setReviewerName(e.target.value)}
               placeholder="Your name"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               autoFocus
               required
             />
             <button
               type="submit"
-              className="w-full py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-all duration-200 active:scale-[0.98]"
+              className="w-full py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-all duration-200 active:scale-[0.98]"
             >
               Continue to Review
             </button>
@@ -537,9 +537,9 @@ export default function VideoReview() {
   }
 
   return (
-    <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-gray-50 dark:bg-gray-950 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2 flex items-center justify-between flex-shrink-0 z-10 shadow-sm relative">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 flex items-center justify-between flex-shrink-0 z-10 shadow-sm relative">
         <div className="flex items-center gap-3 min-w-0">
           {isFromFolder && token && (
             <button

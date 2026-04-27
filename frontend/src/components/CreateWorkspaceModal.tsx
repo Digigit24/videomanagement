@@ -16,10 +16,10 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-700',
-  video_editor: 'bg-blue-100 text-blue-700',
-  project_manager: 'bg-amber-100 text-amber-700',
-  social_media_manager: 'bg-emerald-100 text-emerald-700',
+  admin: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+  video_editor: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  project_manager: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  social_media_manager: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
 };
 
 export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorkspaceModalProps) {
@@ -103,14 +103,14 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Create Client Workspace</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Create Client Workspace</h2>
             <p className="text-xs text-gray-400 mt-0.5">Set up a new client project space</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
             <X className="h-5 w-5 text-gray-400" />
           </button>
         </div>
@@ -118,19 +118,19 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
         {/* Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
               {error}
             </div>
           )}
 
           {/* Client Logo */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Client Logo</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Client Logo</label>
             <div className="flex items-center gap-4">
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 hover:border-gray-400 flex items-center justify-center overflow-hidden transition-colors"
+                className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 flex items-center justify-center overflow-hidden transition-colors"
               >
                 {logoPreview ? (
                   <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
@@ -154,7 +154,7 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
 
           {/* Client Name */}
           <div className="space-y-2">
-            <label htmlFor="clientName" className="text-sm font-medium text-gray-700">
+            <label htmlFor="clientName" className="text-sm font-medium text-gray-700 dark:text-gray-400">
               Client Name *
             </label>
             <input
@@ -163,12 +163,12 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
               placeholder="e.g. Acme Corporation"
-              className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
+              className="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent"
               required
             />
             {clientName && (
               <p className="text-xs text-gray-400">
-                Bucket: <code className="bg-gray-100 px-1 py-0.5 rounded">
+                Bucket: <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">
                   {clientName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 63)}
                 </code>
               </p>
@@ -177,11 +177,11 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
 
           {/* Project Manager Selection */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Assign Project Manager</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Assign Project Manager</label>
             <select
               value={selectedPM}
               onChange={(e) => setSelectedPM(e.target.value)}
-              className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               <option value="">Select a Project Manager</option>
               {projectManagers.map(pm => (
@@ -194,7 +194,7 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
 
           {/* Organization Members */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400 flex items-center gap-2">
               <Users className="h-4 w-4" />
               Add Team Members
             </label>
@@ -226,11 +226,11 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
                 <span className="text-xs text-gray-400">Loading members...</span>
               </div>
             ) : availableMembers.length === 0 ? (
-              <div className="text-xs text-gray-400 py-4 text-center border border-gray-200 rounded-lg">
+              <div className="text-xs text-gray-400 py-4 text-center border border-gray-200 dark:border-gray-700 rounded-lg">
                 No other available members found.
               </div>
             ) : (
-              <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+              <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
                 {availableMembers.map((member) => {
                   const isSelected = selectedMembers.includes(member.id!);
                   return (
@@ -239,11 +239,11 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
                       type="button"
                       onClick={() => toggleMember(member.id!)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors ${
-                        isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                        isSelected ? 'bg-blue-50 dark:bg-blue-950' : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
                       <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${
-                        isSelected ? 'bg-blue-500 text-white' : 'border-2 border-gray-300'
+                        isSelected ? 'bg-blue-500 text-white' : 'border-2 border-gray-300 dark:border-gray-600'
                       }`}>
                         {isSelected && <Check className="h-3 w-3" />}
                       </div>
@@ -257,11 +257,11 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
                       )}
 
                       <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-gray-800 truncate">{member.name}</p>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{member.name}</p>
                         <p className="text-xs text-gray-400 truncate">{member.email}</p>
                       </div>
 
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[member.role || 'member'] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[member.role || 'member'] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
                         {ROLE_LABELS[member.role || 'member'] || member.role}
                       </span>
                     </button>
@@ -273,18 +273,18 @@ export default function CreateWorkspaceModal({ onClose, onCreated }: CreateWorks
         </form>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex gap-2 justify-end bg-gray-50 dark:bg-gray-950">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading || !clientName.trim()}
-            className="px-4 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2.5 text-sm font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>

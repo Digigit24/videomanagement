@@ -429,8 +429,8 @@ export default function WorkspaceVideos() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading workspace...</p>
+          <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading workspace...</p>
         </div>
       </div>
     );
@@ -479,11 +479,11 @@ export default function WorkspaceVideos() {
 
       {/* Tab Navigation */}
       <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
+        <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 gap-0.5 flex-shrink-0">
           <button
             onClick={() => { setActiveTab('folders'); setSelectedFolder(null); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              activeTab === 'folders' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'folders' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             <FolderOpen className="h-3.5 w-3.5" />
@@ -493,7 +493,7 @@ export default function WorkspaceVideos() {
             <button
               onClick={() => setActiveTab('chat')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                activeTab === 'chat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                activeTab === 'chat' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
               <MessageCircle className="h-3.5 w-3.5" />
@@ -503,7 +503,7 @@ export default function WorkspaceVideos() {
           <button
             onClick={() => setActiveTab('analytics')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              activeTab === 'analytics' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              activeTab === 'analytics' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
             <BarChart3 className="h-3.5 w-3.5" />
@@ -556,14 +556,14 @@ export default function WorkspaceVideos() {
 
           {/* Folder Selection Toolbar */}
           {folderSelectMode && folders.length > 0 && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex-wrap">
+            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 flex-wrap">
               <button
                 onClick={handleSelectAllFolders}
-                className="text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
+                className="text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
               >
                 {selectedFolderIds.size === folders.length && folders.length > 0 ? 'Deselect All' : 'Select All'}
               </button>
-              <span className="text-xs text-blue-500">
+              <span className="text-xs text-blue-500 dark:text-blue-400">
                 {selectedFolderIds.size} of {folders.length} folders selected
               </span>
               <div className="flex-1" />
@@ -595,9 +595,9 @@ export default function WorkspaceVideos() {
 
           {/* Folder Grid */}
           {folders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
-              <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-300" />
-              <h3 className="text-sm font-medium text-gray-600">No folders yet</h3>
+            <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+              <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">No folders yet</h3>
               <p className="text-xs text-gray-400 mt-1">Create a folder to organize your media</p>
               {canCreateFolder && (
                 <Button variant="outline" size="sm" onClick={() => setShowNewFolder(true)} className="mt-4 gap-1.5">
@@ -623,10 +623,10 @@ export default function WorkspaceVideos() {
                         setSelectedFolder(folder.id);
                       }
                     }}
-                    className={`group bg-white border rounded-xl p-4 hover:shadow-md transition-all cursor-pointer animate-fade-in-up relative ${
+                    className={`group bg-white dark:bg-gray-900 border rounded-xl p-4 hover:shadow-md transition-all cursor-pointer animate-fade-in-up relative ${
                       folderSelectMode && isFolderSelected
-                        ? 'border-blue-400 ring-2 ring-blue-100'
-                        : 'border-gray-200 hover:border-blue-300'
+                        ? 'border-blue-400 ring-2 ring-blue-100 dark:ring-blue-900'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
                     }`}
                     style={{ animationDelay: `${i * 50}ms`, animationFillMode: 'both' }}
                   >
@@ -645,8 +645,8 @@ export default function WorkspaceVideos() {
                         folderSelectMode
                           ? isFolderSelected
                             ? 'bg-blue-600 border-blue-600'
-                            : 'bg-white border-gray-300 hover:border-blue-400'
-                          : 'bg-white/80 border-gray-300 opacity-0 group-hover:opacity-100 hover:border-blue-400'
+                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                          : 'bg-white/80 dark:bg-gray-800/80 border-gray-300 dark:border-gray-600 opacity-0 group-hover:opacity-100 hover:border-blue-400'
                       }`}
                     >
                       {isFolderSelected && (
@@ -656,21 +656,21 @@ export default function WorkspaceVideos() {
                       )}
                     </div>
                     <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                      <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900 transition-colors">
                         <FolderOpen className="h-5 w-5 text-blue-600" />
                       </div>
                       {!folderSelectMode && (
                         <div className="flex items-center gap-0.5">
                           <button
                             onClick={(e) => handleOpenFolderShare(folder.id, folder.name, e)}
-                            className="p-1.5 text-gray-400 hover:text-violet-600 transition-colors rounded-lg hover:bg-violet-50"
+                            className="p-1.5 text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950"
                             title="Share folder"
                           >
                             <Share2 className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={(e) => handleFolderDownloadOriginal(folder.id, e)}
-                            className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50"
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950"
                             title="Download original files"
                           >
                             <Download className="h-3.5 w-3.5" />

@@ -21,14 +21,14 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-700 border-purple-200',
-  video_editor: 'bg-blue-100 text-blue-700 border-blue-200',
-  client: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  member: 'bg-gray-100 text-gray-600 border-gray-200',
-  project_manager: 'bg-amber-100 text-amber-700 border-amber-200',
-  social_media_manager: 'bg-teal-100 text-teal-700 border-teal-200',
-  videographer: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  photo_editor: 'bg-pink-100 text-pink-700 border-pink-200',
+  admin: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700',
+  video_editor: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700',
+  client: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700',
+  member: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
+  project_manager: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700',
+  social_media_manager: 'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700',
+  videographer: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700',
+  photo_editor: 'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900/40 dark:text-pink-300 dark:border-pink-700',
 };
 
 export default function UsersPage() {
@@ -89,8 +89,8 @@ export default function UsersPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading users...</p>
+          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading users...</p>
         </div>
       </div>
     );
@@ -99,7 +99,7 @@ export default function UsersPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Hero Header */}
-      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+      <div className="relative overflow-hidden bg-gray-900 dark:bg-gray-950 rounded-2xl">
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl" />
@@ -120,7 +120,7 @@ export default function UsersPage() {
               </div>
             </div>
           </div>
-          <Button onClick={() => setShowAddModal(true)} size="sm" className="text-xs h-8 bg-white text-gray-900 hover:bg-gray-100 flex-shrink-0">
+          <Button onClick={() => setShowAddModal(true)} size="sm" className="text-xs h-8 bg-white text-gray-900 hover:bg-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 flex-shrink-0">
             <Plus className="h-3.5 w-3.5 mr-1.5" /> Add User
           </Button>
         </div>
@@ -137,7 +137,7 @@ export default function UsersPage() {
             </div>
           );
         })}
-        <div className="text-xs px-3 py-1.5 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 font-medium">
+        <div className="text-xs px-3 py-1.5 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-900/40 dark:text-orange-300 font-medium">
           <Building2 className="h-3 w-3 inline mr-1" />
           Org Members: {users.filter(u => u.is_org_member).length}
         </div>
@@ -145,18 +145,18 @@ export default function UsersPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {users.map((user, i) => (
-          <div key={user.id} className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all animate-fade-in-up" style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}>
+          <div key={user.id} className="bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all animate-fade-in-up dark:bg-gray-900 dark:border-gray-700 dark:hover:border-gray-600" style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}>
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 {user.avatar_url ? (
-                  <img src={getApiUrl(user.avatar_url)} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-100" />
+                  <img src={getApiUrl(user.avatar_url)} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-100 dark:border-gray-700" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
                     {getInitials(user.name || user.email)}
                   </div>
                 )}
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{user.name}</p>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${ROLE_COLORS[user.role || 'member']}`}>
                     {ROLE_LABELS[user.role || 'member']}
                   </span>
@@ -170,7 +170,7 @@ export default function UsersPage() {
               )}
             </div>
 
-            <div className="space-y-1.5 text-xs text-gray-500 mb-3">
+            <div className="space-y-1.5 text-xs text-gray-500 dark:text-gray-400 mb-3">
               <div className="flex items-center gap-1.5">
                 <Mail className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{user.email}</span>
@@ -184,13 +184,13 @@ export default function UsersPage() {
             </div>
 
             {/* Org member toggle + role change */}
-            <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
               <button
                 onClick={() => handleToggleOrgMember(user.id!, user.is_org_member || false)}
                 className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
                   user.is_org_member
-                    ? 'bg-orange-100 text-orange-700 border border-orange-200'
-                    : 'bg-gray-50 text-gray-400 border border-gray-200 hover:bg-gray-100'
+                    ? 'bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700'
+                    : 'bg-gray-50 text-gray-400 border border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700'
                 }`}
                 title={user.is_org_member ? 'Remove from organization' : 'Add to organization'}
               >
@@ -202,7 +202,7 @@ export default function UsersPage() {
                 <select
                   value={user.role}
                   onChange={(e) => handleRoleChange(user.id!, e.target.value as UserRole)}
-                  className="flex-1 text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  className="flex-1 text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
                 >
                   <option value="member">Member</option>
                   <option value="client">Client</option>

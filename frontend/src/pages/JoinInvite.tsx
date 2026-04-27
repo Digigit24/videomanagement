@@ -67,10 +67,10 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
 
   if (loadingInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading invitation...</p>
+          <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-700 border-t-gray-600 dark:border-t-gray-400 rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading invitation...</p>
         </div>
       </div>
     );
@@ -78,7 +78,7 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
 
   if (invalid || !inviteInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Invalid Invitation</CardTitle>
@@ -95,7 +95,7 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Join Workspace</CardTitle>
@@ -106,13 +106,13 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+              <div className="p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md">
                 {error}
               </div>
             )}
 
             <div className="space-y-2">
-              <label htmlFor="name" className="text-sm font-medium text-gray-700">
+              <label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-400">
                 Full Name
               </label>
               <Input
@@ -126,7 +126,7 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-400">
                 Email
               </label>
               <Input
@@ -140,7 +140,7 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-400">
                 Password
               </label>
               <Input
@@ -154,14 +154,14 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="role" className="text-sm font-medium text-gray-700">
+              <label htmlFor="role" className="text-sm font-medium text-gray-700 dark:text-gray-400">
                 Role
               </label>
               <select
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                className="flex h-10 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600"
               >
                 <option value="client">Client</option>
                 <option value="video_editor">Video Editor</option>
@@ -178,9 +178,9 @@ export default function JoinInvite({ onLogin }: JoinInviteProps) {
               ) : 'Join Workspace'}
             </Button>
 
-            <div className="text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
-              <a href="/login" className="text-blue-600 hover:underline">
+              <a href="/login" className="text-blue-600 dark:text-blue-400 hover:underline">
                 Sign in
               </a>
             </div>
