@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FolderOpen, Play, Image, Lock } from 'lucide-react';
+import { FolderOpen, Play, Image, Lock, Download } from 'lucide-react';
 import api, { API_BASE_URL } from '@/lib/api';
 
 interface SharedVideo {
@@ -22,6 +22,7 @@ export default function SharedFolder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [_requireLogin, setRequireLogin] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -39,6 +40,31 @@ export default function SharedFolder() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadFile = (videoId: string, filename: string) => {
+    const url = `${API_BASE_URL}/public/video/${videoId}/download?token=${encodeURIComponent(token || '')}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const downloadAll = () => {
+    if (!token) return;
+    setDownloadingAll(true);
+    const url = `${API_BASE_URL}/public/folder/${encodeURIComponent(token)}/download`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Re-enable shortly — we can't reliably detect when the browser finishes the download.
+    setTimeout(() => setDownloadingAll(false), 3000);
   };
 
   if (loading) {
@@ -69,10 +95,21 @@ export default function SharedFolder() {
           <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
             <FolderOpen className="h-4 w-4 text-blue-600" />
           </div>
-          <div>
-            <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{folder?.name}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{folder?.name}</h1>
             <p className="text-[11px] text-gray-400">{videos.length} item{videos.length !== 1 ? 's' : ''} shared with you</p>
           </div>
+          {videos.length > 0 && (
+            <button
+              onClick={downloadAll}
+              disabled={downloadingAll}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              title="Download all files as ZIP"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {downloadingAll ? 'Preparing…' : 'Download all'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -86,48 +123,65 @@ export default function SharedFolder() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {videos.map((video) => (
-              <button
+              <div
                 key={video.id}
-                onClick={() => navigate(`/v/${video.id}?token=${token}&folder=1`)}
-                className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden text-left hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-md transition-all group"
+                className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-md transition-all group relative"
               >
-                {/* Thumbnail */}
-                {video.thumbnail_key ? (
-                  <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
-                    <img
-                      src={`${API_BASE_URL}/public/video/${video.id}/thumbnail?token=${token}`}
-                      alt={video.filename}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    {(video.media_type || 'video') !== 'photo' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-                        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+                <button
+                  type="button"
+                  onClick={() => navigate(`/v/${video.id}?token=${token}&folder=1`)}
+                  className="w-full text-left"
+                >
+                  {/* Thumbnail */}
+                  {video.thumbnail_key ? (
+                    <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
+                      <img
+                        src={`${API_BASE_URL}/public/video/${video.id}/thumbnail?token=${token}`}
+                        alt={video.filename}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      {(video.media_type || 'video') !== 'photo' && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                          <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Play className="h-5 w-5 text-gray-900 ml-0.5" />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  ) : (
+                    <div className="aspect-video bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
+                      {(video.media_type || 'video') === 'photo' ? (
+                        <Image className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                      ) : (
+                        <Play className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                      )}
+                    </div>
+                  )}
+                  <div className="p-3 pr-10">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
+                      {video.filename}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {(video.media_type || 'video') === 'photo' ? 'Photo' : 'Video'}
+                      {' · '}
+                      {new Date(video.created_at).toLocaleDateString()}
+                    </p>
                   </div>
-                ) : (
-                  <div className="aspect-video bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
-                    {(video.media_type || 'video') === 'photo' ? (
-                      <Image className="h-8 w-8 text-gray-300" />
-                    ) : (
-                      <Play className="h-8 w-8 text-gray-300" />
-                    )}
-                  </div>
-                )}
-                <div className="p-3">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
-                    {video.filename}
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    {(video.media_type || 'video') === 'photo' ? 'Photo' : 'Video'}
-                    {' \u00b7 '}
-                    {new Date(video.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    downloadFile(video.id, video.filename);
+                  }}
+                  className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-700 transition-colors"
+                  title={`Download ${video.filename}`}
+                  aria-label={`Download ${video.filename}`}
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              </div>
             ))}
           </div>
         )}
