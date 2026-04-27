@@ -48,9 +48,9 @@ export default function TimestampPanel({ comments, onSeekTo, onMarkerStatusUpdat
 
   return (
     <div className="flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-200 bg-gray-50/50">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">Timestamp Markers</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Timestamp Markers</h3>
           <span className="text-xs text-gray-400">{comments.length} markers</span>
         </div>
       </div>
@@ -58,16 +58,16 @@ export default function TimestampPanel({ comments, onSeekTo, onMarkerStatusUpdat
       <div className="max-h-[300px] overflow-y-auto">
         {sortedComments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 px-4">
-            <Clock className="h-8 w-8 text-gray-200 mb-2" />
+            <Clock className="h-8 w-8 text-gray-200 dark:text-gray-700 mb-2" />
             <p className="text-sm text-gray-400 text-center">
               No timestamp markers yet
             </p>
-            <p className="text-xs text-gray-300 text-center mt-1">
+            <p className="text-xs text-gray-300 dark:text-gray-600 text-center mt-1">
               Add comments while playing to create markers
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
             {sortedComments.map((comment) => {
               const status = comment.marker_status || 'pending';
               const config = markerStatusConfig[status];
@@ -77,8 +77,8 @@ export default function TimestampPanel({ comments, onSeekTo, onMarkerStatusUpdat
               return (
                 <div
                   key={comment.id}
-                  className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
-                    isActive ? 'bg-blue-50/50 border-l-2 border-l-blue-500' : 'border-l-2 border-l-transparent'
+                  className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
+                    isActive ? 'bg-blue-50/50 dark:bg-blue-900/20 border-l-2 border-l-blue-500' : 'border-l-2 border-l-transparent'
                   }`}
                   onClick={() => onSeekTo(comment.video_timestamp!)}
                 >
@@ -94,7 +94,7 @@ export default function TimestampPanel({ comments, onSeekTo, onMarkerStatusUpdat
                     </button>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 line-clamp-2">{comment.content}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{comment.content}</p>
                       <p className="text-xs text-gray-400 mt-1">{comment.user_name}</p>
                     </div>
 
