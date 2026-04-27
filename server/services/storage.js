@@ -8,7 +8,9 @@ import {
   DeleteObjectsCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import https from "https";
 import fs from "fs";
 import { pipeline } from "stream/promises";
 
@@ -37,6 +39,11 @@ let s3Client;
 
 function getS3Client() {
   if (!s3Client) {
+    const agent = new https.Agent({
+      maxSockets: 200,
+      keepAlive: true,
+      keepAliveMsecs: 10000,
+    });
     s3Client = new S3Client({
       region: "us-east-1",
       endpoint: process.env.ZATA_ENDPOINT,
@@ -47,6 +54,11 @@ function getS3Client() {
       forcePathStyle: true,
       tls: true,
       signatureVersion: "v4",
+      requestHandler: new NodeHttpHandler({
+        httpsAgent: agent,
+        connectionTimeout: 15000,
+        socketTimeout: 30000,
+      }),
     });
   }
   return s3Client;
