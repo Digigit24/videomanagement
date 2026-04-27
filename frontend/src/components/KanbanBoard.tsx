@@ -27,13 +27,13 @@ interface KanbanBoardProps {
 const statusColumns: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected', 'Posted'];
 
 const statusColors: Record<VideoStatus, string> = {
-  'Draft': 'bg-slate-50 border-slate-200',
-  'Pending': 'bg-amber-50 border-amber-200',
-  'Under Review': 'bg-blue-50 border-blue-200',
-  'Approved': 'bg-emerald-50 border-emerald-200',
-  'Changes Needed': 'bg-orange-50 border-orange-200',
-  'Rejected': 'bg-red-50 border-red-200',
-  'Posted': 'bg-violet-50 border-violet-200',
+  'Draft': 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700',
+  'Pending': 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-700',
+  'Under Review': 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-700',
+  'Approved': 'bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-700',
+  'Changes Needed': 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-700',
+  'Rejected': 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-700',
+  'Posted': 'bg-violet-50 dark:bg-violet-950 border-violet-200 dark:border-violet-700',
 };
 
 const statusDotColors: Record<VideoStatus, string> = {
@@ -133,17 +133,17 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
 
       <DragOverlay>
         {activeVideo && (
-          <div className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-lg w-64 opacity-90">
+          <div className="bg-white dark:bg-gray-900 border-2 border-blue-400 rounded-lg p-3 shadow-lg w-64 opacity-90">
             <div className="flex items-start gap-2">
               <FileVideo className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-              <h3 className="text-sm font-medium line-clamp-2">{activeVideo.filename}</h3>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{activeVideo.filename}</h3>
             </div>
           </div>
         )}
       </DragOverlay>
 
       {!canChangeStatus && (
-        <p className="text-xs text-gray-400 text-center mt-2">
+        <p className="text-xs text-gray-400 dark:text-gray-400 text-center mt-2">
           Only admin, project manager, or client can change video status by dragging
         </p>
       )}

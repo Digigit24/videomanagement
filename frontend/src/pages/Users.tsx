@@ -295,21 +295,21 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Add New User</h2>
+      <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Add New User</h2>
           <p className="text-xs text-gray-400 mt-0.5">Create a new team member account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="px-4 sm:px-6 py-5 space-y-4">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/30 dark:border-red-700 dark:text-red-400">
               {error}
             </div>
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Name</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -319,7 +319,7 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Email</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <Input
               type="email"
               value={email}
@@ -330,7 +330,7 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Password</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <Input
               type="password"
               value={password}
@@ -341,11 +341,11 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Role</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 dark:focus:ring-gray-600"
             >
               <option value="member">Member</option>
               <option value="client">Client</option>
@@ -357,16 +357,16 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
           </div>
 
           {/* Organization Member Toggle */}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
             <label className="flex items-center gap-2 cursor-pointer flex-1">
               <input
                 type="checkbox"
                 checked={isOrgMember}
                 onChange={(e) => setIsOrgMember(e.target.checked)}
-                className="w-4 h-4 text-orange-600 bg-white border-gray-300 rounded focus:ring-orange-500"
+                className="w-4 h-4 text-orange-600 bg-white border-gray-300 rounded focus:ring-orange-500 dark:bg-gray-700 dark:border-gray-600"
               />
               <div>
-                <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5 text-orange-500" />
                   Organization Member
                 </span>
@@ -378,7 +378,7 @@ function AddUserModal({ onClose, onUserAdded }: AddUserModalProps) {
           </div>
         </form>
 
-        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex gap-2 justify-end bg-gray-50">
+        <div className="px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex gap-2 justify-end bg-gray-50 dark:bg-gray-800">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>

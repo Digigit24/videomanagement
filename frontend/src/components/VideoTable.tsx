@@ -307,18 +307,18 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                     <Calendar className="h-3 w-3" />
                     <span>{formatDate(video.created_at)}</span>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-gray-400">{formatBytes(video.size)}</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{formatBytes(video.size)}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between mt-1.5">
                   {video.uploaded_by_name ? (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
                       <User className="h-3 w-3" />
                       <span>{video.uploaded_by_name}</span>
                     </div>
@@ -332,7 +332,7 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                         const url = videoService.getDownloadUrl(video.id, video.bucket);
                         window.open(url, '_blank');
                       }}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200 transition-all"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 active:bg-blue-200 dark:active:bg-blue-800 transition-all"
                       title="Download original file"
                     >
                       <Download className="h-3 w-3" />

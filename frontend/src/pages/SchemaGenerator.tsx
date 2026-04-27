@@ -225,24 +225,24 @@ export default function SchemaGenerator() {
   const currentStepMessage = Object.values(steps).find(s => s.status === 'active')?.message || '';
 
   return (
-    <div className="min-h-screen bg-[#0a0a1a] text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a1a] text-gray-900 dark:text-white">
       {/* Background gradient effects */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-violet-600/5 rounded-full blur-[120px]" />
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/[0.03] dark:bg-purple-600/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-violet-600/[0.03] dark:bg-violet-600/5 rounded-full blur-[120px]" />
       </div>
 
       <div className="relative max-w-5xl mx-auto px-4 py-8 sm:py-12">
         {/* ──── HEADER ──── */}
         <header className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] font-medium mb-4 tracking-wider uppercase">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-300 text-[10px] font-medium mb-4 tracking-wider uppercase">
             <Sparkles className="w-3.5 h-3.5" />
             AI-Powered Optimization
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-purple-400 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent mb-3">
             Digi Schema Generator
           </h1>
-          <p className="text-gray-400 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+          <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
             Instant SEO structured data generation. Paste your page source and let 
             our intelligent engine build a complete, search-optimized JSON-LD schema for you.
           </p>
@@ -250,12 +250,12 @@ export default function SchemaGenerator() {
 
         {/* ──── INPUT SECTION ──── */}
         <section className="mb-6">
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2 text-sm text-gray-400">
-              <Code2 className="w-4 h-4 text-purple-400" />
-              <span className="font-medium text-gray-300">Paste Your HTML Code</span>
+          <div className="rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] backdrop-blur-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-white/[0.06] flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <Code2 className="w-4 h-4 text-purple-500 dark:text-purple-400" />
+              <span className="font-medium text-gray-700 dark:text-gray-300">Paste Your HTML Code</span>
               {charCount > 0 && (
-                <span className="ml-auto text-xs text-gray-500">
+                <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">
                   {charCount.toLocaleString()} chars
                 </span>
               )}
@@ -265,10 +265,10 @@ export default function SchemaGenerator() {
               value={htmlContent}
               onChange={(e) => setHtmlContent(e.target.value)}
               placeholder={`Paste your full HTML page code here...\n\nThe AI will automatically:\n  • Detect page type (Blog, Product, About, etc.)\n  • Choose the best schema types\n  • Extract all links, images & data\n  • Generate copy-paste ready JSON-LD`}
-              className="w-full bg-transparent text-gray-200 text-sm font-mono p-4 resize-y outline-none placeholder:text-gray-600 min-h-[180px] max-h-[400px] scrollbar-thin"
+              className="w-full bg-transparent text-gray-700 dark:text-gray-200 text-sm font-mono p-4 resize-y outline-none placeholder:text-gray-400 dark:placeholder:text-gray-600 min-h-[180px] max-h-[400px] scrollbar-thin"
               spellCheck={false}
             />
-            <div className="px-4 py-3 border-t border-white/[0.06] flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-white/[0.06] flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <div className="flex-1">
                 <input
                   id="urlInput"
@@ -276,7 +276,7 @@ export default function SchemaGenerator() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="Base URL (optional — helps make relative URLs absolute)"
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-gray-200 placeholder:text-gray-500 outline-none focus:border-purple-500/40 transition-colors"
+                  className="w-full bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-purple-500/40 transition-colors"
                 />
               </div>
               <div className="flex gap-2 sm:gap-3">
@@ -300,7 +300,7 @@ export default function SchemaGenerator() {
                 </button>
                 <button
                   onClick={handleClear}
-                  className="px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.08] transition-all"
+                  className="px-3 py-2.5 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] border border-gray-200 dark:border-white/[0.08] transition-all"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -312,10 +312,10 @@ export default function SchemaGenerator() {
         {/* ──── PIPELINE PROGRESS ──── */}
         {(isGenerating || result || error) && (
           <section className="mb-6 animate-fade-in">
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm p-4">
-              <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <span className="font-medium text-gray-300">AI Pipeline</span>
+            <div className="rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] backdrop-blur-sm p-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <Sparkles className="w-4 h-4 text-purple-500 dark:text-purple-400" />
+                <span className="font-medium text-gray-700 dark:text-gray-300">AI Pipeline</span>
               </div>
 
               {/* Step indicators */}
@@ -323,10 +323,10 @@ export default function SchemaGenerator() {
                 {PIPELINE_STEPS.map(({ key, label, icon }) => {
                   const step = steps[key];
                   const statusColors: Record<StepStatus, string> = {
-                    pending: 'bg-white/[0.04] border-white/[0.06] text-gray-500',
-                    active: 'bg-purple-500/15 border-purple-500/40 text-purple-300 shadow-sm shadow-purple-500/10',
-                    done: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
-                    error: 'bg-red-500/10 border-red-500/30 text-red-400',
+                    pending: 'bg-gray-100 dark:bg-white/[0.04] border-gray-200 dark:border-white/[0.06] text-gray-400 dark:text-gray-500',
+                    active: 'bg-purple-100 dark:bg-purple-500/15 border-purple-300 dark:border-purple-500/40 text-purple-600 dark:text-purple-300 shadow-sm shadow-purple-500/10',
+                    done: 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400',
+                    error: 'bg-red-50 dark:bg-red-500/10 border-red-300 dark:border-red-500/30 text-red-600 dark:text-red-400',
                   };
                   return (
                     <div
@@ -352,10 +352,10 @@ export default function SchemaGenerator() {
 
               {/* Current message / progress */}
               {(currentStepMessage || (progress && isGenerating)) && (
-                <div className="text-xs text-gray-400 text-center mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
                   {currentStepMessage}
                   {progress && isGenerating && (
-                    <span className="ml-2 text-purple-300">
+                    <span className="ml-2 text-purple-600 dark:text-purple-300">
                       (chunk {progress.current}/{progress.total})
                     </span>
                   )}
@@ -368,20 +368,20 @@ export default function SchemaGenerator() {
         {/* ──── AI DETECTION RESULTS ──── */}
         {detection && (
           <section className="mb-6 animate-fade-in-up">
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm p-4 sm:p-5">
-              <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
-                <Search className="w-4 h-4 text-emerald-400" />
-                <span className="font-medium text-gray-300">AI Detection Results</span>
+            <div className="rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.03] backdrop-blur-sm p-4 sm:p-5">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <Search className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                <span className="font-medium text-gray-700 dark:text-gray-300">AI Detection Results</span>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Page Type</div>
-                  <div className="text-lg font-semibold text-white">{detection.pageType}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Page Type</div>
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white">{detection.pageType}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Content Summary</div>
-                  <div className="text-sm text-gray-300 leading-relaxed">{detection.contentSummary}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Content Summary</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{detection.contentSummary}</div>
                 </div>
               </div>
 

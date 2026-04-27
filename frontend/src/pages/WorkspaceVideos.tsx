@@ -678,7 +678,7 @@ export default function WorkspaceVideos() {
                           <button
                             onClick={(e) => handleFolderDownloadZip(folder.id, e)}
                             disabled={folderDownloading}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 disabled:opacity-40"
+                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-40"
                             title="Download as ZIP"
                           >
                             {folderDownloading ? (
@@ -690,7 +690,7 @@ export default function WorkspaceVideos() {
                           {canDeleteFolder && (
                             <button
                               onClick={(e) => handleDeleteFolder(folder.id, e)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+                              className="p-1.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950"
                               title="Delete folder"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -699,7 +699,7 @@ export default function WorkspaceVideos() {
                         </div>
                       )}
                     </div>
-                    <h3 className="text-sm font-semibold text-gray-900 truncate mb-1 group-hover:text-blue-600 transition-colors">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {folder.name}
                     </h3>
                     <div className="flex items-center gap-3 text-[10px] text-gray-400">
@@ -729,18 +729,18 @@ export default function WorkspaceVideos() {
               variant="ghost"
               size="sm"
               onClick={() => setSelectedFolder(null)}
-              className="text-xs text-gray-500 flex-shrink-0 h-8"
+              className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 h-8"
             >
               <ArrowLeft className="h-3.5 w-3.5 mr-1" />
               All Folders
             </Button>
 
-            <div className="h-5 w-px bg-gray-200 flex-shrink-0" />
+            <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
 
             {/* Filters */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[130px] h-8 text-xs border-dashed bg-white flex-shrink-0">
-                <Filter className="w-3 h-3 mr-1 text-gray-500" />
+              <SelectTrigger className="w-[130px] h-8 text-xs border-dashed bg-white dark:bg-gray-900 dark:border-gray-700 flex-shrink-0">
+                <Filter className="w-3 h-3 mr-1 text-gray-500 dark:text-gray-400" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -756,8 +756,8 @@ export default function WorkspaceVideos() {
             </Select>
 
             <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-[120px] h-8 text-xs border-dashed bg-white flex-shrink-0">
-                <CalendarIcon className="w-3 h-3 mr-1 text-gray-500" />
+              <SelectTrigger className="w-[120px] h-8 text-xs border-dashed bg-white dark:bg-gray-900 dark:border-gray-700 flex-shrink-0">
+                <CalendarIcon className="w-3 h-3 mr-1 text-gray-500 dark:text-gray-400" />
                 <SelectValue placeholder="Date" />
               </SelectTrigger>
               <SelectContent>
@@ -776,10 +776,10 @@ export default function WorkspaceVideos() {
                   onClick={() => setMediaTypeFilter(type)}
                   className={`px-2 py-1 rounded text-[10px] font-semibold transition-all ${
                     mediaTypeFilter === type
-                      ? type === 'video' ? 'bg-blue-100 text-blue-700'
-                        : type === 'photo' ? 'bg-pink-100 text-pink-700'
-                        : 'bg-gray-200 text-gray-900'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? type === 'video' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                        : type === 'photo' ? 'bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                   }`}
                 >
                   {type === 'all' ? 'All' : type === 'video' ? 'Videos' : 'Photos'}
@@ -788,7 +788,7 @@ export default function WorkspaceVideos() {
             </div>
 
             {activeFilters > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => { setDateFilter('all'); setStatusFilter('all'); setMediaTypeFilter('all'); }} className="h-8 text-xs text-gray-500 flex-shrink-0 gap-1">
+              <Button variant="ghost" size="sm" onClick={() => { setDateFilter('all'); setStatusFilter('all'); setMediaTypeFilter('all'); }} className="h-8 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 gap-1">
                 <X className="h-3 w-3" /> Clear
               </Button>
             )}
@@ -846,14 +846,14 @@ export default function WorkspaceVideos() {
 
           {/* Selection Toolbar */}
           {selectMode && (
-            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
               <button
                 onClick={handleSelectAll}
-                className="text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
+                className="text-xs font-medium text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
               >
                 {selectedVideoIds.size === filteredVideos.length && filteredVideos.length > 0 ? 'Deselect All' : 'Select All'}
               </button>
-              <span className="text-xs text-blue-500">
+              <span className="text-xs text-blue-500 dark:text-blue-400">
                 {selectedVideoIds.size} of {filteredVideos.length} selected
               </span>
               <div className="flex-1" />
@@ -885,11 +885,11 @@ export default function WorkspaceVideos() {
 
           {/* Media Grid */}
           {filteredVideos.length === 0 ? (
-            <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
-              <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3">
-                <FileVideoIcon className="h-6 w-6 text-gray-300" />
+            <div className="text-center py-10 bg-white dark:bg-gray-900 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+              <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center mb-3">
+                <FileVideoIcon className="h-6 w-6 text-gray-300 dark:text-gray-600" />
               </div>
-              <h3 className="text-sm font-medium text-gray-600">No media in this folder</h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">No media in this folder</h3>
               <p className="text-xs text-gray-400 mt-1">Upload videos or photos to get started</p>
               <Button variant="outline" size="sm" onClick={() => setUploadModalOpen(true)} className="mt-4 gap-1.5">
                 <Upload className="h-3.5 w-3.5" />
@@ -919,34 +919,34 @@ export default function WorkspaceVideos() {
       {activeTab === 'analytics' && (
         <div className="animate-fade-in space-y-4">
           {analytics ? (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm space-y-5">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 sm:p-6 shadow-sm space-y-5">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-blue-600" />
-                <h2 className="text-sm font-semibold text-gray-900">Workspace Analytics</h2>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Workspace Analytics</h2>
               </div>
 
               {/* Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-violet-50 border border-violet-100 rounded-lg p-3">
-                  <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider mb-1">Total Posted</p>
-                  <p className="text-2xl font-bold text-gray-900">{analytics.historical.totalEverPosted}</p>
+                <div className="bg-violet-50 dark:bg-violet-950 border border-violet-100 dark:border-violet-900 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-1">Total Posted</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{analytics.historical.totalEverPosted}</p>
                   <p className="text-[10px] text-gray-400">All time</p>
                 </div>
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-1">Total Media</p>
-                  <p className="text-2xl font-bold text-gray-900">{analytics.current.total}</p>
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">Total Media</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{analytics.current.total}</p>
                   <p className="text-[10px] text-gray-400">{totalVideoCount} videos, {totalPhotoCount} photos</p>
                 </div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">Approval Rate</p>
-                  <p className="text-2xl font-bold text-gray-900">
+                <div className="bg-emerald-50 dark:bg-emerald-950 border border-emerald-100 dark:border-emerald-900 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Approval Rate</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                     {analytics.current.total > 0 ? Math.round(((analytics.current.approved + analytics.current.posted) / analytics.current.total) * 100) : 0}%
                   </p>
                   <p className="text-[10px] text-gray-400">Approved + Posted</p>
                 </div>
-                <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
-                  <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider mb-1">Needs Work</p>
-                  <p className="text-2xl font-bold text-gray-900">{analytics.current.changesNeeded + analytics.current.rejected}</p>
+                <div className="bg-orange-50 dark:bg-orange-950 border border-orange-100 dark:border-orange-900 rounded-lg p-3">
+                  <p className="text-[10px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider mb-1">Needs Work</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{analytics.current.changesNeeded + analytics.current.rejected}</p>
                   <p className="text-[10px] text-gray-400">Changes + Rejected</p>
                 </div>
               </div>

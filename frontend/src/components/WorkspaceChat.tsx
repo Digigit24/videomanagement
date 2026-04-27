@@ -793,7 +793,7 @@ export default function WorkspaceChat({ workspaceId, className }: WorkspaceChatP
   };
 
 const rootClasses = cn(
-  "flex flex-col w-full h-[calc(100vh-80px)] lg:h-[calc(100vh-90px)] bg-[#f3f4f6] rounded-xl overflow-hidden shadow-sm border border-gray-200",
+  "flex flex-col w-full h-[calc(100vh-80px)] lg:h-[calc(100vh-90px)] bg-[#f3f4f6] dark:bg-gray-950 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700",
   className
 );
 
@@ -829,34 +829,34 @@ return (
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
             <MessageCircle className="h-5 w-5 text-blue-600" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-gray-900 leading-none mb-1">Workspace Chat</h3>
-            <p className="text-xs text-gray-500 font-medium">{members.length} members</p>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-none mb-1">Workspace Chat</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{members.length} members</p>
           </div>
         </div>
-        <button className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">
+        <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-400">
           <MoreVertical className="h-5 w-5" />
         </button>
       </div>
 
       {/* Messages */}
-      <div ref={listRef} onScroll={checkNearBottom} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 scroll-smooth bg-gray-50/80">
+      <div ref={listRef} onScroll={checkNearBottom} className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 scroll-smooth bg-gray-50/80 dark:bg-gray-950/80">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
           </div>
         ) : messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+            <div className="w-16 h-16 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center mb-4 shadow-sm">
               <MessageCircle className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-sm font-medium text-gray-900">No messages yet</p>
-            <p className="text-xs text-gray-500 max-w-[200px] mx-auto mt-1">Start the conversation!</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">No messages yet</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] mx-auto mt-1">Start the conversation!</p>
           </div>
         ) : (
           messages.map((message) => {
@@ -897,15 +897,15 @@ return (
                       <div className={`relative px-3 py-2 sm:px-4 sm:py-2.5 shadow-sm text-sm ${
                         isMe
                           ? "bg-blue-600 text-white rounded-2xl rounded-tr-none"
-                          : "bg-white text-gray-800 rounded-2xl rounded-tl-none border border-gray-100"
+                          : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-2xl rounded-tl-none border border-gray-100 dark:border-gray-700"
                       }`}>
                         {!isMe && (
                           <div className="text-[10px] font-bold text-blue-600 mb-1 leading-none">{message.user_name}</div>
                         )}
 
                         {message.reply_to && (
-                          <div className={`text-[10px] mb-2 p-1.5 rounded bg-black/5 border-l-2 ${
-                            isMe ? "border-white/50 text-white/90" : "border-blue-500 text-gray-600"
+                          <div className={`text-[10px] mb-2 p-1.5 rounded bg-black/5 dark:bg-white/5 border-l-2 ${
+                            isMe ? "border-white/50 text-white/90" : "border-blue-500 text-gray-600 dark:text-gray-400"
                           }`}>
                             <div className="font-bold flex items-center gap-1">
                               <Reply className="h-2.5 w-2.5" />
@@ -918,7 +918,7 @@ return (
                         )}
 
                         {message.content && (
-                          <p className={`whitespace-pre-wrap leading-relaxed break-words ${isMe ? "text-white" : "text-gray-800"} ${message.deleted_at ? "italic text-gray-500 opacity-80" : ""}`}>
+                          <p className={`whitespace-pre-wrap leading-relaxed break-words ${isMe ? "text-white" : "text-gray-800 dark:text-gray-200"} ${message.deleted_at ? "italic text-gray-500 dark:text-gray-400 opacity-80" : ""}`}>
                             {message.deleted_at ? (
                               <span className="flex items-center gap-1.5">
                                 <span className="block h-3 w-3 rounded-full border border-current opacity-50 relative before:absolute before:inset-0 before:m-auto before:w-full before:h-px before:bg-current before:rotate-45" />
@@ -962,11 +962,11 @@ return (
       </div>
 
       {/* Input Area */}
-      <div className="p-2 sm:p-3 bg-white border-t border-gray-100 flex-shrink-0 relative">
+      <div className="p-2 sm:p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 relative">
         {/* Mention dropdown */}
         {showMentions && filteredMembers.length > 0 && (
-          <div className="absolute bottom-full left-2 right-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-50 ring-1 ring-black/5">
-            <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50 sticky top-0">
+          <div className="absolute bottom-full left-2 right-2 mb-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-50 ring-1 ring-black/5">
+            <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 sticky top-0">
               Mention Member
             </div>
             {filteredMembers.map((member, idx) => (
@@ -975,14 +975,14 @@ return (
                 type="button"
                 onClick={() => handleMentionSelect(member)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                  idx === mentionCursorIndex ? "bg-blue-50" : "hover:bg-gray-50"
+                  idx === mentionCursorIndex ? "bg-blue-50 dark:bg-blue-900/30" : "hover:bg-gray-50 dark:hover:bg-gray-800"
                 }`}
               >
                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
                   {getInitials(member.name)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 truncate">{member.name}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
                 </div>
               </button>
             ))}
@@ -993,9 +993,9 @@ return (
         {showEmojiPicker && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-            <div className="absolute bottom-full left-0 sm:left-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-[calc(100vw-3rem)] sm:w-80 overflow-hidden">
+            <div className="absolute bottom-full left-0 sm:left-2 mb-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 w-[calc(100vw-3rem)] sm:w-80 overflow-hidden">
               {/* Category tabs */}
-              <div className="flex border-b border-gray-100 px-1 pt-1 gap-0.5 overflow-x-auto scrollbar-hide">
+              <div className="flex border-b border-gray-100 dark:border-gray-700 px-1 pt-1 gap-0.5 overflow-x-auto scrollbar-hide">
                 {EMOJI_CATEGORIES.map((cat, idx) => (
                   <button
                     key={cat.label}

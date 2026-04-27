@@ -22,14 +22,14 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: 'bg-purple-100 text-purple-700',
-  video_editor: 'bg-blue-100 text-blue-700',
-  project_manager: 'bg-amber-100 text-amber-700',
-  social_media_manager: 'bg-emerald-100 text-emerald-700',
-  client: 'bg-teal-100 text-teal-700',
-  member: 'bg-gray-100 text-gray-600',
-  videographer: 'bg-indigo-100 text-indigo-700',
-  photo_editor: 'bg-pink-100 text-pink-700',
+  admin: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+  video_editor: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  project_manager: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  social_media_manager: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+  client: 'bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300',
+  member: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+  videographer: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
+  photo_editor: 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300',
 };
 
 const PERMISSION_LABELS: Record<string, string> = {
@@ -157,14 +157,14 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Manage Workspace Members</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Manage Workspace Members</h2>
             <p className="text-xs text-gray-400 mt-0.5">Add or remove team members and manage permissions</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
             <X className="h-5 w-5 text-gray-400" />
           </button>
         </div>
@@ -172,9 +172,9 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
               {error}
-              <button onClick={() => setError('')} className="float-right text-red-400 hover:text-red-600">
+              <button onClick={() => setError('')} className="float-right text-red-400 hover:text-red-600 dark:hover:text-red-300">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -188,23 +188,23 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
             </h3>
             <div className="space-y-2">
               {currentMembers.map((member) => (
-                <div key={member.id} className="border border-gray-100 rounded-xl overflow-hidden">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 group">
+                <div key={member.id} className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 group">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {member.avatar_url ? (
                         <img src={member.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
                       ) : (
-                        <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium uppercase">
+                        <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 text-xs font-medium uppercase">
                           {member.name?.charAt(0) || '?'}
                         </div>
                       )}
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{member.name}</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
                         <p className="text-xs text-gray-400 truncate">{member.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ROLE_COLORS[member.role] || 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ROLE_COLORS[member.role] || 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
                         {ROLE_LABELS[member.role] || member.role}
                       </span>
                       {canManagePermissions && (
@@ -232,10 +232,10 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
 
                   {/* Expanded Permissions */}
                   {expandedMember === member.id && canManagePermissions && (
-                    <div className="px-4 py-3 bg-white border-t border-gray-100">
+                    <div className="px-4 py-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700">
                       <div className="flex items-center gap-2 mb-3">
                         <Shield className="h-3.5 w-3.5 text-blue-500" />
-                        <span className="text-xs font-semibold text-gray-700">Workspace Permissions</span>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-400">Workspace Permissions</span>
                         {savingPerms === member.id && (
                           <span className="text-[10px] text-blue-500 animate-pulse">Saving...</span>
                         )}
@@ -243,15 +243,15 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
                       {memberPerms[member.id] ? (
                         <div className="grid grid-cols-2 gap-2">
                           {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
-                            <label key={key} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                            <label key={key} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={!!(memberPerms[member.id] as any)[key]}
                                 onChange={() => handleTogglePermission(member.id, key)}
                                 disabled={member.role === 'admin'}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                               />
-                              <span className="text-xs text-gray-700">{label}</span>
+                              <span className="text-xs text-gray-700 dark:text-gray-400">{label}</span>
                             </label>
                           ))}
                         </div>
@@ -267,7 +267,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
             </div>
           </div>
 
-          <hr className="border-gray-100" />
+          <hr className="border-gray-100 dark:border-gray-700" />
 
           {/* Add Members Section */}
           <div className="space-y-3">
@@ -278,7 +278,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
                 placeholder="Search staff by name or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 text-sm bg-gray-50/50 border-gray-200"
+                className="pl-10 text-sm bg-gray-50/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
               />
             </div>
 
@@ -289,7 +289,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
                   <p className="text-xs text-gray-400">Loading organization staff...</p>
                 </div>
               ) : filteredOrgMembers.length === 0 ? (
-                <div className="py-8 text-center border-2 border-dashed border-gray-100 rounded-2xl">
+                <div className="py-8 text-center border-2 border-dashed border-gray-100 dark:border-gray-700 rounded-2xl">
                   <p className="text-xs text-gray-400">No available staff found</p>
                 </div>
               ) : (
@@ -297,22 +297,22 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
                   <button
                     key={user.id}
                     onClick={() => handleAddMember(user.id!)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-blue-50/50 border border-transparent hover:border-blue-100 rounded-xl transition-all group"
+                    className="w-full flex items-center justify-between p-3 hover:bg-blue-50/50 dark:hover:bg-blue-950/50 border border-transparent hover:border-blue-100 dark:hover:border-blue-900 rounded-xl transition-all group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-xs font-bold uppercase transition-transform group-hover:scale-105">
                         {user.name?.charAt(0) || '?'}
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{user.name}</p>
                         <p className="text-xs text-gray-400">{user.email}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ROLE_COLORS[user.role || ''] || 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${ROLE_COLORS[user.role || ''] || 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
                         {ROLE_LABELS[user.role || ''] || user.role}
                       </span>
-                      <div className="w-7 h-7 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center transition-all group-hover:bg-blue-600 group-hover:text-white">
+                      <div className="w-7 h-7 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center transition-all group-hover:bg-blue-600 group-hover:text-white">
                         <Plus className="h-4 w-4" />
                       </div>
                     </div>
@@ -324,7 +324,7 @@ export default function ManageMembersModal({ workspaceId, onClose }: ManageMembe
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end bg-gray-50/50">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end bg-gray-50/50 dark:bg-gray-950/50">
           <Button onClick={onClose}>Done</Button>
         </div>
       </div>

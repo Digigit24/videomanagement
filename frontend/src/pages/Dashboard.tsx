@@ -290,7 +290,7 @@ export default function Dashboard() {
 
               {/* Hover arrow indicator */}
               <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                <ArrowUpRight className="h-3.5 w-3.5 text-gray-300" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
               </div>
             </div>
           ))}
@@ -300,9 +300,9 @@ export default function Dashboard() {
       {/* Search empty state */}
       {searchQuery && filteredWorkspaces.length === 0 && workspaces.length > 0 && (
         <div className="text-center py-8">
-          <Search className="h-8 w-8 mx-auto mb-2 text-gray-200" />
-          <p className="text-sm text-gray-500">No workspaces match "{searchQuery}"</p>
-          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 hover:text-blue-700 mt-1">Clear search</button>
+          <Search className="h-8 w-8 mx-auto mb-2 text-gray-200 dark:text-gray-700" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">No workspaces match "{searchQuery}"</p>
+          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-1">Clear search</button>
         </div>
       )}
 

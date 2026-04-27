@@ -544,17 +544,17 @@ export default function VideoReview() {
           {isFromFolder && token && (
             <button
               onClick={() => navigate(`/shared/folder/${token}`)}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
               title="Back to folder"
             >
-              <ArrowLeft className="h-4 w-4 text-gray-500" />
+              <ArrowLeft className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             </button>
           )}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-gray-900 tracking-tight">Review</span>
-            <span className="text-gray-300">|</span>
+            <span className="text-sm font-bold text-gray-900 dark:text-gray-100 tracking-tight">Review</span>
+            <span className="text-gray-300 dark:text-gray-600">|</span>
           </div>
-          <span className="text-xs text-gray-500 truncate font-medium">{video.filename}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 truncate font-medium">{video.filename}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -563,8 +563,8 @@ export default function VideoReview() {
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border",
               showChat
-                ? "bg-blue-50 text-blue-700 border-blue-200"
-                : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                ? "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700"
             )}
           >
             <MessageCircle className="h-3.5 w-3.5" />
@@ -573,11 +573,11 @@ export default function VideoReview() {
               <span className="bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{reviews.length}</span>
             )}
           </button>
-          <div className="flex items-center gap-1.5 bg-gray-100 rounded-full pl-1 pr-3 py-1 border border-gray-200">
+          <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-full pl-1 pr-3 py-1 border border-gray-200 dark:border-gray-700">
             <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-[9px] text-white font-bold shadow-sm">
               {reviewerName.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs font-medium text-gray-700 max-w-[80px] truncate">{reviewerName}</span>
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-400 max-w-[80px] truncate">{reviewerName}</span>
           </div>
         </div>
       </div>
@@ -623,10 +623,10 @@ export default function VideoReview() {
         {!showChat && (
           <button
             onClick={() => setShowChat(true)}
-            className="absolute bottom-6 right-6 z-30 w-12 h-12 rounded-full bg-white shadow-xl border border-gray-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+            className="absolute bottom-6 right-6 z-30 w-12 h-12 rounded-full bg-white dark:bg-gray-900 shadow-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
             title="Open feedback"
           >
-            <MessageCircle className="h-5 w-5 text-gray-700" />
+            <MessageCircle className="h-5 w-5 text-gray-700 dark:text-gray-400" />
             {reviews.length > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                 {reviews.length}
@@ -637,7 +637,7 @@ export default function VideoReview() {
 
         {/* Chat/Feedback Section — collapsible */}
         <div className={cn(
-          "flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-200 min-h-0 relative z-0 transition-all duration-300",
+          "flex flex-col bg-white dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 min-h-0 relative z-0 transition-all duration-300",
           showChat
             ? "flex-1 md:flex-none md:w-80 lg:w-96 h-full"
             : "hidden"
@@ -647,22 +647,22 @@ export default function VideoReview() {
           <div
             ref={messagesContainerRef}
             onScroll={checkNearBottom}
-            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-3 bg-gray-50/50"
+            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 space-y-3 bg-gray-50/50 dark:bg-gray-950/50"
           >
             {reviews.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-3">
                   <MessageCircle className="h-5 w-5 text-gray-400" />
                 </div>
-                <h3 className="text-sm font-medium text-gray-900">No feedback yet</h3>
-                <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Start the conversation by adding a review or reaction.</p>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">No feedback yet</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-[200px]">Start the conversation by adding a review or reaction.</p>
 
                 <div className="flex flex-wrap justify-center gap-2 mt-4">
                   {QUICK_REACTIONS.map(({ emoji, label }) => (
                     <button
                       key={label}
                       onClick={() => handleQuickReaction(`${emoji} ${label}`)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm transition-all active:scale-95"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all active:scale-95"
                     >
                       <span>{emoji}</span>
                       <span>{label}</span>
@@ -695,7 +695,7 @@ export default function VideoReview() {
                       <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
                         {showAvatar && (
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-bold text-gray-900">
+                            <span className="text-[10px] font-bold text-gray-900 dark:text-gray-100">
                               {review.reviewer_name}
                             </span>
                             <span className="text-[9px] text-gray-400">
@@ -707,8 +707,8 @@ export default function VideoReview() {
                         {review.reply_to && review.reply_content && (
                           <div className={`text-[10px] px-3 py-1.5 rounded-md border-l-2 mb-1 max-w-full opacity-75 ${
                             isOwn
-                              ? 'bg-blue-50 border-blue-300 text-blue-700'
-                              : 'bg-gray-100 border-gray-300 text-gray-600'
+                              ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-300 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
+                              : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'
                           }`}>
                             <span className="font-semibold">{review.reply_reviewer_name}</span>
                             <span className="mx-1">&bull;</span>
@@ -722,7 +722,7 @@ export default function VideoReview() {
                           className={`px-3 py-2 text-sm leading-relaxed shadow-sm break-words relative group-hover:shadow-md transition-shadow ${
                             isOwn
                               ? 'bg-blue-600 text-white rounded-2xl rounded-tr-sm'
-                              : 'bg-white border border-gray-200 text-gray-900 rounded-2xl rounded-tl-sm'
+                              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl rounded-tl-sm'
                           }`}
                         >
                           {review.content}
