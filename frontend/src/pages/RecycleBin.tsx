@@ -153,8 +153,8 @@ export default function RecycleBin() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading recycle bin...</p>
+          <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading recycle bin...</p>
         </div>
       </div>
     );
@@ -163,7 +163,7 @@ export default function RecycleBin() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Hero Header */}
-      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+      <div className="relative overflow-hidden bg-gray-900 dark:bg-gray-950 rounded-2xl">
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-red-500/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl" />
@@ -202,24 +202,24 @@ export default function RecycleBin() {
       {/* Clear Bin Password Modal */}
       {showClearModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md mx-4 p-6 animate-scale-in">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md mx-4 p-6 animate-scale-in">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
                 Clear Recycle Bin
               </h2>
               <button
                 onClick={() => setShowClearModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               This will <strong>permanently delete</strong> all items in the recycle bin:
             </p>
-            <ul className="text-sm text-gray-500 mb-4 space-y-1 ml-4 list-disc">
+            <ul className="text-sm text-gray-500 dark:text-gray-400 mb-4 space-y-1 ml-4 list-disc">
               {deletedVideos.length > 0 && <li>{deletedVideos.length} video(s) / photo(s)</li>}
               {deletedWorkspaces.length > 0 && <li>{deletedWorkspaces.length} workspace(s)</li>}
               {deletedUsers.length > 0 && <li>{deletedUsers.length} user(s)</li>}
@@ -229,7 +229,7 @@ export default function RecycleBin() {
             </p>
 
             <form onSubmit={handleClearBin}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Admin Password
               </label>
               <input
@@ -237,7 +237,7 @@ export default function RecycleBin() {
                 value={clearPassword}
                 onChange={(e) => { setClearPassword(e.target.value); setClearError(''); }}
                 placeholder="Enter your password"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
                 autoFocus
                 required
               />
@@ -276,16 +276,16 @@ export default function RecycleBin() {
 
       {/* Deleted Videos Section */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
           <FileVideo className="h-4 w-4 text-orange-500" />
           Deleted Videos & Photos
           <span className="text-gray-400 font-normal">{deletedVideos.length}</span>
         </h2>
 
         {deletedVideos.length === 0 ? (
-          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
-            <FileVideo className="h-8 w-8 mx-auto mb-2 text-gray-200" />
-            <p className="text-sm text-gray-500">No deleted videos or photos</p>
+          <div className="text-center py-8 bg-white dark:bg-gray-900 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+            <FileVideo className="h-8 w-8 mx-auto mb-2 text-gray-200 dark:text-gray-600" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">No deleted videos or photos</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

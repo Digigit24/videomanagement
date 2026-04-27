@@ -109,7 +109,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+        <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-700 border-t-gray-600 dark:border-t-gray-400 rounded-full animate-spin" />
       </div>
     );
   }
@@ -117,7 +117,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Hero */}
-      <div className="relative overflow-hidden bg-gray-900 rounded-2xl">
+      <div className="relative overflow-hidden bg-gray-900 dark:bg-gray-950 rounded-2xl">
         {/* Subtle pattern overlay */}
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
         {/* Soft glow */}
@@ -170,18 +170,18 @@ export default function Dashboard() {
           { label: 'Total Videos', value: totalVideos },
           { label: 'Team Members', value: totalMembers },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white border border-gray-200/80 rounded-xl px-4 py-3.5">
-            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">{stat.label}</p>
-            <p className="text-2xl font-bold text-gray-900 mt-0.5">{stat.value}</p>
+          <div key={stat.label} className="bg-white dark:bg-gray-900 border border-gray-200/80 dark:border-gray-700 rounded-xl px-4 py-3.5">
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{stat.value}</p>
           </div>
         ))}
       </div>
 
       {/* Workspace Header + Search */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
           {isOrgRole ? 'Client Workspaces' : 'Your Workspaces'}
-          <span className="text-gray-400 font-normal ml-2">{filteredWorkspaces.length}</span>
+          <span className="text-gray-400 dark:text-gray-400 font-normal ml-2">{filteredWorkspaces.length}</span>
         </h2>
         {workspaces.length > 3 && (
           <div className="relative w-40 sm:w-56">
@@ -191,7 +191,7 @@ export default function Dashboard() {
               placeholder="Search..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-shadow"
+              className="w-full h-8 pl-8 pr-3 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-100 focus:border-transparent transition-shadow"
             />
           </div>
         )}
@@ -199,9 +199,9 @@ export default function Dashboard() {
 
       {/* Workspaces Grid */}
       {workspaces.length === 0 ? (
-        <div className="bg-white border border-dashed border-gray-300 rounded-xl p-12 text-center">
-          <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-200" />
-          <p className="text-sm text-gray-500 mb-1">No workspaces yet</p>
+        <div className="bg-white dark:bg-gray-900 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-12 text-center">
+          <FolderOpen className="h-10 w-10 mx-auto mb-3 text-gray-200 dark:text-gray-700" />
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">No workspaces yet</p>
           <p className="text-xs text-gray-400 mb-4">
             {canCreateWorkspace ? 'Create your first workspace to get started' : 'You\'ll see workspaces here once added'}
           </p>
@@ -216,25 +216,25 @@ export default function Dashboard() {
           {filteredWorkspaces.map((workspace, i) => (
             <div
               key={workspace.id}
-              className={`group bg-white border border-gray-200/80 rounded-xl p-4 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer relative animate-fade-in-up ${contextMenu === workspace.id ? 'z-50' : ''}`}
+              className={`group bg-white dark:bg-gray-900 border border-gray-200/80 dark:border-gray-700 rounded-xl p-4 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all cursor-pointer relative animate-fade-in-up ${contextMenu === workspace.id ? 'z-50' : ''}`}
               style={{ animationDelay: `${i * 25}ms`, animationFillMode: 'both' }}
               onClick={() => navigate(`/workspace/${workspace.bucket}`)}
             >
               <div className="flex items-start gap-3">
                 {/* Avatar */}
                 {workspace.client_logo ? (
-                  <img src={getApiUrl(workspace.client_logo)} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0" />
+                  <img src={getApiUrl(workspace.client_logo)} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100 dark:border-gray-700 flex-shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-lg bg-gray-900 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                  <div className="w-10 h-10 rounded-lg bg-gray-900 dark:bg-gray-700 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
                     {workspace.client_name.charAt(0).toUpperCase()}
                   </div>
                 )}
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-700 transition-colors">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
                     {workspace.client_name}
                   </h3>
-                  <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
+                  <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400 dark:text-gray-400">
                     <span className="flex items-center gap-1">
                       <Video className="h-3 w-3" /> {workspace.video_count} videos
                     </span>
@@ -249,7 +249,7 @@ export default function Dashboard() {
                   <div className="context-menu-container flex-shrink-0 relative" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setContextMenu(contextMenu === workspace.id ? null : workspace.id)}
-                      className="p-1 rounded-md text-gray-300 hover:text-gray-500 hover:bg-gray-50 transition-colors"
+                      className="p-1 rounded-md text-gray-300 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
@@ -257,25 +257,25 @@ export default function Dashboard() {
                     {contextMenu === workspace.id && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
-                        <div className="absolute right-0 top-8 w-52 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 py-1.5 animate-scale-in">
+                        <div className="absolute right-0 top-8 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 py-1.5 animate-scale-in">
                           <button
                             onClick={() => handleCreateInvitation(workspace.id)}
-                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                           >
                             <LinkIcon className="h-3.5 w-3.5 text-gray-400" /> Copy Invite Link
                           </button>
                           <button
                             onClick={() => { navigate(`/workspace/${workspace.bucket}`); setContextMenu(null); }}
-                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                           >
                             <ExternalLink className="h-3.5 w-3.5 text-gray-400" /> Open Workspace
                           </button>
                           {isAdmin && (
                             <>
-                              <div className="border-t border-gray-100 my-1" />
+                              <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
                               <button
                                 onClick={() => { setWorkspaceToDelete(workspace); setContextMenu(null); }}
-                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                               >
                                 <Trash2 className="h-3.5 w-3.5" /> Delete Workspace
                               </button>
@@ -290,7 +290,7 @@ export default function Dashboard() {
 
               {/* Hover arrow indicator */}
               <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                <ArrowUpRight className="h-3.5 w-3.5 text-gray-300" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
               </div>
             </div>
           ))}
@@ -300,9 +300,9 @@ export default function Dashboard() {
       {/* Search empty state */}
       {searchQuery && filteredWorkspaces.length === 0 && workspaces.length > 0 && (
         <div className="text-center py-8">
-          <Search className="h-8 w-8 mx-auto mb-2 text-gray-200" />
-          <p className="text-sm text-gray-500">No workspaces match "{searchQuery}"</p>
-          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 hover:text-blue-700 mt-1">Clear search</button>
+          <Search className="h-8 w-8 mx-auto mb-2 text-gray-200 dark:text-gray-700" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">No workspaces match "{searchQuery}"</p>
+          <button onClick={() => setSearchQuery('')} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mt-1">Clear search</button>
         </div>
       )}
 

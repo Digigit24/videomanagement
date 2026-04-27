@@ -185,12 +185,12 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
           <div>
-            <h2 className="text-xl font-semibold">Upload Media</h2>
+            <h2 className="text-xl font-semibold dark:text-gray-100">Upload Media</h2>
             {files.length > 0 && (
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 {files.length} file{files.length !== 1 ? 's' : ''} selected
                 {completedCount > 0 && ` · ${completedCount} completed`}
                 {errorCount > 0 && ` · ${errorCount} failed`}
@@ -200,7 +200,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
           <button
             onClick={handleClose}
             disabled={uploading}
-            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 disabled:opacity-50"
           >
             <X className="h-5 w-5" />
           </button>
@@ -214,16 +214,16 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
             onDrop={handleDrop}
             className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
               isDragging
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-300 hover:border-gray-400'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
             } ${uploading ? 'pointer-events-none opacity-50' : ''}`}
             onClick={() => !uploading && fileInputRef.current?.click()}
           >
-            <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400" />
-            <p className="text-gray-600 mb-1 text-sm">
+            <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400 dark:text-gray-500" />
+            <p className="text-gray-600 dark:text-gray-400 mb-1 text-sm">
               Drag and drop videos or photos here, or click to browse
             </p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
               Videos (MP4, MOV, WebM) or Photos (JPG, PNG, GIF, WebP) · Max 50GB
             </p>
             <input
@@ -244,12 +244,12 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                   key={`${item.file.name}-${index}`}
                   className={`flex items-start gap-3 p-3 rounded-lg border ${
                     item.status === 'completed'
-                      ? 'bg-green-50 border-green-200'
+                      ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
                       : item.status === 'error'
-                      ? 'bg-red-50 border-red-200'
+                      ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
                       : item.status === 'uploading'
-                      ? 'bg-blue-50 border-blue-200'
-                      : 'bg-gray-50 border-gray-200'
+                      ? 'bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800'
+                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
                   }`}
                 >
                   <FileVideo className={`h-6 w-6 flex-shrink-0 mt-0.5 ${
@@ -260,12 +260,12 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                   }`} />
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 text-sm truncate">{item.file.name}</p>
-                    <p className="text-xs text-gray-500">{formatFileSize(item.file.size)}</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{item.file.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatFileSize(item.file.size)}</p>
 
                     {item.status === 'uploading' && (
                       <div className="mt-1.5">
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
                           <div
                             className="h-full bg-blue-600 transition-all duration-300"
                             style={{ width: `${item.progress}%` }}
@@ -294,7 +294,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                   {!uploading && item.status !== 'uploading' && (
                     <button
                       onClick={() => removeFile(index)}
-                      className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                      className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 flex-shrink-0"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -309,7 +309,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
           )}
 
           {allCompleted && (
-            <div className="mt-4 flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-lg">
+            <div className="mt-4 flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 p-3 rounded-lg">
               <CheckCircle2 className="h-5 w-5" />
               <div>
                 <span className="text-sm font-medium">All files uploaded successfully!</span>
@@ -318,13 +318,13 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
             </div>
           )}
 
-          <div className="mt-4 text-sm text-gray-500">
+          <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
             <p className="font-medium mb-1">Uploading to:</p>
-            <p className="text-gray-600">{currentBucket}</p>
+            <p className="text-gray-600 dark:text-gray-400">{currentBucket}</p>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
+        <div className="flex items-center justify-end gap-3 p-6 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-950">
           <Button
             variant="outline"
             onClick={handleClose}

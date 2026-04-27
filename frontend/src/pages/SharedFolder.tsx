@@ -69,34 +69,34 @@ export default function SharedFolder() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center max-w-sm px-6">
-          <Lock className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-          <h1 className="text-lg font-semibold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-sm text-gray-500">{error}</p>
+          <Lock className="h-10 w-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Access Denied</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
             <FolderOpen className="h-4 w-4 text-blue-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold text-gray-900 truncate">{folder?.name}</h1>
+            <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{folder?.name}</h1>
             <p className="text-[11px] text-gray-400">{videos.length} item{videos.length !== 1 ? 's' : ''} shared with you</p>
           </div>
           {videos.length > 0 && (
@@ -117,15 +117,15 @@ export default function SharedFolder() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {videos.length === 0 ? (
           <div className="text-center py-16">
-            <FolderOpen className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">This folder is empty</p>
+            <FolderOpen className="h-10 w-10 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">This folder is empty</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {videos.map((video) => (
               <div
                 key={video.id}
-                className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-gray-200 hover:shadow-md transition-all group relative"
+                className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-md transition-all group relative"
               >
                 <button
                   type="button"
@@ -134,7 +134,7 @@ export default function SharedFolder() {
                 >
                   {/* Thumbnail */}
                   {video.thumbnail_key ? (
-                    <div className="aspect-video bg-gray-100 relative overflow-hidden">
+                    <div className="aspect-video bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
                       <img
                         src={`${API_BASE_URL}/public/video/${video.id}/thumbnail?token=${token}`}
                         alt={video.filename}
@@ -150,21 +150,21 @@ export default function SharedFolder() {
                       )}
                     </div>
                   ) : (
-                    <div className="aspect-video bg-gray-50 flex items-center justify-center">
+                    <div className="aspect-video bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
                       {(video.media_type || 'video') === 'photo' ? (
-                        <Image className="h-8 w-8 text-gray-300" />
+                        <Image className="h-8 w-8 text-gray-300 dark:text-gray-600" />
                       ) : (
-                        <Play className="h-8 w-8 text-gray-300" />
+                        <Play className="h-8 w-8 text-gray-300 dark:text-gray-600" />
                       )}
                     </div>
                   )}
                   <div className="p-3 pr-10">
-                    <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 transition-colors">
                       {video.filename}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">
                       {(video.media_type || 'video') === 'photo' ? 'Photo' : 'Video'}
-                      {' \u00b7 '}
+                      {' · '}
                       {new Date(video.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -175,7 +175,7 @@ export default function SharedFolder() {
                     e.stopPropagation();
                     downloadFile(video.id, video.filename);
                   }}
-                  className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/95 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-white/95 dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-700 transition-colors"
                   title={`Download ${video.filename}`}
                   aria-label={`Download ${video.filename}`}
                 >
@@ -187,9 +187,9 @@ export default function SharedFolder() {
         )}
 
         {/* Footer */}
-        <div className="text-center mt-8 pt-6 border-t border-gray-100">
+        <div className="text-center mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
           <p className="text-[11px] text-gray-400">
-            Shared via <span className="font-medium text-gray-500">Digitech Solutions</span>
+            Shared via <span className="font-medium text-gray-500 dark:text-gray-400">Digitech Solutions</span>
           </p>
         </div>
       </div>

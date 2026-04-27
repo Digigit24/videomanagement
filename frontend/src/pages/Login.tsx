@@ -37,7 +37,7 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>ReviewFlow</CardTitle>
@@ -46,12 +46,12 @@ export default function Login({ onLogin }: LoginProps) {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+              <div className="p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
                 {error}
               </div>
             )}
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-400">
                 Email
               </label>
               <Input
@@ -64,7 +64,7 @@ export default function Login({ onLogin }: LoginProps) {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-400">
                 Password
               </label>
               <Input
@@ -85,7 +85,7 @@ export default function Login({ onLogin }: LoginProps) {
               ) : 'Sign in'}
             </Button>
 
-            <p className="text-center text-xs text-gray-400">
+            <p className="text-center text-xs text-gray-400 dark:text-gray-500">
               Contact your admin to get an account
             </p>
           </form>

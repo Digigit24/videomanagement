@@ -38,7 +38,7 @@ export default function VersionHistory({ videoId, bucket, currentVersionId, onVe
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
         <History className="h-4 w-4" />
         <span>Version History</span>
@@ -48,16 +48,16 @@ export default function VersionHistory({ videoId, bucket, currentVersionId, onVe
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
       <button
         onClick={() => setExpanded(false)}
-        className="flex items-center justify-between w-full px-4 py-3 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
+        className="flex items-center justify-between w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
           <History className="h-4 w-4" />
           <span>Version History</span>
           {versions.length > 0 && (
-            <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+            <span className="text-xs text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
               {versions.length} version{versions.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -75,7 +75,7 @@ export default function VersionHistory({ videoId, bucket, currentVersionId, onVe
             No previous versions
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
             {versions.map((version) => {
               const isCurrent = version.id === currentVersionId;
 
@@ -85,8 +85,8 @@ export default function VersionHistory({ videoId, bucket, currentVersionId, onVe
                   onClick={() => !isCurrent && onVersionSelect(version.id)}
                   className={`w-full px-4 py-3 flex items-start gap-3 text-left transition-colors ${
                     isCurrent
-                      ? 'bg-blue-50 border-l-2 border-blue-500'
-                      : 'hover:bg-gray-50 border-l-2 border-transparent'
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-l-2 border-transparent'
                   }`}
                 >
                   <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -94,14 +94,14 @@ export default function VersionHistory({ videoId, bucket, currentVersionId, onVe
                       ? 'bg-blue-500 text-white'
                       : version.is_active_version
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                   }`}>
                     {isCurrent ? <Check className="h-3.5 w-3.5" /> : `v${version.version_number}`}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className={`text-sm font-medium truncate ${isCurrent ? 'text-blue-700' : 'text-gray-800'}`}>
+                      <p className={`text-sm font-medium truncate ${isCurrent ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-gray-200'}`}>
                         Version {version.version_number}
                       </p>
                       {isCurrent && (

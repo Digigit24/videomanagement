@@ -276,7 +276,7 @@ export default function CommentsSection({
         part.startsWith("@") ? (
           <span
             key={i}
-            className={`font-bold ${isOwn ? "text-blue-100" : "text-blue-600"}`}
+            className={`font-bold ${isOwn ? "text-blue-100" : "text-blue-600 dark:text-blue-400"}`}
           >
             {part}
           </span>
@@ -287,12 +287,12 @@ export default function CommentsSection({
   };
 
   return (
-    <div className={cn("flex flex-col h-full bg-white rounded-xl overflow-hidden", className)}>
+    <div className={cn("flex flex-col h-full bg-white dark:bg-gray-900 rounded-xl overflow-hidden", className)}>
       {/* Header - Thread Group Identity */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-950/50">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-blue-600" />
-          <h3 className="text-sm font-semibold text-gray-900">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             Thread <span className="text-gray-400 font-normal">({mergedTimeline.length})</span>
           </h3>
           {members.length > 0 && (
@@ -302,13 +302,13 @@ export default function CommentsSection({
           )}
         </div>
 
-        <div className="flex bg-gray-200/50 p-0.5 rounded-lg">
+        <div className="flex bg-gray-200/50 dark:bg-gray-700/50 p-0.5 rounded-lg">
           <button
             onClick={() => setIncludeTimestamp(true)}
             className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
               includeTimestamp
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
             FEEDBACK
@@ -317,8 +317,8 @@ export default function CommentsSection({
             onClick={() => setIncludeTimestamp(false)}
             className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all ${
               !includeTimestamp
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm"
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             }`}
           >
             CHAT
@@ -334,11 +334,11 @@ export default function CommentsSection({
       >
         {mergedTimeline.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
               <MessageCircle className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-sm font-medium text-gray-900">No messages yet</p>
-            <p className="text-xs text-gray-500 max-w-[160px] mx-auto mt-1">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">No messages yet</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[160px] mx-auto mt-1">
               Be the first to start the conversation!
             </p>
           </div>
@@ -353,10 +353,10 @@ export default function CommentsSection({
                   </div>
                   <div className="flex flex-col max-w-[85%] items-start">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-[10px] font-bold text-emerald-700">{review.reviewer_name}</span>
-                      <span className="text-[8px] px-1 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium border border-emerald-100">Client</span>
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">{review.reviewer_name}</span>
+                      <span className="text-[8px] px-1 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-100 dark:border-emerald-800">Client</span>
                     </div>
-                    <div className="relative px-3 py-2 rounded-2xl rounded-tl-none text-sm bg-emerald-50 text-gray-800 border border-emerald-100">
+                    <div className="relative px-3 py-2 rounded-2xl rounded-tl-none text-sm bg-emerald-50 dark:bg-emerald-900/20 text-gray-800 dark:text-gray-200 border border-emerald-100 dark:border-emerald-800">
                       <p className="whitespace-pre-wrap leading-relaxed text-[13px]">{review.content}</p>
                       <div className="text-[9px] mt-1 text-right text-emerald-400">
                         {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
@@ -390,11 +390,11 @@ export default function CommentsSection({
                   <div className={`relative px-3 py-2 rounded-2xl text-sm ${
                     isOwn
                       ? 'bg-blue-600 text-white rounded-tr-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-tl-sm'
                   }`}>
                     {comment.reply_to && (
                       <div className={`text-[10px] mb-1.5 pb-1.5 border-b ${
-                        isOwn ? 'border-blue-400/50 text-blue-100' : 'border-gray-200 text-gray-500'
+                        isOwn ? 'border-blue-400/50 text-blue-100' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                       }`}>
                         <Reply className="h-2.5 w-2.5 inline mr-1" />
                         Replying to <span className="font-bold">{comment.reply_user_name}</span>
@@ -411,7 +411,7 @@ export default function CommentsSection({
                         className={`mt-1.5 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono transition-colors ${
                           isOwn
                             ? 'bg-blue-500/50 hover:bg-blue-400 text-white border border-blue-400/50'
-                            : 'bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 shadow-sm'
+                            : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 shadow-sm'
                         }`}
                       >
                         <Clock className="h-2.5 w-2.5" />
@@ -428,7 +428,7 @@ export default function CommentsSection({
                           className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all border text-[11px] ${
                             isOwn
                               ? 'bg-blue-700/50 hover:bg-blue-700 text-blue-50 border-blue-400/50'
-                              : 'bg-white hover:bg-blue-50 text-blue-600 border-blue-100'
+                              : 'bg-white dark:bg-gray-900 hover:bg-blue-50 dark:hover:bg-gray-800 text-blue-600 border-blue-100 dark:border-gray-700'
                           }`}
                         >
                           <FileVideo className="h-3.5 w-3.5" />
@@ -449,11 +449,11 @@ export default function CommentsSection({
                   <div className={`mt-0.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${
                     isOwn ? 'flex-row-reverse' : ''
                   }`}>
-                    <button onClick={() => handleReply(comment)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all">
+                    <button onClick={() => handleReply(comment)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all">
                       <Reply className="h-3 w-3" />
                     </button>
                     {isOwn && (
-                      <button onClick={() => handleDelete(comment.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                      <button onClick={() => handleDelete(comment.id)} className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-all">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     )}
@@ -466,11 +466,11 @@ export default function CommentsSection({
       </div>
 
       {/* Input Area */}
-      <div className="p-3 bg-white border-t border-gray-100 z-10">
+      <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 z-10">
         {/* Mention Picker Dropdown */}
         {showMentions && filteredMembers.length > 0 && (
-          <div className="absolute bottom-full left-2 right-2 mb-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto z-50 ring-1 ring-black/5">
-            <div className="px-3 py-1.5 text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50 sticky top-0">
+          <div className="absolute bottom-full left-2 right-2 mb-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-40 overflow-y-auto z-50 ring-1 ring-black/5">
+            <div className="px-3 py-1.5 text-[9px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 sticky top-0">
               <AtSign className="h-2.5 w-2.5 inline mr-1" />
               Mention Member
             </div>
@@ -481,15 +481,15 @@ export default function CommentsSection({
                 onClick={() => handleMentionSelect(member)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${
                   idx === mentionCursorIndex
-                    ? "bg-blue-50"
-                    : "hover:bg-gray-50"
+                    ? "bg-blue-50 dark:bg-blue-900/30"
+                    : "hover:bg-gray-50 dark:hover:bg-gray-800"
                 }`}
               >
                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0">
                   {getInitials(member.name)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-gray-900 truncate">{member.name}</p>
+                  <p className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
                   <p className="text-[10px] text-gray-400 truncate">{member.email}</p>
                 </div>
               </button>
@@ -499,12 +499,12 @@ export default function CommentsSection({
 
         <form onSubmit={handleSubmit} className="space-y-2">
           {replyTo && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl">
+            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-1 h-5 bg-blue-400 rounded-full" />
                 <div className="min-w-0 text-xs">
                   <span className="font-bold text-blue-600 block text-[10px]">Reply to {replyTo.user_name}</span>
-                  <p className="text-gray-500 truncate text-[10px]">{replyTo.content}</p>
+                  <p className="text-gray-500 dark:text-gray-400 truncate text-[10px]">{replyTo.content}</p>
                 </div>
               </div>
               <button type="button" onClick={() => setReplyTo(null)} className="text-blue-400 hover:text-blue-600 p-1">
@@ -523,7 +523,7 @@ export default function CommentsSection({
             </div>
           )}
 
-          <div className="flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
+          <div className="flex items-end gap-2 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 focus-within:border-blue-400 transition-all">
             {includeTimestamp && (
               <div className="flex items-center gap-1 px-2 py-1 bg-gray-900 text-white rounded-lg text-[10px] font-mono shadow-sm flex-shrink-0">
                 <Clock className="h-3 w-3 text-blue-400" />
@@ -538,7 +538,7 @@ export default function CommentsSection({
               onFocus={() => onTypingStart?.()}
               placeholder={includeTimestamp ? "Add feedback at this timestamp..." : "Type a message... Use @ to mention"}
               disabled={submitting}
-              className="flex-1 min-h-[36px] max-h-28 py-2 px-2 text-sm bg-transparent outline-none resize-none placeholder:text-gray-400 scrollbar-hide"
+              className="flex-1 min-h-[36px] max-h-28 py-2 px-2 text-sm bg-transparent outline-none resize-none placeholder:text-gray-400 dark:text-gray-100 scrollbar-hide"
               rows={1}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
@@ -550,7 +550,7 @@ export default function CommentsSection({
 
             <div className="flex items-center gap-1 mb-0.5 flex-shrink-0">
               <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={(e) => { if (e.target.files?.[0]) setAttachment(e.target.files[0]); e.target.value = ''; }} />
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all" title="Attach video">
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white dark:hover:bg-gray-800 rounded-lg transition-all" title="Attach video">
                 <Paperclip className="h-4 w-4" />
               </button>
               <Button type="submit" disabled={submitting || (!newComment.trim() && !attachment)} className="h-8 w-8 rounded-xl shadow-lg shadow-blue-200 p-0">

@@ -16,13 +16,13 @@ interface VideoTableProps {
 }
 
 const statusColors: Record<VideoStatus, string> = {
-  'Draft': 'bg-slate-100 text-slate-700',
-  'Pending': 'bg-amber-100 text-amber-800',
-  'Under Review': 'bg-blue-100 text-blue-800',
-  'Approved': 'bg-emerald-100 text-emerald-800',
-  'Changes Needed': 'bg-orange-100 text-orange-800',
-  'Rejected': 'bg-red-100 text-red-800',
-  'Posted': 'bg-violet-100 text-violet-800',
+  'Draft': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  'Pending': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
+  'Under Review': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+  'Approved': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+  'Changes Needed': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+  'Rejected': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+  'Posted': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300',
 };
 
 function VideoThumbnail({ video }: { video: Video }) {
@@ -80,7 +80,7 @@ function VideoThumbnail({ video }: { video: Video }) {
 
   if (isPhoto) {
     return (
-      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-3">
+      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 mb-3">
         <img
           src={videoService.getPhotoUrl(video.id)}
           alt={video.filename}
@@ -193,8 +193,8 @@ function CopyLinkButton({ videoId }: { videoId: string }) {
       onClick={handleCopyLink}
       className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
         state === 'copied'
-          ? 'bg-emerald-100 text-emerald-700'
-          : 'bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200'
+          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
+          : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 active:bg-blue-200 dark:active:bg-blue-800'
       }`}
       title={state === 'copied' ? 'Link copied!' : 'Copy share link'}
     >
@@ -225,16 +225,16 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
     <div className="space-y-4">
       <div className="flex gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-300" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-300 dark:text-gray-500" />
           <Input
             placeholder="Search media..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-9 text-sm border-gray-200"
+            className="pl-10 h-9 text-sm border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[120px] sm:w-[160px] h-9 text-sm border-gray-200">
+          <SelectTrigger className="w-[120px] sm:w-[160px] h-9 text-sm border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
@@ -254,8 +254,8 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {filteredVideos.length === 0 ? (
           <div className="col-span-full text-center py-12">
-            <FileVideo className="h-10 w-10 mx-auto mb-2 text-gray-200" />
-            <p className="text-sm text-gray-400">No media found</p>
+            <FileVideo className="h-10 w-10 mx-auto mb-2 text-gray-200 dark:text-gray-600" />
+            <p className="text-sm text-gray-400 dark:text-gray-500">No media found</p>
           </div>
         ) : (
           filteredVideos.map((video) => (
@@ -268,8 +268,8 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                   navigate(`/workspace/${video.bucket}/video/${video.id}`);
                 }
               }}
-              className={`bg-white border rounded-xl overflow-hidden hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group ${
-                selectMode && selectedIds?.has(video.id) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
+              className={`bg-white dark:bg-gray-900 border rounded-xl overflow-hidden hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all cursor-pointer group ${
+                selectMode && selectedIds?.has(video.id) ? 'border-blue-400 ring-2 ring-blue-100 dark:ring-blue-900' : 'border-gray-200 dark:border-gray-700'
               }`}
             >
               <div className="p-3 relative">
@@ -287,8 +287,8 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                     selectMode
                       ? selectedIds?.has(video.id)
                         ? 'bg-blue-600 border-blue-600'
-                        : 'bg-white/80 border-gray-300 backdrop-blur-sm hover:border-blue-400'
-                      : 'bg-white/80 border-gray-300 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:border-blue-400'
+                        : 'bg-white/80 dark:bg-gray-800/80 border-gray-300 dark:border-gray-600 backdrop-blur-sm hover:border-blue-400'
+                      : 'bg-white/80 dark:bg-gray-800/80 border-gray-300 dark:border-gray-600 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:border-blue-400'
                   }`}
                 >
                   {selectedIds?.has(video.id) && (
@@ -300,25 +300,25 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                 <VideoThumbnail video={video} />
 
                 <div className="flex items-center gap-1.5 mb-1">
-                  <h3 className="text-sm font-medium text-gray-900 truncate flex-1">{video.filename}</h3>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1">{video.filename}</h3>
                   {(video.media_type || 'video') === 'photo' && (
-                    <span className="text-[9px] px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded font-bold uppercase flex-shrink-0">Photo</span>
+                    <span className="text-[9px] px-1.5 py-0.5 bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300 rounded font-bold uppercase flex-shrink-0">Photo</span>
                   )}
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                     <Calendar className="h-3 w-3" />
                     <span>{formatDate(video.created_at)}</span>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-gray-400">{formatBytes(video.size)}</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">{formatBytes(video.size)}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between mt-1.5">
                   {video.uploaded_by_name ? (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
                       <User className="h-3 w-3" />
                       <span>{video.uploaded_by_name}</span>
                     </div>
@@ -332,7 +332,7 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                         const url = videoService.getDownloadUrl(video.id, video.bucket);
                         window.open(url, '_blank');
                       }}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 active:bg-blue-200 transition-all"
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 active:bg-blue-200 dark:active:bg-blue-800 transition-all"
                       title="Download original file"
                     >
                       <Download className="h-3 w-3" />

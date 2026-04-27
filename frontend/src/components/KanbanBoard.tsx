@@ -27,13 +27,13 @@ interface KanbanBoardProps {
 const statusColumns: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected', 'Posted'];
 
 const statusColors: Record<VideoStatus, string> = {
-  'Draft': 'bg-slate-50 border-slate-200',
-  'Pending': 'bg-amber-50 border-amber-200',
-  'Under Review': 'bg-blue-50 border-blue-200',
-  'Approved': 'bg-emerald-50 border-emerald-200',
-  'Changes Needed': 'bg-orange-50 border-orange-200',
-  'Rejected': 'bg-red-50 border-red-200',
-  'Posted': 'bg-violet-50 border-violet-200',
+  'Draft': 'bg-slate-50 border-slate-200 dark:bg-slate-900/30 dark:border-slate-700',
+  'Pending': 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700',
+  'Under Review': 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700',
+  'Approved': 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-700',
+  'Changes Needed': 'bg-orange-50 border-orange-200 dark:bg-orange-900/30 dark:border-orange-700',
+  'Rejected': 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-700',
+  'Posted': 'bg-violet-50 border-violet-200 dark:bg-violet-900/30 dark:border-violet-700',
 };
 
 const statusDotColors: Record<VideoStatus, string> = {
@@ -137,11 +137,11 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
 
       <DragOverlay dropAnimation={null}>
         {activeVideo && (
-          <div className="bg-white border-2 border-blue-400 rounded-lg p-3 shadow-xl w-56 sm:w-64 rotate-[2deg]">
+          <div className="bg-white dark:bg-gray-900 border-2 border-blue-400 rounded-lg p-3 shadow-xl w-56 sm:w-64 rotate-[2deg]">
             <div className="flex items-start gap-2">
               <FileVideo className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <h3 className="text-sm font-medium line-clamp-2">{activeVideo.filename}</h3>
+                <h3 className="text-sm font-medium dark:text-gray-100 line-clamp-2">{activeVideo.filename}</h3>
                 <p className="text-[10px] text-gray-400 mt-0.5">{activeVideo.status}</p>
               </div>
             </div>
@@ -188,13 +188,13 @@ function StatusColumn({ status, videos, canDrag, activeVideoId, onVideoClick }: 
           : ''
       }`}
     >
-      <div className="px-3 py-2.5 border-b border-gray-200/50">
+      <div className="px-3 py-2.5 border-b border-gray-200/50 dark:border-gray-700/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${statusDotColors[status]}`} />
-            <span className="text-xs font-semibold text-gray-700">{status}</span>
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{status}</span>
           </div>
-          <span className="text-xs text-gray-400 bg-white/60 px-1.5 py-0.5 rounded">
+          <span className="text-xs text-gray-400 bg-white/60 dark:bg-gray-800/60 px-1.5 py-0.5 rounded">
             {videos.length}
           </span>
         </div>
@@ -211,7 +211,7 @@ function StatusColumn({ status, videos, canDrag, activeVideoId, onVideoClick }: 
         ))}
         {videos.length === 0 && (
           <div className={`text-center text-xs py-8 rounded-lg border-2 border-dashed transition-colors ${
-            isOver ? 'border-blue-300 text-blue-400 bg-blue-50/50' : 'border-transparent text-gray-300'
+            isOver ? 'border-blue-300 text-blue-400 bg-blue-50/50 dark:bg-blue-900/20' : 'border-transparent text-gray-300 dark:text-gray-600'
           }`}>
             {isOver ? 'Drop here' : canDrag ? 'Drag videos here' : 'No videos'}
           </div>
@@ -249,7 +249,6 @@ function KanbanThumbnail({ video }: { video: Video }) {
     );
   }
 
-  // Fallback: show video preview frame from stream
   const streamUrl = videoService.getStreamUrl(video.id, video.bucket);
   return (
     <div className="relative w-full aspect-video rounded overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 mb-2">
@@ -308,8 +307,8 @@ function KanbanCopyLinkButton({ videoId }: { videoId: string }) {
       onClick={handleCopyLink}
       className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
         state === 'copied'
-          ? 'bg-emerald-100 text-emerald-700'
-          : 'bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600'
+          ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400'
+          : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400'
       }`}
       title={state === 'copied' ? 'Link copied!' : 'Copy review link'}
     >
@@ -343,7 +342,7 @@ function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: Draggab
     return (
       <div
         ref={setNodeRef}
-        className="rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/30 h-16"
+        className="rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/30 dark:bg-blue-900/20 h-16"
       />
     );
   }
@@ -352,7 +351,7 @@ function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: Draggab
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-sm transition-shadow group ${
+      className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-sm transition-shadow group ${
         canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       }`}
     >
@@ -365,7 +364,7 @@ function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: Draggab
             listeners?.onPointerDown?.(e);
           }}
           onPointerMove={() => { didDrag.current = true; }}
-          className="flex items-center justify-center py-1.5 bg-gray-50/80 border-b border-gray-100 cursor-grab active:cursor-grabbing touch-none hover:bg-gray-100/80 transition-colors"
+          className="flex items-center justify-center py-1.5 bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700 cursor-grab active:cursor-grabbing touch-none hover:bg-gray-100/80 dark:hover:bg-gray-700/80 transition-colors"
         >
           <div className="flex items-center gap-1">
             <GripVertical className="h-3.5 w-3.5 text-gray-400" />
@@ -383,7 +382,7 @@ function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: Draggab
       >
         <KanbanThumbnail video={video} />
 
-        <h3 className="text-xs font-medium text-gray-900 line-clamp-2 mb-1.5">{video.filename}</h3>
+        <h3 className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mb-1.5">{video.filename}</h3>
 
         <div className="flex items-center justify-between text-[10px] text-gray-400">
           <span>{formatDate(video.created_at)}</span>
