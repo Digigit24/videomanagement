@@ -438,7 +438,9 @@ router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=86400");
     stream.pipe(res);
   } catch (error) {
-    res.status(404).json({ error: "Thumbnail not found" });
+    const isTimeout = error.message?.includes("Timeout") || error.name === "TimeoutError";
+    console.error(`[Thumbnail] ${req.params.id} failed: ${isTimeout ? "S3 timeout" : error.message}`);
+    res.status(isTimeout ? 504 : 404).json({ error: isTimeout ? "Storage temporarily unavailable" : "Thumbnail not found" });
   }
 });
 
@@ -662,7 +664,9 @@ router.get("/public/video/:videoId/thumbnail", validateShareAccess, async (req, 
     res.setHeader("Cache-Control", "public, max-age=86400");
     stream.pipe(res);
   } catch (error) {
-    res.status(404).json({ error: "Thumbnail not found" });
+    const isTimeout = error.message?.includes("Timeout") || error.name === "TimeoutError";
+    console.error(`[Thumbnail:public] ${req.params.videoId} failed: ${isTimeout ? "S3 timeout" : error.message}`);
+    res.status(isTimeout ? 504 : 404).json({ error: isTimeout ? "Storage temporarily unavailable" : "Thumbnail not found" });
   }
 });
 

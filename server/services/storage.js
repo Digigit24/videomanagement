@@ -9,9 +9,13 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
+<<<<<<< HEAD
 import { Agent as HttpsAgent } from "https";
 import { Agent as HttpAgent } from "http";
+=======
+>>>>>>> claude/code-review-analysis-GYQwd
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import https from "https";
 import fs from "fs";
 import { pipeline } from "stream/promises";
 
@@ -54,6 +58,11 @@ const keepAliveOpts = {
 
 function getS3Client() {
   if (!s3Client) {
+    const agent = new https.Agent({
+      maxSockets: 100,
+      keepAlive: true,
+      keepAliveMsecs: 10000,
+    });
     s3Client = new S3Client({
       region: "us-east-1",
       endpoint: process.env.ZATA_ENDPOINT,
@@ -63,13 +72,11 @@ function getS3Client() {
       },
       forcePathStyle: true,
       tls: true,
-      signatureVersion: "v4",
+      maxAttempts: 5,
       requestHandler: new NodeHttpHandler({
-        httpAgent: new HttpAgent(keepAliveOpts),
-        httpsAgent: new HttpsAgent(keepAliveOpts),
-        // Don't let a stalled S3 socket hang our request indefinitely.
-        connectionTimeout: 5000,
-        socketTimeout: 30000,
+        httpsAgent: agent,
+        connectionTimeout: 15000,
+        socketTimeout: 60000,
       }),
     });
   }
