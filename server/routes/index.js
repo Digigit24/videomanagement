@@ -17,6 +17,7 @@ import {
   getProcessingStatus,
   permanentDeleteVideo,
   reprocessVideo,
+  checkVideoHealth,
 } from "../controllers/video.js";
 import {
   listFolders,
@@ -279,6 +280,9 @@ router.get("/video/:id/processing", authenticate, getProcessingStatus);
 
 // Re-trigger HLS processing for a video whose original file exists in S3
 router.post("/video/:id/reprocess", authenticate, validateBucket, reprocessVideo);
+
+// Admin: check video health (verify S3 files exist for videos in workspace)
+router.get("/videos/health", authenticate, validateBucket, checkVideoHealth);
 
 // Video versioning
 router.get(

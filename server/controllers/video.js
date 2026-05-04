@@ -633,10 +633,26 @@ export async function streamVideo(req, res) {
 
     // Fallback: serve HLS master playlist (works natively in Safari)
     if (video.hls_path) {
-      const stream = await getVideoStream(req.bucket, video.hls_path);
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-      res.setHeader("Cache-Control", "no-cache");
-      return stream.pipe(res);
+      try {
+        const stream = await getVideoStream(req.bucket, video.hls_path);
+        res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+        res.setHeader("Cache-Control", "no-cache");
+        return stream.pipe(res);
+      } catch (_) {
+        console.warn(
+          `[Stream] HLS files missing in S3 for video ${id} (hls_path: ${video.hls_path}). Marking as not ready.`,
+        );
+        // HLS path exists in DB but files are missing from S3 — mark video as needing reprocessing
+        const { getPool } = await import("../db/index.js");
+        await getPool().query(
+          "UPDATE videos SET hls_ready = FALSE, processing_status = 'failed', processing_step = $1 WHERE id = $2",
+          ["error: HLS files missing from storage — please re-upload or reprocess", id],
+        );
+        return res.status(410).json({
+          error: "Video files are missing from storage. Please re-upload or reprocess this video.",
+          code: "FILES_MISSING",
+        });
+      }
     }
 
     return res.status(404).json({ error: "Video stream not available" });
@@ -677,7 +693,15 @@ export async function streamHLS(req, res) {
       console.error(
         `[HLS] S3 fetch failed: bucket=${bucket}, key=${objectKey}, error=${s3Error.message}`,
       );
-      return res.status(404).json({ error: "HLS file not found in storage" });
+      // If the master playlist itself is missing, mark the video as needing reprocessing
+      if (hlsFile === "master.m3u8" || hlsFile.endsWith("/master.m3u8")) {
+        const { getPool } = await import("../db/index.js");
+        await getPool().query(
+          "UPDATE videos SET hls_ready = FALSE, processing_status = 'failed', processing_step = $1 WHERE id = $2",
+          ["error: HLS files missing from storage — please re-upload or reprocess", id],
+        );
+      }
+      return res.status(404).json({ error: "HLS file not found in storage", code: "FILES_MISSING" });
     }
 
     // Playlists (.m3u8) must not be cached so replacements are picked up immediately.
@@ -820,5 +844,58 @@ export async function getProcessingStatus(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to get processing status" });
+  }
+}
+
+// Admin endpoint: check health of videos in a workspace (verify S3 files exist)
+export async function checkVideoHealth(req, res) {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Admin only" });
+    }
+
+    const { getPool } = await import("../db/index.js");
+    const { s3ObjectExists } = await import("../services/storage.js");
+    const pool = getPool();
+
+    const result = await pool.query(
+      `SELECT id, filename, object_key, hls_path, hls_ready, processing_status, media_type
+       FROM videos WHERE bucket = $1 AND media_type = 'video'
+       ORDER BY created_at DESC LIMIT 50`,
+      [req.bucket],
+    );
+
+    const health = [];
+    for (const video of result.rows) {
+      const entry = {
+        id: video.id,
+        filename: video.filename,
+        hls_ready: video.hls_ready,
+        processing_status: video.processing_status,
+        original_exists: false,
+        hls_exists: false,
+      };
+
+      if (video.object_key) {
+        entry.original_exists = await s3ObjectExists(req.bucket, video.object_key);
+      }
+      if (video.hls_path) {
+        entry.hls_exists = await s3ObjectExists(req.bucket, video.hls_path);
+      }
+
+      health.push(entry);
+    }
+
+    const summary = {
+      total: health.length,
+      healthy: health.filter((v) => v.hls_exists || v.original_exists).length,
+      missing_all: health.filter((v) => !v.hls_exists && !v.original_exists).length,
+      missing_hls: health.filter((v) => v.hls_ready && !v.hls_exists).length,
+    };
+
+    res.json({ summary, videos: health });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to check video health" });
   }
 }
