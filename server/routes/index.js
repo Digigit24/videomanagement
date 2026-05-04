@@ -17,6 +17,7 @@ import {
   getProcessingStatus,
   permanentDeleteVideo,
   reprocessVideo,
+  checkVideoHealth,
 } from "../controllers/video.js";
 import {
   listFolders,
@@ -29,7 +30,6 @@ import {
   getFolderFileIds,
   createFolderShareToken,
   getSharedFolder,
-  downloadSharedFolder,
 } from "../controllers/folder.js";
 import {
   getUserPermissions,
@@ -99,12 +99,6 @@ import {
   getPresignedUploadUrl,
   confirmUpload,
 } from "../controllers/presignedUpload.js";
-import {
-  listNotes,
-  addNote,
-  editNote,
-  removeNote,
-} from "../controllers/calendarNote.js";
 import { getWorkspaceAnalytics } from "../services/workspaceStats.js";
 import {
   authenticate,
@@ -151,33 +145,18 @@ router.get("/notifications/count", authenticate, getNotificationCount);
 router.patch("/notification/:id/seen", authenticate, markNotificationSeen);
 router.patch("/notifications/seen-all", authenticate, markAllNotificationsSeen);
 
-// Logo streaming (client images on workspace cards)
+// Logo streaming (client images on workspace cards) - redirect to presigned URL
 router.get("/logo/:bucket/*", async (req, res) => {
   const { bucket } = req.params;
   const filename = req.params[0];
-  const { getObjectStream, MAIN_BUCKET } =
+  const { generatePresignedGetUrl, MAIN_BUCKET } =
     await import("../services/storage.js");
 
   try {
     const objectKey = `logos/${bucket}/${filename}`;
-    const stream = await getObjectStream(MAIN_BUCKET || bucket, objectKey);
-
-    // Set content type based on file extension
-    const ext = filename.toLowerCase().split(".").pop();
-    const contentTypes = {
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      webp: "image/webp",
-      svg: "image/svg+xml",
-    };
-    if (contentTypes[ext]) {
-      res.setHeader("Content-Type", contentTypes[ext]);
-    }
+    const signedUrl = await generatePresignedGetUrl(MAIN_BUCKET || bucket, objectKey, 86400);
     res.setHeader("Cache-Control", "public, max-age=86400");
-
-    stream.pipe(res);
+    res.redirect(302, signedUrl);
   } catch (error) {
     res.status(404).json({ error: "Logo not found" });
   }
@@ -241,7 +220,7 @@ router.post("/upload/presign", authenticate, validateBucket, getPresignedUploadU
 router.post("/upload/confirm", authenticate, validateBucket, confirmUpload);
 router.get("/stream/:id", authenticateStream, validateBucket, streamVideo);
 
-// Photo streaming endpoint - serves original image file
+// Photo streaming endpoint - redirect to presigned S3 URL
 router.get("/photo/:id", authenticateStream, async (req, res) => {
   const { id } = req.params;
   try {
@@ -253,27 +232,11 @@ router.get("/photo/:id", authenticateStream, async (req, res) => {
     if (!result.rows[0] || result.rows[0].media_type !== "photo") {
       return res.status(404).json({ error: "Photo not found" });
     }
-    const { getObjectStream, resolveBucket: resolve } =
-      await import("../services/storage.js");
-    const { bucket } = resolve(result.rows[0].bucket);
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
     const objectKey = result.rows[0].object_key;
-    const stream = await getObjectStream(bucket, objectKey);
-
-    const ext =
-      result.rows[0].filename.split(".").pop()?.toLowerCase() || "jpg";
-    const contentTypes = {
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      webp: "image/webp",
-      bmp: "image/bmp",
-      tiff: "image/tiff",
-      svg: "image/svg+xml",
-    };
-    res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    stream.pipe(res);
+    const signedUrl = await generatePresignedGetUrl(result.rows[0].bucket, objectKey, 3600);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.redirect(302, signedUrl);
   } catch (error) {
     res.status(404).json({ error: "Photo not found" });
   }
@@ -286,6 +249,9 @@ router.get("/video/:id/processing", authenticate, getProcessingStatus);
 
 // Re-trigger HLS processing for a video whose original file exists in S3
 router.post("/video/:id/reprocess", authenticate, validateBucket, reprocessVideo);
+
+// Admin: check video health (verify S3 files exist for videos in workspace)
+router.get("/videos/health", authenticate, validateBucket, checkVideoHealth);
 
 // Video versioning
 router.get(
@@ -320,12 +286,6 @@ router.delete(
   refreshUserRole,
   permanentDeleteVideo,
 );
-
-// Calendar notes
-router.get("/calendar-notes", authenticate, listNotes);
-router.post("/calendar-notes", authenticate, addNote);
-router.patch("/calendar-notes/:id", authenticate, editNote);
-router.delete("/calendar-notes/:id", authenticate, removeNote);
 
 // Folders
 router.get("/workspace/:workspaceId/folders", authenticate, requireWorkspaceMember, listFolders);
@@ -374,69 +334,46 @@ router.get("/role-defaults/:role", authenticate, getRoleDefaults);
 // HLS streaming (master playlist, variant playlists, segments)
 router.get("/hls/:id/*", authenticateStream, validateBucket, streamHLS);
 
-// Attachment streaming
+// Attachment streaming - redirect to presigned S3 URL
 router.get(
   "/stream-attachment/:bucket/*",
   authenticateStream,
   async (req, res) => {
     const { bucket } = req.params;
     const objectKey = req.params[0];
-    const { getObjectStream, resolveBucket, MAIN_BUCKET } =
+    const { generatePresignedGetUrl, resolveBucket } =
       await import("../services/storage.js");
 
     try {
-      const { bucket: physicalBucket, prefix } = resolveBucket(bucket);
+      const { prefix } = resolveBucket(bucket);
       const finalKey = prefix ? `${prefix}${objectKey}` : objectKey;
-
-      // We use MAIN_BUCKET (or physicalBucket) here because we've already manually applied the prefix
-      // and we want to bypass getObjectStream's internal prefix logic for this specific relative key case
-      const stream = await getObjectStream(physicalBucket, finalKey);
-      stream.pipe(res);
+      const signedUrl = await generatePresignedGetUrl(bucket, finalKey, 3600);
+      res.redirect(302, signedUrl);
     } catch (error) {
       res.status(404).json({ error: "Attachment not found" });
     }
   },
 );
 
-// Video thumbnail / Photo display
+// Video thumbnail / Photo display - redirect to presigned S3 URL
 router.get("/video/:id/thumbnail", authenticateStream, async (req, res) => {
   try {
     const pool = (await import("../db/index.js")).getPool();
     const result = await pool.query(
-      "SELECT thumbnail_key, bucket, media_type, filename FROM videos WHERE id = $1",
+      "SELECT thumbnail_key, bucket FROM videos WHERE id = $1",
       [req.params.id],
     );
     if (!result.rows[0]?.thumbnail_key) {
       return res.status(404).json({ error: "Thumbnail not available" });
     }
-    const { getObjectStream, resolveBucket: resolve } =
-      await import("../services/storage.js");
-    const { bucket } = resolve(result.rows[0].bucket);
-    const stream = await getObjectStream(bucket, result.rows[0].thumbnail_key);
-
-    // Detect content type based on file extension for photos
-    const isPhoto = result.rows[0].media_type === "photo";
-    if (isPhoto) {
-      const ext = (result.rows[0].filename || result.rows[0].thumbnail_key)
-        .split(".")
-        .pop()
-        ?.toLowerCase();
-      const contentTypes = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        bmp: "image/bmp",
-        tiff: "image/tiff",
-        svg: "image/svg+xml",
-      };
-      res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
-    } else {
-      res.setHeader("Content-Type", "image/jpeg");
-    }
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    stream.pipe(res);
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
+    const signedUrl = await generatePresignedGetUrl(
+      result.rows[0].bucket,
+      result.rows[0].thumbnail_key,
+      3600,
+    );
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.redirect(302, signedUrl);
   } catch (error) {
     const isTimeout = error.message?.includes("Timeout") || error.name === "TimeoutError";
     console.error(`[Thumbnail] ${req.params.id} failed: ${isTimeout ? "S3 timeout" : error.message}`);
@@ -474,94 +411,17 @@ router.post("/workspace/:workspaceId/messages", authenticate, requireWorkspaceMe
 router.get("/workspace/:workspaceId/messages", authenticate, requireWorkspaceMember, getMessages);
 router.delete("/chat-message/:messageId", authenticate, removeMessage);
 
-// Chat attachment streaming
+// Chat attachment streaming - redirect to presigned S3 URL
 router.get(
   "/stream-chat-attachment/*",
   authenticateStream,
   async (req, res) => {
     const objectKey = req.params[0];
-    const { getObjectStream } = await import("../services/storage.js");
-    const { MAIN_BUCKET } = await import("../services/storage.js");
+    const { generatePresignedGetUrl, MAIN_BUCKET } = await import("../services/storage.js");
 
     try {
-      const stream = await getObjectStream(MAIN_BUCKET, objectKey);
-
-      // Set content type based on file extension
-      const ext = objectKey.toLowerCase().split(".").pop();
-      const contentTypes = {
-        // Images
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        svg: "image/svg+xml",
-        bmp: "image/bmp",
-        ico: "image/x-icon",
-        tiff: "image/tiff",
-        tif: "image/tiff",
-        // Videos
-        mp4: "video/mp4",
-        mov: "video/quicktime",
-        webm: "video/webm",
-        avi: "video/x-msvideo",
-        mkv: "video/x-matroska",
-        flv: "video/x-flv",
-        wmv: "video/x-ms-wmv",
-        m4v: "video/mp4",
-        "3gp": "video/3gpp",
-        // Audio
-        mp3: "audio/mpeg",
-        wav: "audio/wav",
-        ogg: "audio/ogg",
-        aac: "audio/aac",
-        flac: "audio/flac",
-        m4a: "audio/mp4",
-        // Documents
-        pdf: "application/pdf",
-        doc: "application/msword",
-        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        xls: "application/vnd.ms-excel",
-        xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ppt: "application/vnd.ms-powerpoint",
-        pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        txt: "text/plain",
-        csv: "text/csv",
-        rtf: "application/rtf",
-        // Archives
-        zip: "application/zip",
-        rar: "application/x-rar-compressed",
-        "7z": "application/x-7z-compressed",
-        tar: "application/x-tar",
-        gz: "application/gzip",
-        // Other
-        json: "application/json",
-        xml: "application/xml",
-      };
-      if (contentTypes[ext]) {
-        res.setHeader("Content-Type", contentTypes[ext]);
-      } else {
-        res.setHeader("Content-Type", "application/octet-stream");
-      }
-
-      // Set download header for non-viewable types
-      const inlineTypes = [
-        "image/",
-        "video/",
-        "audio/",
-        "text/",
-        "application/pdf",
-      ];
-      const ct = contentTypes[ext] || "";
-      if (!inlineTypes.some((t) => ct.startsWith(t))) {
-        const filename = objectKey.split("/").pop();
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${filename}"`,
-        );
-      }
-
-      stream.pipe(res);
+      const signedUrl = await generatePresignedGetUrl(MAIN_BUCKET, objectKey, 3600);
+      res.redirect(302, signedUrl);
     } catch (error) {
       res.status(404).json({ error: "Attachment not found" });
     }
@@ -636,33 +496,20 @@ router.get("/public/video/:videoId/thumbnail", validateShareAccess, async (req, 
   try {
     const pool = (await import("../db/index.js")).getPool();
     const result = await pool.query(
-      "SELECT thumbnail_key, bucket, media_type, filename FROM videos WHERE id = $1",
+      "SELECT thumbnail_key, bucket FROM videos WHERE id = $1",
       [req.params.videoId],
     );
     if (!result.rows[0]?.thumbnail_key) {
       return res.status(404).json({ error: "Thumbnail not available" });
     }
-    const { getObjectStream, resolveBucket: resolve } =
-      await import("../services/storage.js");
-    const { bucket } = resolve(result.rows[0].bucket);
-    const stream = await getObjectStream(bucket, result.rows[0].thumbnail_key);
-
-    const isPhoto = result.rows[0].media_type === "photo";
-    if (isPhoto) {
-      const ext = (result.rows[0].filename || result.rows[0].thumbnail_key)
-        .split(".")
-        .pop()
-        ?.toLowerCase();
-      const contentTypes = {
-        jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-        gif: "image/gif", webp: "image/webp",
-      };
-      res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
-    } else {
-      res.setHeader("Content-Type", "image/jpeg");
-    }
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    stream.pipe(res);
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
+    const signedUrl = await generatePresignedGetUrl(
+      result.rows[0].bucket,
+      result.rows[0].thumbnail_key,
+      3600,
+    );
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.redirect(302, signedUrl);
   } catch (error) {
     const isTimeout = error.message?.includes("Timeout") || error.name === "TimeoutError";
     console.error(`[Thumbnail:public] ${req.params.videoId} failed: ${isTimeout ? "S3 timeout" : error.message}`);
@@ -679,7 +526,7 @@ router.post("/public/video/:videoId/reviews", validateShareAccess, addReview);
 router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const hlsPath = req.params[0];
-  const { getObjectStream } = await import("../services/storage.js");
+  const { generatePresignedGetUrl, getPresignedContent } = await import("../services/storage.js");
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
 
   try {
@@ -688,97 +535,53 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
       return res.status(404).json({ error: "HLS not available" });
     }
 
-    // Derive the HLS directory from the DB's hls_path (includes workspace prefix)
     const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
     const objectKey = `${hlsDir}/${hlsPath}`;
 
-    let stream;
+    // For .ts segments: fetch via presigned URL and pipe to client
+    if (!hlsPath.endsWith(".m3u8")) {
+      try {
+        const response = await getPresignedContent(video.bucket, objectKey);
+        const { Readable } = await import("stream");
+        res.setHeader("Content-Type", "video/MP2T");
+        res.setHeader("Cache-Control", "public, max-age=300");
+        res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+        Readable.fromWeb(response.body).pipe(res);
+        return;
+      } catch (err) {
+        console.error(`[Public HLS] Presign failed: bucket=${video.bucket}, key=${objectKey}, error=${err.message}`);
+        return res.status(404).json({ error: "HLS segment not found" });
+      }
+    }
+
+    // For .m3u8 playlists: fetch via presigned URL, rewrite segment refs
+    let playlistContent;
     try {
-      stream = await getObjectStream(video.bucket, objectKey);
-    } catch (s3Error) {
-      console.error(
-        `[Public HLS] S3 fetch failed: bucket=${video.bucket}, key=${objectKey}, error=${s3Error.message}`,
-      );
+      const response = await getPresignedContent(video.bucket, objectKey);
+      playlistContent = await response.text();
+    } catch (fetchErr) {
+      console.error(`[Public HLS] Presigned fetch failed: bucket=${video.bucket}, key=${objectKey}, error=${fetchErr.message}`);
       return res.status(404).json({ error: "HLS file not found in storage" });
     }
 
-    if (hlsPath.endsWith(".m3u8")) {
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-
-      // Rewrite relative URIs to include share token so sub-requests authenticate
-      const shareToken = req.query.token || req.headers["x-share-token"];
-
-      // Read playlist with timeout/abort guards (matches authenticated streamHLS)
-      let playlist;
-      try {
-        playlist = await new Promise((resolve, reject) => {
-          const chunks = [];
-          let settled = false;
-          const settle = (fn, val) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            req.removeListener("close", onAbort);
-            try { stream.destroy?.(); } catch {}
-            fn(val);
-          };
-          const timer = setTimeout(
-            () => settle(reject, new Error("S3 read timeout after 15s")),
-            15000,
-          );
-          const onAbort = () => settle(reject, new Error("Client aborted"));
-          req.on("close", onAbort);
-          stream.on("data", (chunk) => chunks.push(chunk));
-          stream.on("error", (err) => settle(reject, err));
-          stream.on("end", () =>
-            settle(resolve, Buffer.concat(chunks).toString("utf8")),
-          );
-        });
-      } catch (readErr) {
-        console.error(`[Public HLS] Failed to read m3u8: ${readErr.message}`);
-        if (!res.headersSent) {
-          return res.status(502).json({ error: "Failed to read playlist" });
-        }
-        return res.end();
-      }
-
-      if (!playlist) {
-        if (!res.headersSent) {
-          return res.status(502).json({ error: "Empty playlist" });
-        }
-        return res.end();
-      }
-
-      if (shareToken) {
-        playlist = playlist
-          .split(/\r?\n/)
-          .map((line) => {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith("#")) return line;
-            if (/^https?:\/\//i.test(trimmed)) return line;
-            const sep = trimmed.includes("?") ? "&" : "?";
-            return `${trimmed}${sep}token=${encodeURIComponent(shareToken)}`;
-          })
-          .join("\n");
-      }
-      return res.send(playlist);
-    } else {
-      if (hlsPath.endsWith(".ts")) {
-        res.setHeader("Content-Type", "video/mp2t");
-      }
-      res.setHeader("Cache-Control", "public, max-age=3600");
-      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-      const onAbort = () => { try { stream.destroy?.(); } catch {} };
-      req.on("close", onAbort);
-      stream.on("error", (err) => {
-        console.error(`[Public HLS] Stream error: ${err.message}`);
-        if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
-        else res.end();
-      });
-      stream.pipe(res);
+    const shareToken = req.query.token || req.headers["x-share-token"];
+    if (shareToken) {
+      playlistContent = playlistContent
+        .split("\n")
+        .map((line) => {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith("#")) {
+            return `${trimmed}?token=${encodeURIComponent(shareToken)}`;
+          }
+          return line;
+        })
+        .join("\n");
     }
+
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.send(playlistContent);
   } catch (error) {
     console.error(`[Public HLS] Error: ${error.message}`);
     res.status(404).json({ error: "Stream not found" });
@@ -790,9 +593,7 @@ router.get("/public/hls/:id/*", validateShareAccess, async (req, res) => {
 router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
   const { id } = req.params;
   const { getVideoPublicInfo } = await import("../services/videoReview.js");
-  const { getVideoStream, resolveBucket: resolve } =
-    await import("../services/storage.js");
-  const pool = (await import("../db/index.js")).getPool();
+  const { generatePresignedGetUrl } = await import("../services/storage.js");
 
   try {
     const video = await getVideoPublicInfo(id);
@@ -800,166 +601,28 @@ router.get("/public/stream/:id", validateShareAccess, async (req, res) => {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    const videoRow = await pool.query("SELECT * FROM videos WHERE id = $1", [
-      id,
-    ]);
+    const pool = (await import("../db/index.js")).getPool();
+    const videoRow = await pool.query(
+      "SELECT object_key, hls_path, hls_ready, bucket FROM videos WHERE id = $1",
+      [id],
+    );
     if (!videoRow.rows[0]) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    const range = req.headers.range;
-
-    // If HLS is ready, we can use it as primary, but usually /stream refers to the original
-    // For this app, let's allow streaming the original if it exists, otherwise HLS playlist
-    const useHLS = videoRow.rows[0].hls_ready && videoRow.rows[0].hls_path;
-    const objectKey = useHLS
-      ? videoRow.rows[0].hls_path
-      : videoRow.rows[0].object_key;
+    const row = videoRow.rows[0];
+    const objectKey = row.object_key || (row.hls_ready && row.hls_path) || null;
 
     if (!objectKey) {
       return res.status(404).json({ error: "Video content not found" });
     }
 
-    // getVideoStream resolves the bucket internally, pass the workspace bucket
-    const stream = await getVideoStream(video.bucket, objectKey, range);
-
-    if (useHLS) {
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-      res.setHeader("Cache-Control", "public, max-age=3600");
-    } else {
-      res.setHeader("Accept-Ranges", "bytes");
-      if (stream.headers) {
-        if (stream.headers["content-type"])
-          res.setHeader("Content-Type", stream.headers["content-type"]);
-        if (stream.headers["content-length"])
-          res.setHeader("Content-Length", stream.headers["content-length"]);
-        if (stream.headers["content-range"])
-          res.setHeader("Content-Range", stream.headers["content-range"]);
-      }
-      if (!res.getHeader("Content-Length") && videoRow.rows[0].size) {
-        res.setHeader("Content-Length", videoRow.rows[0].size);
-      }
-      if (!res.getHeader("Content-Type")) {
-        res.setHeader("Content-Type", "video/mp4");
-      }
-    }
-
-    if (stream.statusCode) {
-      res.writeHead(stream.statusCode, res.getHeaders());
-      stream.body.pipe(res);
-    } else {
-      stream.pipe(res);
-    }
+    const signedUrl = await generatePresignedGetUrl(row.bucket, objectKey, 3600);
+    res.redirect(302, signedUrl);
   } catch (error) {
     res.status(500).json({ error: "Stream failed" });
   }
 });
-
-// Public: download a single shared video/photo (requires valid share token)
-router.get("/public/video/:videoId/download", validateShareAccess, async (req, res) => {
-  try {
-    const pool = (await import("../db/index.js")).getPool();
-    const { getObjectStream, getVideoStream } = await import("../services/storage.js");
-
-    const videoResult = await pool.query(
-      `SELECT id, filename, object_key, bucket, media_type, hls_ready, hls_path
-       FROM videos WHERE id = $1 AND is_active_version = TRUE`,
-      [req.params.videoId],
-    );
-    const video = videoResult.rows[0];
-    if (!video) {
-      return res.status(404).json({ error: "File not found" });
-    }
-
-    // Photos: serve original directly
-    if (video.media_type === "photo") {
-      try {
-        const stream = await getObjectStream(video.bucket, video.object_key);
-        const ext = (video.filename || "").split(".").pop()?.toLowerCase() || "jpg";
-        const contentTypes = {
-          jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-          gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
-          tiff: "image/tiff", svg: "image/svg+xml",
-        };
-        res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${video.filename}"`,
-        );
-        stream.pipe(res);
-      } catch (streamErr) {
-        console.error("[PublicDownload] Photo stream error:", streamErr);
-        return res.status(404).json({ error: "Photo file not found" });
-      }
-      return;
-    }
-
-    // Videos: try original first, fall back to HLS playlist
-    try {
-      const stream = await getVideoStream(video.bucket, video.object_key);
-      const ext = (video.filename || "").split(".").pop()?.toLowerCase();
-      const mimeTypes = {
-        mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
-        avi: "video/x-msvideo", mkv: "video/x-matroska",
-        wmv: "video/x-ms-wmv", flv: "video/x-flv",
-      };
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${video.filename}"`,
-      );
-      res.setHeader(
-        "Content-Type",
-        mimeTypes[ext] || "application/octet-stream",
-      );
-      stream.pipe(res);
-      return;
-    } catch (originalErr) {
-      console.warn(
-        `[PublicDownload] Original not found for ${video.id}, falling back to HLS.`,
-      );
-    }
-
-    if (!video.hls_ready || !video.hls_path) {
-      return res.status(202).json({
-        error: "Video is still being processed. Please try again later.",
-      });
-    }
-
-    const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
-    const qualityOrder = ["4k", "1080p", "720p", "360p"];
-    let bestPlaylistKey = null;
-    for (const q of qualityOrder) {
-      try {
-        const testKey = `${hlsDir}/${q}/playlist.m3u8`;
-        await getVideoStream(video.bucket, testKey);
-        bestPlaylistKey = testKey;
-        break;
-      } catch (_) {
-        // try next
-      }
-    }
-
-    if (!bestPlaylistKey) {
-      return res.status(404).json({ error: "No downloadable quality found" });
-    }
-
-    const stream = await getVideoStream(video.bucket, bestPlaylistKey);
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${(video.filename || "video").replace(/\.[^/.]+$/, "")}.m3u8"`,
-    );
-    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-    stream.pipe(res);
-  } catch (error) {
-    console.error("[PublicDownload] Error:", error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to download" });
-    }
-  }
-});
-
-// Public: download the entire shared folder as a zip (token is in URL path)
-router.get("/public/folder/:token/download", downloadSharedFolder);
 
 // Share token management (authenticated)
 router.post("/video/:videoId/share-token", authenticate, generateShareToken);

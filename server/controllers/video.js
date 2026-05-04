@@ -14,7 +14,7 @@ import {
   deleteVideo,
   permanentlyDeleteVideo,
 } from "../services/video.js";
-import { getVideoStream, getVideoStreamWithMeta, resolveBucket } from "../services/storage.js";
+import { resolveBucket, generatePresignedGetUrl, getPresignedContent } from "../services/storage.js";
 import { uploadFileToS3 } from "../services/upload.js";
 import processingQueue from "../services/processingQueue.js";
 import { apiError } from "../utils/logger.js";
@@ -360,101 +360,38 @@ export async function downloadVideo(req, res) {
       return res.status(404).json({ error: "Video not found" });
     }
 
-    // Photos: serve the original file directly from S3
-    if (video.media_type === "photo") {
-      const { getObjectStream } = await import("../services/storage.js");
-      const objectKey = video.object_key;
-
+    // Redirect to presigned S3 URL for the original file
+    if (video.object_key) {
       try {
-        // getObjectStream already calls resolveBucket internally
-        const stream = await getObjectStream(video.bucket, objectKey);
-        const ext = video.filename.split(".").pop()?.toLowerCase() || "jpg";
-        const contentTypes = {
-          jpg: "image/jpeg",
-          jpeg: "image/jpeg",
-          png: "image/png",
-          gif: "image/gif",
-          webp: "image/webp",
-          bmp: "image/bmp",
-          tiff: "image/tiff",
-          svg: "image/svg+xml",
-        };
-        res.setHeader("Content-Type", contentTypes[ext] || "image/jpeg");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${video.filename}"`,
+        const signedUrl = await generatePresignedGetUrl(req.bucket, video.object_key, 3600);
+        return res.redirect(302, signedUrl);
+      } catch (_) {
+        console.warn(
+          `[Download] Original file not accessible for video ${video.id} (key: ${video.object_key}), trying HLS.`,
         );
-        stream.pipe(res);
-      } catch (streamErr) {
-        console.error("Photo download error:", streamErr);
-        return res.status(404).json({ error: "Photo file not found" });
       }
-      return;
     }
 
-    // Video download: Try to serve original file first (Highest Quality / MP4)
-    try {
-      const stream = await getVideoStream(req.bucket, video.object_key);
-      const ext = video.filename.split(".").pop().toLowerCase();
-      const mimeTypes = {
-        mp4: "video/mp4",
-        mov: "video/quicktime",
-        webm: "video/webm",
-        avi: "video/x-msvideo",
-        mkv: "video/x-matroska",
-        wmv: "video/x-ms-wmv",
-        flv: "video/x-flv",
-      };
-
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${video.filename}"`,
-      );
-      res.setHeader(
-        "Content-Type",
-        mimeTypes[ext] || "application/octet-stream",
-      );
-      stream.pipe(res);
-      return;
-    } catch (originalErr) {
-      console.warn(
-        `[Download] Original file not found for video ${video.id} (key: ${video.object_key}), falling back to HLS.`,
-      );
-    }
-
-    // Videos: serve HLS (fallback)
+    // Fallback: redirect to highest quality HLS playlist
     if (!video.hls_ready || !video.hls_path) {
       return res.status(202).json({
         error: "Video is still being processed. Please try again later.",
       });
     }
 
+    const { s3ObjectExists } = await import("../services/storage.js");
     const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
     const qualityOrder = ["4k", "1080p", "720p", "360p"];
-    let bestPlaylistKey = null;
 
     for (const q of qualityOrder) {
-      try {
-        const testKey = `${hlsDir}/${q}/playlist.m3u8`;
-        await getVideoStream(req.bucket, testKey);
-        bestPlaylistKey = testKey;
-        break;
-      } catch (_) {
-        // Quality not available, try next
+      const testKey = `${hlsDir}/${q}/playlist.m3u8`;
+      if (await s3ObjectExists(req.bucket, testKey)) {
+        const signedUrl = await generatePresignedGetUrl(req.bucket, testKey, 3600);
+        return res.redirect(302, signedUrl);
       }
     }
 
-    if (!bestPlaylistKey) {
-      return res.status(404).json({ error: "No downloadable quality found" });
-    }
-
-    const stream = await getVideoStream(req.bucket, bestPlaylistKey);
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${video.filename.replace(/\.[^/.]+$/, "")}.m3u8"`,
-    );
-    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-    stream.pipe(res);
+    return res.status(404).json({ error: "No downloadable quality found" });
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to download" });
@@ -488,16 +425,16 @@ export async function downloadVideosZip(req, res) {
       }
     });
 
-    const { getObjectStream, resolveBucket: resolve } = await import("../services/storage.js");
+    const { Readable } = await import("stream");
 
     for (const id of ids) {
       try {
         const video = await getVideoById(id, req.bucket);
-        if (!video) continue;
+        if (!video || !video.object_key) continue;
 
-        const { bucket: physicalBucket } = resolve(video.bucket);
-        const stream = await getObjectStream(physicalBucket, video.object_key);
-        archive.append(stream, { name: video.filename });
+        const response = await getPresignedContent(video.bucket, video.object_key);
+        const nodeStream = Readable.fromWeb(response.body);
+        archive.append(nodeStream, { name: video.filename });
       } catch (err) {
         console.warn(`Skipping video ${id} in zip: ${err.message}`);
       }
@@ -590,53 +527,35 @@ export async function streamVideo(req, res) {
       });
     }
 
-    // Try to serve original file directly as an inline video stream.
-    // This allows the <video> element (fallback path in HLSPlayer) to play natively in Chrome.
+    // Redirect to a presigned S3 URL for the original file
     if (video.object_key) {
       try {
-        const ext = (video.filename || "").split(".").pop()?.toLowerCase() || "mp4";
-        const mimeTypes = {
-          mp4: "video/mp4",
-          mov: "video/quicktime",
-          webm: "video/webm",
-          avi: "video/x-msvideo",
-          mkv: "video/x-matroska",
-          flv: "video/x-flv",
-          wmv: "video/x-ms-wmv",
-          "3gp": "video/3gpp",
-        };
-        const mimeType = mimeTypes[ext] || "video/mp4";
-
-        // Forward Range header to S3 for proper video seeking and duration detection.
-        const rangeHeader = req.headers.range || null;
-        const { stream, contentLength, contentRange } = await getVideoStreamWithMeta(
-          req.bucket,
-          video.object_key,
-          rangeHeader,
-        );
-
-        res.setHeader("Content-Type", mimeType);
-        res.setHeader("Accept-Ranges", "bytes");
-        res.setHeader("Cache-Control", "no-cache");
-        if (contentLength != null) {
-          res.setHeader("Content-Length", contentLength);
-        }
-        if (rangeHeader) {
-          if (contentRange) res.setHeader("Content-Range", contentRange);
-          res.status(206);
-        }
-        return stream.pipe(res);
+        const signedUrl = await generatePresignedGetUrl(req.bucket, video.object_key, 3600);
+        return res.redirect(302, signedUrl);
       } catch (_) {
-        // Original file not in S3 — fall through to HLS
+        // Original file not accessible — fall through to HLS
       }
     }
 
-    // Fallback: serve HLS master playlist (works natively in Safari)
+    // Fallback: redirect to presigned URL for HLS master playlist
     if (video.hls_path) {
-      const stream = await getVideoStream(req.bucket, video.hls_path);
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-      res.setHeader("Cache-Control", "no-cache");
-      return stream.pipe(res);
+      try {
+        const signedUrl = await generatePresignedGetUrl(req.bucket, video.hls_path, 3600);
+        return res.redirect(302, signedUrl);
+      } catch (_) {
+        console.warn(
+          `[Stream] HLS files not accessible for video ${id} (hls_path: ${video.hls_path}). Marking as not ready.`,
+        );
+        const { getPool } = await import("../db/index.js");
+        await getPool().query(
+          "UPDATE videos SET hls_ready = FALSE, processing_status = 'failed', processing_step = $1 WHERE id = $2",
+          ["error: HLS files missing from storage — please re-upload or reprocess", id],
+        );
+        return res.status(410).json({
+          error: "Video files are missing from storage. Please re-upload or reprocess this video.",
+          code: "FILES_MISSING",
+        });
+      }
     }
 
     return res.status(404).json({ error: "Video stream not available" });
@@ -647,69 +566,7 @@ export async function streamVideo(req, res) {
 }
 
 // Stream HLS files (master playlist, variant playlists, segments)
-// Self-healing: if the DB says hls_ready=true but S3 no longer has the file,
-// we automatically flip hls_ready back to false and re-queue the video for
-// transcoding (if the original still exists). The frontend's existing
-// "processing..." UI then takes over until the new HLS is ready.
-async function autoHealMissingHLS(video, bucket) {
-  try {
-    const { s3ObjectExists, resolveBucket: resolve } = await import(
-      "../services/storage.js"
-    );
-    const { getPool } = await import("../db/index.js");
-
-    // Locate the original file. Try the permanent canonical location first,
-    // then fall back to whatever object_key the DB still holds.
-    const { prefix } = resolve(bucket);
-    const safeName = (video.filename || "").replace(/[^a-zA-Z0-9._-]/g, "_");
-    const permanentKey = `${prefix}videos/${video.id}/${safeName}`;
-
-    let sourceKey = null;
-    if (safeName && (await s3ObjectExists(bucket, permanentKey))) {
-      sourceKey = permanentKey;
-    } else if (
-      video.object_key &&
-      (await s3ObjectExists(bucket, video.object_key))
-    ) {
-      sourceKey = video.object_key;
-    }
-
-    // Flip hls_ready back to false so the frontend stops trying to play a
-    // phantom stream and switches to the polling/processing UI instead.
-    await getPool().query(
-      "UPDATE videos SET hls_ready = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-      [video.id],
-    );
-
-    if (!sourceKey) {
-      console.warn(
-        `[HLS] Auto-heal: original also missing for ${video.id}, cannot reprocess`,
-      );
-      return { requeued: false };
-    }
-
-    // Avoid double-enqueue if something else already has it in flight.
-    const info = await processingQueue.getProcessingInfo(video.id);
-    if (
-      info &&
-      (info.processing_status === "queued" ||
-        info.processing_status === "processing")
-    ) {
-      console.log(`[HLS] Auto-heal: ${video.id} already in queue, skipping`);
-      return { requeued: true };
-    }
-
-    await processingQueue.enqueue(video.id, sourceKey, bucket, safeName);
-    console.log(
-      `[HLS] Auto-heal: re-queued ${video.id} for reprocessing from ${sourceKey}`,
-    );
-    return { requeued: true };
-  } catch (err) {
-    console.error(`[HLS] Auto-heal failed for ${video?.id}: ${err.message}`);
-    return { requeued: false };
-  }
-}
-
+// Uses presigned S3 URLs to bypass AccessDenied on private objects.
 export async function streamHLS(req, res) {
   try {
     const { id } = req.params;
@@ -728,133 +585,67 @@ export async function streamHLS(req, res) {
 
     const hlsDir = video.hls_path.replace(/\/master\.m3u8$/, "");
     const objectKey = `${hlsDir}/${hlsFile}`;
+    const effectiveBucket = bucket || video.bucket;
 
-    const contentType = hlsFile.endsWith(".m3u8")
-      ? "application/vnd.apple.mpegurl"
-      : "video/MP2T";
-
-    let stream;
-    try {
-      stream = await getVideoStream(bucket || video.bucket, objectKey);
-    } catch (s3Error) {
-      console.error(
-        `[HLS] S3 fetch failed: bucket=${bucket}, key=${objectKey}, error=${s3Error.message}`,
-      );
-      // Self-heal only when fetching the master playlist — the first thing
-      // the player asks for. If the master is gone, every variant/segment
-      // is gone too, so there is no point letting the player chase them.
-      let healed = { requeued: false };
-      if (hlsFile === "master.m3u8") {
-        healed = await autoHealMissingHLS(video, bucket || video.bucket);
-      }
-      return res.status(404).json({
-        error: healed.requeued
-          ? "HLS files were missing; video has been re-queued for processing"
-          : "HLS file not found in storage",
-        rebuilding: healed.requeued,
-      });
-    }
-
-    // Playlists (.m3u8) must not be cached so replacements are picked up immediately.
-    // Segments (.ts) use a moderate cache since their paths change on re-encode.
-    const cacheControl = hlsFile.endsWith(".m3u8")
-      ? "no-cache"
-      : "public, max-age=300";
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", cacheControl);
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-
-    // For .m3u8 playlists, rewrite relative URIs to include token & bucket
-    // so that hls.js sub-requests don't lose authentication/bucket context.
-    if (hlsFile.endsWith(".m3u8")) {
-      const token = req.query.token || req.headers.authorization?.substring(7);
-
-      // Read the entire playlist using an awaited promise so we never silently
-      // hang if the underlying stream is in an unexpected mode. Hard timeout
-      // guards against S3 stalls. Aborts on client disconnect.
-      let playlist;
+    // For .ts segments: fetch via presigned URL and pipe to client
+    if (!hlsFile.endsWith(".m3u8")) {
       try {
-        playlist = await new Promise((resolve, reject) => {
-          const chunks = [];
-          let settled = false;
-          const settle = (fn, val) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            req.removeListener("close", onAbort);
-            try { stream.destroy?.(); } catch {}
-            fn(val);
-          };
-          const timer = setTimeout(
-            () => settle(reject, new Error("S3 read timeout after 15s")),
-            15000,
-          );
-          const onAbort = () => settle(reject, new Error("Client aborted"));
-          req.on("close", onAbort);
-          stream.on("data", (chunk) => chunks.push(chunk));
-          stream.on("error", (err) => settle(reject, err));
-          stream.on("end", () =>
-            settle(resolve, Buffer.concat(chunks).toString("utf8")),
-          );
-        });
-      } catch (readErr) {
-        console.error(
-          `[HLS] Failed to read m3u8 ${objectKey}: ${readErr.message}`,
-        );
-        if (!res.headersSent) {
-          return res
-            .status(502)
-            .json({ error: "Failed to read HLS playlist from storage" });
-        }
-        return res.end();
+        const response = await getPresignedContent(effectiveBucket, objectKey);
+        res.setHeader("Content-Type", "video/MP2T");
+        res.setHeader("Cache-Control", "public, max-age=300");
+        res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+        const { Readable } = await import("stream");
+        Readable.fromWeb(response.body).pipe(res);
+        return;
+      } catch (err) {
+        console.error(`[HLS] Presign failed for segment: bucket=${effectiveBucket}, key=${objectKey}, error=${err.message}`);
+        return res.status(404).json({ error: "HLS segment not found" });
       }
-
-      if (!playlist || playlist.length === 0) {
-        console.error(`[HLS] Empty playlist body for ${objectKey}`);
-        if (!res.headersSent) {
-          return res.status(502).json({ error: "Empty HLS playlist" });
-        }
-        return res.end();
-      }
-
-      // Rewrite relative URIs (lines not starting with #) to include query params.
-      // Skip absolute URLs (http/https) — we never want to leak our auth token to
-      // a third-party origin. Preserve any existing query string on the line by
-      // joining with `&` instead of `?` when needed.
-      const params = new URLSearchParams();
-      if (bucket) params.set("bucket", bucket);
-      if (token) params.set("token", token);
-      const qs = params.toString();
-      if (qs) {
-        playlist = playlist
-          .split(/\r?\n/)
-          .map((line) => {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith("#")) return line;
-            // Don't rewrite absolute URLs — they go to a different origin
-            if (/^https?:\/\//i.test(trimmed)) return line;
-            const sep = trimmed.includes("?") ? "&" : "?";
-            return `${trimmed}${sep}${qs}`;
-          })
-          .join("\n");
-      }
-      return res.send(playlist);
-    } else {
-      // For .ts segments, pipe directly. Destroy the upstream stream if the
-      // client disconnects so we don't leak S3 connections.
-      const onAbort = () => { try { stream.destroy?.(); } catch {} };
-      req.on("close", onAbort);
-      stream.on("error", (err) => {
-        console.error(`[HLS] Stream error for ${objectKey}: ${err.message}`);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Failed to stream HLS segment" });
-        } else {
-          res.end();
-        }
-      });
-      stream.pipe(res);
-      return;
     }
+
+    // For .m3u8 playlists: fetch content via presigned URL, rewrite segment refs
+    let playlistContent;
+    try {
+      const response = await getPresignedContent(effectiveBucket, objectKey);
+      playlistContent = await response.text();
+    } catch (fetchErr) {
+      console.error(
+        `[HLS] Presigned fetch failed: bucket=${effectiveBucket}, key=${objectKey}, error=${fetchErr.message}`,
+      );
+      if (hlsFile === "master.m3u8" || hlsFile.endsWith("/master.m3u8")) {
+        const { getPool } = await import("../db/index.js");
+        await getPool().query(
+          "UPDATE videos SET hls_ready = FALSE, processing_status = 'failed', processing_step = $1 WHERE id = $2",
+          ["error: HLS files missing from storage — please re-upload or reprocess", id],
+        );
+      }
+      return res.status(404).json({ error: "HLS file not found in storage", code: "FILES_MISSING" });
+    }
+
+    // Rewrite relative URIs in playlist to include auth token & bucket
+    const token = req.query.token || req.headers.authorization?.substring(7);
+    const params = new URLSearchParams();
+    if (bucket) params.set("bucket", bucket);
+    if (token) params.set("token", token);
+    const qs = params.toString();
+
+    if (qs) {
+      playlistContent = playlistContent
+        .split("\n")
+        .map((line) => {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith("#")) {
+            return `${trimmed}?${qs}`;
+          }
+          return line;
+        })
+        .join("\n");
+    }
+
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.send(playlistContent);
   } catch (error) {
     apiError(req, error);
     if (!res.headersSent) {
@@ -939,5 +730,58 @@ export async function getProcessingStatus(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to get processing status" });
+  }
+}
+
+// Admin endpoint: check health of videos in a workspace (verify S3 files exist)
+export async function checkVideoHealth(req, res) {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Admin only" });
+    }
+
+    const { getPool } = await import("../db/index.js");
+    const { s3ObjectExists } = await import("../services/storage.js");
+    const pool = getPool();
+
+    const result = await pool.query(
+      `SELECT id, filename, object_key, hls_path, hls_ready, processing_status, media_type
+       FROM videos WHERE bucket = $1 AND media_type = 'video'
+       ORDER BY created_at DESC LIMIT 50`,
+      [req.bucket],
+    );
+
+    const health = [];
+    for (const video of result.rows) {
+      const entry = {
+        id: video.id,
+        filename: video.filename,
+        hls_ready: video.hls_ready,
+        processing_status: video.processing_status,
+        original_exists: false,
+        hls_exists: false,
+      };
+
+      if (video.object_key) {
+        entry.original_exists = await s3ObjectExists(req.bucket, video.object_key);
+      }
+      if (video.hls_path) {
+        entry.hls_exists = await s3ObjectExists(req.bucket, video.hls_path);
+      }
+
+      health.push(entry);
+    }
+
+    const summary = {
+      total: health.length,
+      healthy: health.filter((v) => v.hls_exists || v.original_exists).length,
+      missing_all: health.filter((v) => !v.hls_exists && !v.original_exists).length,
+      missing_hls: health.filter((v) => v.hls_ready && !v.hls_exists).length,
+    };
+
+    res.json({ summary, videos: health });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to check video health" });
   }
 }

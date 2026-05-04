@@ -334,8 +334,9 @@ export default function HLSPlayer({
 
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-950 z-10">
-          <div className="text-center">
-            <p className="text-red-400 text-sm mb-3">Failed to load video</p>
+          <div className="text-center px-6">
+            <p className="text-red-400 text-sm mb-1">Failed to load video</p>
+            <p className="text-gray-500 text-xs mb-3">Video files may be missing from storage. Try re-uploading or contact an admin.</p>
             <button onClick={() => { setError(false); playerRef.current?.src({ src: fallbackUrl, type: 'video/mp4' }); }} className="text-sm text-gray-300 hover:text-white px-4 py-1.5 border border-gray-600 rounded-md transition-colors">Try Again</button>
           </div>
         </div>
