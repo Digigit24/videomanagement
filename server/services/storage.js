@@ -297,4 +297,22 @@ export async function generatePresignedUploadUrl(bucketName, objectKey, contentT
   return { url, bucket, key: finalKey };
 }
 
+export async function generatePresignedGetUrl(bucketName, objectKey, expiresIn = 3600) {
+  const { bucket } = resolveBucket(bucketName);
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: objectKey,
+  });
+  return getSignedUrl(getS3Client(), command, { expiresIn });
+}
+
+export async function getPresignedContent(bucketName, objectKey) {
+  const url = await generatePresignedGetUrl(bucketName, objectKey, 300);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`S3 presigned GET failed: ${response.status} ${response.statusText}`);
+  }
+  return response;
+}
+
 export { getS3Client };

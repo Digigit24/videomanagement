@@ -235,11 +235,10 @@ export async function getAvatarStream(req, res) {
       return res.status(500).json({ error: "No storage buckets configured" });
     }
 
-    const { getVideoStream } = await import("../services/storage.js");
-    const stream = await getVideoStream(buckets[0], objectKey);
-
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
+    const signedUrl = await generatePresignedGetUrl(buckets[0], objectKey, 86400);
     res.setHeader("Cache-Control", "public, max-age=86400");
-    stream.pipe(res);
+    res.redirect(302, signedUrl);
   } catch (error) {
     res.status(404).json({ error: "Avatar not found" });
   }
