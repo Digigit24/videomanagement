@@ -225,9 +225,9 @@ export default function WorkspaceChat({ workspaceId, className }: WorkspaceChatP
     loadMembers();
   }, [workspaceId]);
 
-  // Short polling: every 4 seconds, fetch only new messages since last known
+  // Polling: every 30 seconds, fetch only new messages since last known
   useEffect(() => {
-    const interval = setInterval(pollNewMessages, 4000);
+    const interval = setInterval(pollNewMessages, 30000);
     return () => clearInterval(interval);
   }, [workspaceId]);
 

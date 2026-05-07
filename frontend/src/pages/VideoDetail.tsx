@@ -288,7 +288,7 @@ export default function VideoDetail() {
           setVideo(videoData);
         }
       } catch {}
-    }, 3000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [id, currentBucket, video?.hls_ready]);
 
