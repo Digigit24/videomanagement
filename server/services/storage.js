@@ -297,11 +297,17 @@ export async function generatePresignedUploadUrl(bucketName, objectKey, contentT
   return { url, bucket, key: finalKey };
 }
 
-export async function generatePresignedGetUrl(bucketName, objectKey, expiresIn = 3600) {
+export async function generatePresignedGetUrl(bucketName, objectKey, expiresIn = 3600, options = {}) {
   const { bucket } = resolveBucket(bucketName);
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: objectKey,
+    ...(options.responseContentType
+      ? { ResponseContentType: options.responseContentType }
+      : {}),
+    ...(options.responseContentDisposition
+      ? { ResponseContentDisposition: options.responseContentDisposition }
+      : {}),
   });
   return getSignedUrl(getS3Client(), command, { expiresIn });
 }

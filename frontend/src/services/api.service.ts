@@ -345,6 +345,25 @@ export const videoService = {
     return data.video as Video;
   },
 
+  uploadZipToFolder: async (
+    file: File,
+    folderId: string,
+    onProgress?: (progressEvent: { loaded: number; total?: number }) => void,
+  ) => {
+    const formData = new FormData();
+    formData.append("zip", file);
+
+    const { data } = await api.post(`/folder/${folderId}/upload-zip`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: onProgress,
+    });
+    return data as {
+      message: string;
+      uploaded: Video[];
+      skipped: { filename: string; reason: string }[];
+    };
+  },
+
   pollVideos: async (bucket: string) => {
     const { data } = await api.get("/videos/poll", { params: { bucket } });
     return data as {

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, X, FileVideo, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, FileVideo, FileArchive, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { videoService } from '@/services/api.service';
 import { useBucket } from '@/hooks/useBucket';
@@ -15,6 +15,7 @@ interface UploadModalProps {
 
 interface FileUploadItem {
   file: File;
+  kind: 'media' | 'zip';
   status: 'pending' | 'uploading' | 'completed' | 'error';
   progress: number;
   error?: string;
@@ -30,11 +31,30 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
 
   if (!isOpen) return null;
 
+  const isZipFile = (file: File) => (
+    file.type === 'application/zip' ||
+    file.type === 'application/x-zip-compressed' ||
+    file.name.toLowerCase().endsWith('.zip')
+  );
+
   const validateFile = (file: File): string | null => {
+    if (isZipFile(file)) {
+      if (replaceVideoId) {
+        return `${file.name}: Zip upload is not available when replacing a version.`;
+      }
+      if (!folderId) {
+        return `${file.name}: Zip upload is only available inside a folder.`;
+      }
+      if (file.size > 10 * 1024 * 1024 * 1024) {
+        return `${file.name}: Zip file size must be 10GB or smaller.`;
+      }
+      return null;
+    }
+
     const validVideoTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska', 'video/x-flv', 'video/x-ms-wmv', 'video/3gpp'];
     const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/svg+xml'];
     if (!validVideoTypes.includes(file.type) && !validImageTypes.includes(file.type)) {
-      return `${file.name}: Invalid file type. Supported: MP4, MOV, WebM, AVI, MKV, JPG, PNG, GIF, WebP, BMP, TIFF, SVG`;
+      return `${file.name}: Invalid file type. Supported: MP4, MOV, WebM, AVI, MKV, JPG, PNG, GIF, WebP, BMP, TIFF, SVG${folderId ? ', ZIP' : ''}`;
     }
     if (file.size > 50 * 1024 * 1024 * 1024) {
       return `${file.name}: File size must be less than 50GB.`;
@@ -62,7 +82,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
         // Avoid duplicate filenames
         const alreadyAdded = files.some(f => f.file.name === file.name && f.file.size === file.size);
         if (!alreadyAdded) {
-          validItems.push({ file, status: 'pending', progress: 0 });
+          validItems.push({ file, kind: isZipFile(file) ? 'zip' : 'media', status: 'pending', progress: 0 });
         }
       }
     }
@@ -76,6 +96,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
         ...prev,
         ...errors.map(err => ({
           file: new File([], 'invalid'),
+          kind: 'media' as const,
           status: 'error' as const,
           progress: 0,
           error: err,
@@ -131,7 +152,15 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
       ));
 
       try {
-        const video = await videoService.uploadVideo(files[i].file, currentBucket, (progressEvent) => {
+        const item = files[i];
+        const uploaded = item.kind === 'zip' && folderId
+          ? await videoService.uploadZipToFolder(item.file, folderId, (progressEvent) => {
+              const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+              setFiles(prev => prev.map((f, idx) =>
+                idx === i ? { ...f, progress: percent } : f
+              ));
+            })
+          : await videoService.uploadVideo(item.file, currentBucket, (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
           setFiles(prev => prev.map((f, idx) =>
             idx === i ? { ...f, progress: percent } : f
@@ -141,7 +170,9 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
         setFiles(prev => prev.map((f, idx) =>
           idx === i ? { ...f, status: 'completed', progress: 100 } : f
         ));
-        lastUploadedVideo = video;
+        lastUploadedVideo = item.kind === 'zip'
+          ? { uploaded: (uploaded as { uploaded?: unknown[] }).uploaded || [] }
+          : uploaded;
       } catch (err: unknown) {
         hasError = true;
         setFiles(prev => prev.map((f, idx) =>
@@ -221,15 +252,15 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
           >
             <Upload className="h-10 w-10 mx-auto mb-3 text-gray-400 dark:text-gray-500" />
             <p className="text-gray-600 dark:text-gray-400 mb-1 text-sm">
-              Drag and drop videos or photos here, or click to browse
+              Drag and drop videos, photos{folderId ? ', or zip files' : ''} here, or click to browse
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              Videos (MP4, MOV, WebM) or Photos (JPG, PNG, GIF, WebP) · Max 50GB
+              Videos (MP4, MOV, WebM) or Photos (JPG, PNG, GIF, WebP){folderId ? ' or ZIP' : ''} · Max 50GB media{folderId ? ' / 10GB zip' : ''}
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,image/svg+xml"
+              accept={`video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,image/svg+xml${folderId ? ',application/zip,.zip' : ''}`}
               onChange={handleFileInputChange}
               className="hidden"
               multiple
@@ -252,12 +283,21 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                       : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
                   }`}
                 >
-                  <FileVideo className={`h-6 w-6 flex-shrink-0 mt-0.5 ${
-                    item.status === 'completed' ? 'text-green-600' :
-                    item.status === 'error' ? 'text-red-500' :
-                    item.status === 'uploading' ? 'text-blue-600' :
-                    'text-gray-500'
-                  }`} />
+                  {item.kind === 'zip' ? (
+                    <FileArchive className={`h-6 w-6 flex-shrink-0 mt-0.5 ${
+                      item.status === 'completed' ? 'text-green-600' :
+                      item.status === 'error' ? 'text-red-500' :
+                      item.status === 'uploading' ? 'text-blue-600' :
+                      'text-gray-500'
+                    }`} />
+                  ) : (
+                    <FileVideo className={`h-6 w-6 flex-shrink-0 mt-0.5 ${
+                      item.status === 'completed' ? 'text-green-600' :
+                      item.status === 'error' ? 'text-red-500' :
+                      item.status === 'uploading' ? 'text-blue-600' :
+                      'text-gray-500'
+                    }`} />
+                  )}
 
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{item.file.name}</p>
@@ -278,7 +318,9 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete, bucket,
                     {item.status === 'completed' && (
                       <div className="flex items-center gap-1 mt-1">
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        <span className="text-xs text-green-600 font-medium">Uploaded successfully</span>
+                        <span className="text-xs text-green-600 font-medium">
+                          {item.kind === 'zip' ? 'Zip extracted and uploaded successfully' : 'Uploaded successfully'}
+                        </span>
                       </div>
                     )}
 

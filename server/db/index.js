@@ -146,6 +146,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV15);
 
+    // Run v16 migrations (external video folder manifest API metadata)
+    const migrationsV16 = fs.readFileSync(
+      path.join(__dirname, "migrations_v16.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV16);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

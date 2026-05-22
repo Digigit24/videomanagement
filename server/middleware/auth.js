@@ -1,6 +1,50 @@
 import jwt from "jsonwebtoken";
 import { getPool } from "../db/index.js";
 
+function parseVideoApiTokens() {
+  const raw = process.env.VIDEO_API_TOKENS || process.env.VIDEO_API_TOKEN || "";
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [token, scopesRaw] = entry.split(":");
+      const scopes = scopesRaw
+        ? scopesRaw.split("+").map((scope) => scope.trim()).filter(Boolean)
+        : ["read", "write"];
+      return { token, scopes };
+    })
+    .filter((entry) => entry.token);
+}
+
+export function authenticateVideoApi(requiredScope = "read") {
+  return (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+
+    const token = authHeader.substring(7);
+    const match = parseVideoApiTokens().find((entry) => entry.token === token);
+
+    if (!match) {
+      return res.status(401).json({ error: "Invalid API token" });
+    }
+
+    const scopes = new Set(match.scopes);
+    if (!scopes.has("all") && !scopes.has(requiredScope)) {
+      return res.status(403).json({ error: `API token requires ${requiredScope} scope` });
+    }
+
+    req.videoApiToken = {
+      scopes: match.scopes,
+      canWrite: scopes.has("all") || scopes.has("write"),
+    };
+    next();
+  };
+}
+
 export function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;

@@ -28,6 +28,7 @@ import {
   downloadBulk,
   downloadBulkFolders,
   getFolderFileIds,
+  uploadZipToFolder,
   createFolderShareToken,
   getSharedFolder,
 } from "../controllers/folder.js";
@@ -102,6 +103,7 @@ import {
 import { getWorkspaceAnalytics } from "../services/workspaceStats.js";
 import {
   authenticate,
+  authenticateVideoApi,
   authenticateStream,
   optionalAuthenticate,
   validateBucket,
@@ -109,6 +111,14 @@ import {
   requireFolderAccess,
   refreshUserRole,
 } from "../middleware/auth.js";
+import {
+  downloadExternalVideo,
+  getSignedExternalVideoUrl,
+  getVideoFolderManifest,
+  listVideoAnalysisRuns,
+  patchApprovedVideoMetadata,
+  postVideoAnalysisRun,
+} from "../controllers/videoManifestApi.js";
 import rateLimit from "express-rate-limit";
 
 const router = express.Router();
@@ -125,6 +135,38 @@ const loginLimiter = rateLimit({
 // Auth
 router.post("/login", loginLimiter, login);
 router.post("/register", optionalAuthenticate, register);
+
+// External video folder manifest API
+router.get(
+  "/video-folders/:folderId/manifest",
+  authenticateVideoApi("read"),
+  getVideoFolderManifest,
+);
+router.get(
+  "/videos/:videoId/download",
+  authenticateVideoApi("read"),
+  downloadExternalVideo,
+);
+router.post(
+  "/videos/:videoId/signed-url",
+  authenticateVideoApi("read"),
+  getSignedExternalVideoUrl,
+);
+router.post(
+  "/videos/:videoId/analysis-runs",
+  authenticateVideoApi("write"),
+  postVideoAnalysisRun,
+);
+router.get(
+  "/videos/:videoId/analysis-runs",
+  authenticateVideoApi("read"),
+  listVideoAnalysisRuns,
+);
+router.patch(
+  "/videos/:videoId/approved-metadata",
+  authenticateVideoApi("write"),
+  patchApprovedVideoMetadata,
+);
 
 // Users
 router.get("/users", authenticate, getUsers);
@@ -295,6 +337,7 @@ router.delete("/folder/:id", authenticate, requireFolderAccess, removeFolder);
 
 // Folder & bulk download (zip)
 router.get("/folder/:folderId/download", authenticateStream, requireFolderAccess, downloadFolder);
+router.post("/folder/:folderId/upload-zip", authenticate, requireFolderAccess, uploadZipToFolder);
 router.post("/download/bulk", authenticate, downloadBulk);
 router.post("/download/bulk-folders", authenticate, downloadBulkFolders);
 router.post("/download/folder-files", authenticate, getFolderFileIds);

@@ -12,10 +12,11 @@ import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare, Share2 } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare, Share2, Copy, Link, Braces, KeyRound } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function WorkspaceVideos() {
   const { bucket } = useParams<{ bucket: string }>();
@@ -330,6 +331,58 @@ export default function WorkspaceVideos() {
       setToast({ message: 'Failed to generate share link', type: 'error' });
     } finally {
       setFolderShareLoading(false);
+    }
+  };
+
+  const getFolderManifestUrl = (folderId: string) => (
+    `${API_BASE_URL}/video-folders/${folderId}/manifest`
+  );
+
+  const getFolderApiContext = (folder: Folder) => ({
+    type: "video_folder",
+    provider: "inhouse-video-api",
+    folder_id: folder.id,
+    folder_name: folder.name,
+    manifest_url: getFolderManifestUrl(folder.id),
+    base_url: API_BASE_URL,
+    auth_env: "BROLL_API_TOKEN",
+  });
+
+  const copyFolderText = async (
+    folder: Folder,
+    mode: 'manifest_url' | 'snippet' | 'folder_id' | 'context',
+    e: React.MouseEvent,
+  ) => {
+    e.stopPropagation();
+    const context = getFolderApiContext(folder);
+    let text = "";
+    let label = "";
+
+    if (mode === 'manifest_url') {
+      text = context.manifest_url;
+      label = "Folder manifest URL copied";
+    } else if (mode === 'folder_id') {
+      text = folder.id;
+      label = "Folder ID copied";
+    } else if (mode === 'context') {
+      text = [
+        `Base URL: ${context.base_url}`,
+        `Manifest URL: ${context.manifest_url}`,
+        `Folder ID: ${context.folder_id}`,
+        `Folder Name: ${context.folder_name}`,
+        `Auth header: Authorization: Bearer $${context.auth_env}`,
+      ].join("\n");
+      label = "API context copied";
+    } else {
+      text = JSON.stringify(context, null, 2);
+      label = "Codex import snippet copied";
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setToast({ message: label, type: 'success' });
+    } catch {
+      setToast({ message: "Failed to copy", type: 'error' });
     }
   };
 
@@ -712,6 +765,42 @@ export default function WorkspaceVideos() {
                         {folderPhotoCount} photo{folderPhotoCount !== 1 ? 's' : ''}
                       </span>
                     </div>
+                    {!folderSelectMode && (
+                      <div className="mt-3 grid grid-cols-2 gap-1.5">
+                        <button
+                          onClick={(e) => copyFolderText(folder, 'manifest_url', e)}
+                          className="h-7 px-2 rounded-md border border-gray-200 dark:border-gray-700 text-[10px] font-medium text-gray-600 dark:text-gray-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 flex items-center justify-center gap-1"
+                          title="Copy Folder Manifest URL"
+                        >
+                          <Link className="h-3 w-3" />
+                          Manifest URL
+                        </button>
+                        <button
+                          onClick={(e) => copyFolderText(folder, 'snippet', e)}
+                          className="h-7 px-2 rounded-md border border-blue-200 dark:border-blue-800 text-[10px] font-semibold text-blue-700 dark:text-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 flex items-center justify-center gap-1"
+                          title="Copy Codex Import Snippet"
+                        >
+                          <Braces className="h-3 w-3" />
+                          Codex Snippet
+                        </button>
+                        <button
+                          onClick={(e) => copyFolderText(folder, 'folder_id', e)}
+                          className="h-7 px-2 rounded-md border border-gray-200 dark:border-gray-700 text-[10px] font-medium text-gray-600 dark:text-gray-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 flex items-center justify-center gap-1"
+                          title="Copy Folder ID"
+                        >
+                          <Copy className="h-3 w-3" />
+                          Folder ID
+                        </button>
+                        <button
+                          onClick={(e) => copyFolderText(folder, 'context', e)}
+                          className="h-7 px-2 rounded-md border border-gray-200 dark:border-gray-700 text-[10px] font-medium text-gray-600 dark:text-gray-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 flex items-center justify-center gap-1"
+                          title="Copy API Context"
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          API Context
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
