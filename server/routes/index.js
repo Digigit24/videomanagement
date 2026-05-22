@@ -115,9 +115,12 @@ import {
   downloadExternalVideo,
   getSignedExternalVideoUrl,
   getVideoFolderManifest,
+  listVideoFoldersForApi,
   listVideoAnalysisRuns,
   patchApprovedVideoMetadata,
   postVideoAnalysisRun,
+  uploadVideoToFolderForApi,
+  uploadZipToFolderForApi,
 } from "../controllers/videoManifestApi.js";
 import rateLimit from "express-rate-limit";
 
@@ -138,9 +141,24 @@ router.post("/register", optionalAuthenticate, register);
 
 // External video folder manifest API
 router.get(
+  "/video-folders",
+  authenticateVideoApi("read"),
+  listVideoFoldersForApi,
+);
+router.get(
   "/video-folders/:folderId/manifest",
   authenticateVideoApi("read"),
   getVideoFolderManifest,
+);
+router.post(
+  "/video-folders/:folderId/videos",
+  authenticateVideoApi("write"),
+  uploadVideoToFolderForApi,
+);
+router.post(
+  "/video-folders/:folderId/zip",
+  authenticateVideoApi("write"),
+  uploadZipToFolderForApi,
 );
 router.get(
   "/videos/:videoId/download",

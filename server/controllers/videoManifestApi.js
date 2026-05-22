@@ -1,13 +1,83 @@
 import { Readable } from "stream";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import multer from "multer";
+import yauzl from "yauzl";
+import { pipeline } from "stream/promises";
 import {
   createAnalysisRun,
   createSignedRawUrl,
+  getExternalFolder,
   getAnalysisRuns,
   getDownloadStream,
   getFolderManifest,
+  listExternalVideoFolders,
   updateApprovedMetadata,
 } from "../services/videoManifestApi.js";
+import { createVideo } from "../services/video.js";
+import { uploadFileToS3 } from "../services/upload.js";
+import processingQueue from "../services/processingQueue.js";
+import { resolveBucket } from "../services/storage.js";
+import { getPool } from "../db/index.js";
 import { apiError } from "../utils/logger.js";
+
+const API_UPLOAD_TEMP_DIR = path.join(os.tmpdir(), "video-api-uploads");
+const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024 * 1024;
+const MAX_ZIP_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
+const MAX_ZIP_EXTRACTED_BYTES = 50 * 1024 * 1024 * 1024;
+const MAX_ZIP_MEDIA_FILES = 500;
+
+const VIDEO_TYPES_BY_EXT = {
+  ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".avi": "video/x-msvideo",
+  ".mkv": "video/x-matroska",
+  ".flv": "video/x-flv",
+  ".wmv": "video/x-ms-wmv",
+  ".3gp": "video/3gpp",
+};
+
+try {
+  fs.mkdirSync(API_UPLOAD_TEMP_DIR, { recursive: true });
+} catch (err) {
+  console.error("Failed to create API upload temp dir:", err.message);
+}
+
+function makeUpload(fieldName, maxBytes, isAllowedFile) {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => {
+        fs.mkdirSync(API_UPLOAD_TEMP_DIR, { recursive: true });
+        cb(null, API_UPLOAD_TEMP_DIR);
+      },
+      filename: (_req, file, cb) => {
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+        cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`);
+      },
+    }),
+    limits: { fileSize: maxBytes },
+    fileFilter: (_req, file, cb) => {
+      if (!isAllowedFile(file)) {
+        cb(new Error("Unsupported file type"));
+        return;
+      }
+      cb(null, true);
+    },
+  }).single(fieldName);
+}
+
+const videoUpload = makeUpload("video", MAX_VIDEO_UPLOAD_BYTES, (file) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  return Boolean(VIDEO_TYPES_BY_EXT[ext]) || file.mimetype.startsWith("video/");
+});
+
+const zipUpload = makeUpload("zip", MAX_ZIP_UPLOAD_BYTES, (file) => (
+  file.mimetype === "application/zip" ||
+  file.mimetype === "application/x-zip-compressed" ||
+  file.originalname.toLowerCase().endsWith(".zip")
+));
 
 function getBaseUrl(req) {
   const proto = req.headers["x-forwarded-proto"] || req.protocol;
@@ -32,6 +102,143 @@ function pipeBodyToResponse(body, res) {
   res.end();
 }
 
+function getVideoContentType(filename, fallback = "video/mp4") {
+  return VIDEO_TYPES_BY_EXT[path.extname(filename || "").toLowerCase()] || fallback;
+}
+
+function safeFilename(filename) {
+  return path.basename(filename || "video.mp4").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function cleanupFile(filePath) {
+  try {
+    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (err) {
+    console.warn(`[VideoManifestAPI] Failed to clean up ${filePath}: ${err.message}`);
+  }
+}
+
+function cleanupDir(dirPath) {
+  try {
+    if (dirPath && fs.existsSync(dirPath)) fs.rmSync(dirPath, { recursive: true, force: true });
+  } catch (err) {
+    console.warn(`[VideoManifestAPI] Failed to clean up ${dirPath}: ${err.message}`);
+  }
+}
+
+function isUnsafeZipEntry(entryName) {
+  return (
+    !entryName ||
+    path.isAbsolute(entryName) ||
+    entryName.includes("\\") ||
+    entryName.split("/").some((part) => part === "..")
+  );
+}
+
+function openZip(zipPath) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
+      if (err) reject(err);
+      else resolve(zipfile);
+    });
+  });
+}
+
+function readNextEntry(zipfile) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      zipfile.removeListener("entry", onEntry);
+      zipfile.removeListener("end", onEnd);
+      zipfile.removeListener("error", onError);
+    };
+    const onEntry = (entry) => {
+      cleanup();
+      resolve(entry);
+    };
+    const onEnd = () => {
+      cleanup();
+      resolve(null);
+    };
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+    zipfile.once("entry", onEntry);
+    zipfile.once("end", onEnd);
+    zipfile.once("error", onError);
+    zipfile.readEntry();
+  });
+}
+
+function openReadStream(zipfile, entry) {
+  return new Promise((resolve, reject) => {
+    zipfile.openReadStream(entry, (err, stream) => {
+      if (err) reject(err);
+      else resolve(stream);
+    });
+  });
+}
+
+async function storeExternalVideoFile({ folder, filePath, originalName, size, baseUrl }) {
+  const filename = path.basename(originalName);
+  const safeName = safeFilename(filename);
+  const contentType = getVideoContentType(filename);
+  const { bucket: physicalBucket, prefix } = resolveBucket(folder.workspace_bucket);
+
+  const video = await createVideo({
+    bucket: folder.workspace_bucket,
+    filename,
+    objectKey: `${prefix}pending/${Date.now()}-${safeName}`,
+    size,
+    uploadedBy: null,
+    folderId: folder.id,
+    mediaType: "video",
+  });
+
+  const objectKey = `${prefix}videos/${video.id}/${safeName}`;
+  await uploadFileToS3(physicalBucket, objectKey, filePath, contentType);
+  await getPool().query(
+    "UPDATE videos SET object_key = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [objectKey, video.id],
+  );
+
+  await processingQueue.enqueue(video.id, filePath, folder.workspace_bucket, safeName);
+
+  return {
+    id: video.id,
+    folder_id: folder.id,
+    folder_name: folder.name,
+    filename,
+    content_type: contentType,
+    size_bytes: size,
+    status: "queued",
+    download_url: `${baseUrl}/api/videos/${video.id}/download`,
+    signed_url_endpoint: `${baseUrl}/api/videos/${video.id}/signed-url`,
+  };
+}
+
+function multerHandler(upload, req, res) {
+  return new Promise((resolve, reject) => {
+    upload(req, res, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+export async function listVideoFoldersForApi(req, res) {
+  try {
+    const folders = await listExternalVideoFolders(getBaseUrl(req), {
+      bucket: req.query.bucket || null,
+      workspaceId: req.query.workspace_id || null,
+    });
+    res.json(folders);
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to list video folders" });
+  }
+}
+
 export async function getVideoFolderManifest(req, res) {
   try {
     const manifest = await getFolderManifest(req.params.folderId, getBaseUrl(req));
@@ -42,6 +249,150 @@ export async function getVideoFolderManifest(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to build folder manifest" });
+  }
+}
+
+export async function uploadVideoToFolderForApi(req, res) {
+  let uploadedPath = null;
+  try {
+    await multerHandler(videoUpload, req, res);
+    uploadedPath = req.file?.path || null;
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No video file provided. Use multipart field 'video'." });
+    }
+
+    const folder = await getExternalFolder(req.params.folderId);
+    if (!folder) {
+      cleanupFile(uploadedPath);
+      return res.status(404).json({ error: "Folder not found" });
+    }
+
+    const video = await storeExternalVideoFile({
+      folder,
+      filePath: uploadedPath,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      baseUrl: getBaseUrl(req),
+    });
+
+    res.status(201).json({ video });
+  } catch (error) {
+    if (uploadedPath) cleanupFile(uploadedPath);
+    apiError(req, error);
+    const isSizeLimit = error.code === "LIMIT_FILE_SIZE";
+    res.status(400).json({
+      error: isSizeLimit ? "Video file must be 50GB or smaller" : error.message || "Failed to upload video",
+    });
+  }
+}
+
+export async function uploadZipToFolderForApi(req, res) {
+  let zipPath = null;
+  const extractedDir = path.join(
+    API_UPLOAD_TEMP_DIR,
+    `api-zip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  const queuedVideoPaths = new Set();
+
+  try {
+    await multerHandler(zipUpload, req, res);
+    zipPath = req.file?.path || null;
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No zip file provided. Use multipart field 'zip'." });
+    }
+
+    const folder = await getExternalFolder(req.params.folderId);
+    if (!folder) {
+      cleanupFile(zipPath);
+      return res.status(404).json({ error: "Folder not found" });
+    }
+
+    fs.mkdirSync(extractedDir, { recursive: true });
+    const zipfile = await openZip(zipPath);
+    const uploaded = [];
+    const skipped = [];
+    let mediaFileCount = 0;
+    let extractedBytes = 0;
+
+    while (true) {
+      const entry = await readNextEntry(zipfile);
+      if (!entry) break;
+
+      const entryName = entry.fileName;
+      if (/\/$/.test(entryName)) continue;
+
+      if (isUnsafeZipEntry(entryName)) {
+        skipped.push({ filename: entryName, reason: "Unsafe zip path" });
+        continue;
+      }
+
+      if (!getVideoContentType(entryName, null)) {
+        skipped.push({ filename: entryName, reason: "Unsupported file type" });
+        continue;
+      }
+
+      mediaFileCount += 1;
+      if (mediaFileCount > MAX_ZIP_MEDIA_FILES) {
+        throw new Error(`Zip contains too many video files. Maximum is ${MAX_ZIP_MEDIA_FILES}.`);
+      }
+
+      extractedBytes += Number(entry.uncompressedSize || 0);
+      if (extractedBytes > MAX_ZIP_EXTRACTED_BYTES) {
+        throw new Error("Zip extracted contents are too large. Maximum extracted video size is 50GB.");
+      }
+
+      const outputPath = path.join(
+        extractedDir,
+        `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeFilename(entryName)}`,
+      );
+      const readStream = await openReadStream(zipfile, entry);
+      await pipeline(readStream, fs.createWriteStream(outputPath));
+
+      const size = fs.statSync(outputPath).size;
+      const video = await storeExternalVideoFile({
+        folder,
+        filePath: outputPath,
+        originalName: path.basename(entryName),
+        size,
+        baseUrl: getBaseUrl(req),
+      });
+      queuedVideoPaths.add(outputPath);
+      uploaded.push(video);
+    }
+
+    cleanupFile(zipPath);
+    if (queuedVideoPaths.size === 0) cleanupDir(extractedDir);
+
+    res.status(201).json({
+      message: "Zip processed successfully",
+      folder_id: folder.id,
+      uploaded,
+      skipped,
+      limits: {
+        zip_max_bytes: MAX_ZIP_UPLOAD_BYTES,
+        extracted_max_bytes: MAX_ZIP_EXTRACTED_BYTES,
+        media_file_max_count: MAX_ZIP_MEDIA_FILES,
+      },
+    });
+  } catch (error) {
+    cleanupFile(zipPath);
+    try {
+      if (fs.existsSync(extractedDir)) {
+        for (const file of fs.readdirSync(extractedDir)) {
+          const filePath = path.join(extractedDir, file);
+          if (!queuedVideoPaths.has(filePath)) cleanupFile(filePath);
+        }
+      }
+    } catch (_) {}
+    if (queuedVideoPaths.size === 0) cleanupDir(extractedDir);
+
+    apiError(req, error);
+    const isSizeLimit = error.code === "LIMIT_FILE_SIZE";
+    res.status(400).json({
+      error: isSizeLimit ? "Zip file must be 10GB or smaller" : error.message || "Failed to upload zip",
+    });
   }
 }
 

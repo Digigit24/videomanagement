@@ -136,6 +136,64 @@ export async function getFolderManifest(folderId, baseUrl) {
   };
 }
 
+export async function listExternalVideoFolders(baseUrl, { bucket = null, workspaceId = null } = {}) {
+  const params = [];
+  const filters = [];
+
+  if (bucket) {
+    params.push(bucket);
+    filters.push(`w.bucket = $${params.length}`);
+  }
+
+  if (workspaceId) {
+    params.push(workspaceId);
+    filters.push(`w.id = $${params.length}`);
+  }
+
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+
+  const result = await getPool().query(
+    `SELECT f.id, f.name, f.workspace_id, f.created_at, f.updated_at,
+            w.bucket as workspace_bucket,
+            COUNT(v.id) FILTER (WHERE v.is_active_version = TRUE) as media_count,
+            COUNT(v.id) FILTER (WHERE v.is_active_version = TRUE AND v.media_type = 'video') as video_count,
+            COUNT(v.id) FILTER (WHERE v.is_active_version = TRUE AND v.media_type = 'photo') as photo_count
+     FROM folders f
+     JOIN workspaces w ON w.id = f.workspace_id
+     LEFT JOIN videos v ON v.folder_id = f.id
+     ${where}
+     GROUP BY f.id, w.bucket
+     ORDER BY f.updated_at DESC, f.created_at DESC`,
+    params,
+  );
+
+  return {
+    folders: result.rows.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      workspace_id: folder.workspace_id,
+      workspace_bucket: folder.workspace_bucket,
+      media_count: Number(folder.media_count || 0),
+      video_count: Number(folder.video_count || 0),
+      photo_count: Number(folder.photo_count || 0),
+      manifest_url: `${baseUrl}/api/video-folders/${folder.id}/manifest`,
+      created_at: new Date(folder.created_at).toISOString(),
+      updated_at: new Date(folder.updated_at || folder.created_at).toISOString(),
+    })),
+  };
+}
+
+export async function getExternalFolder(folderId) {
+  const result = await getPool().query(
+    `SELECT f.id, f.name, f.workspace_id, w.bucket as workspace_bucket
+     FROM folders f
+     JOIN workspaces w ON w.id = f.workspace_id
+     WHERE f.id = $1`,
+    [folderId],
+  );
+  return result.rows[0] || null;
+}
+
 export async function getVideoForExternalApi(videoId) {
   const result = await getPool().query(
     `SELECT id, bucket, filename, object_key, size, media_type, is_active_version, processing_status
