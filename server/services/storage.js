@@ -321,4 +321,15 @@ export async function getPresignedContent(bucketName, objectKey) {
   return response;
 }
 
+export async function uploadBuffer(bucketName, objectKey, buffer, contentType = "application/octet-stream") {
+  const s3 = getS3Client();
+  await s3.send(new PutObjectCommand({
+    Bucket: bucketName,
+    Key: objectKey,
+    Body: buffer,
+    ContentType: contentType,
+    ContentLength: buffer.byteLength,
+  }));
+}
+
 export { getS3Client };

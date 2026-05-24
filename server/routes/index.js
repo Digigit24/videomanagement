@@ -750,6 +750,249 @@ router.get("/workspace/:workspaceId/bookmarks", authenticate, getBookmarks);
 router.post("/workspace/:workspaceId/bookmarks", authenticate, addBookmark);
 router.delete("/bookmark/:id", authenticate, removeBookmark);
 
+// PM folder — list HTML files and generate presigned URLs
+router.get("/workspace/:workspaceId/pm-files", authenticate, async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
+
+    // Find the PM folder for this workspace
+    const folderResult = await pool.query(
+      "SELECT id FROM folders WHERE workspace_id = $1 AND LOWER(name) = 'pm' LIMIT 1",
+      [req.params.workspaceId]
+    );
+    if (folderResult.rows.length === 0) {
+      return res.json({ folder_id: null, files: [] });
+    }
+    const folderId = folderResult.rows[0].id;
+
+    // List files in the PM folder
+    const filesResult = await pool.query(
+      `SELECT v.id, v.filename, v.object_key, v.bucket, v.created_at, v.media_type, v.size
+       FROM videos v
+       WHERE v.folder_id = $1 AND v.is_active_version = TRUE
+       ORDER BY v.created_at DESC`,
+      [folderId]
+    );
+
+    // Generate presigned URLs (1 hour TTL)
+    const files = await Promise.all(
+      filesResult.rows.map(async (f) => {
+        let url = null;
+        try {
+          url = await generatePresignedGetUrl(f.bucket, f.object_key, 3600);
+        } catch (_) {}
+        return { id: f.id, name: f.filename, url, created_at: f.created_at, size: f.size, media_type: f.media_type };
+      })
+    );
+
+    res.json({ folder_id: folderId, files });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to list PM files" });
+  }
+});
+
+// ─── Agent API ──────────────────────────────────────────────────────────────
+// Secured with VIDEO_API_TOKEN (machine-to-machine, no user JWT needed)
+
+// GET /api/agent/workspace-map — full list of active workspaces with PM folder
+router.get("/agent/workspace-map", authenticateVideoApi("read"), async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+
+    const result = await pool.query(
+      `SELECT
+         w.id              AS workspace_id,
+         w.client_name,
+         w.bucket,
+         w.client_page_url,
+         f.id              AS pm_folder_id,
+         COUNT(v.id)::int  AS file_count
+       FROM workspaces w
+       LEFT JOIN folders f
+         ON f.workspace_id = w.id AND LOWER(f.name) = 'pm'
+       LEFT JOIN videos v
+         ON v.folder_id = f.id AND v.is_active_version = TRUE
+       WHERE w.deleted_at IS NULL
+         AND (w.client_active IS NULL OR w.client_active = TRUE)
+       GROUP BY w.id, w.client_name, w.bucket, w.client_page_url, f.id
+       ORDER BY w.client_name ASC`
+    );
+
+    res.json({ workspaces: result.rows });
+  } catch (err) {
+    console.error("[Agent] workspace-map error:", err);
+    res.status(500).json({ error: "Failed to fetch workspace map" });
+  }
+});
+
+// GET /api/agent/workspace/:id/pm-files — list PM files for a workspace
+router.get("/agent/workspace/:id/pm-files", authenticateVideoApi("read"), async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
+
+    const folderResult = await pool.query(
+      "SELECT id FROM folders WHERE workspace_id = $1 AND LOWER(name) = 'pm' LIMIT 1",
+      [req.params.id]
+    );
+    if (folderResult.rows.length === 0) {
+      return res.json({ folder_id: null, files: [] });
+    }
+    const folderId = folderResult.rows[0].id;
+
+    const filesResult = await pool.query(
+      `SELECT id, filename, object_key, bucket, created_at, size, media_type
+       FROM videos
+       WHERE folder_id = $1 AND is_active_version = TRUE
+       ORDER BY created_at DESC`,
+      [folderId]
+    );
+
+    const files = await Promise.all(
+      filesResult.rows.map(async (f) => {
+        let url = null;
+        try { url = await generatePresignedGetUrl(f.bucket, f.object_key, 3600); } catch (_) {}
+        return { id: f.id, name: f.filename, url, created_at: f.created_at, size: f.size };
+      })
+    );
+
+    res.json({ folder_id: folderId, files });
+  } catch (err) {
+    console.error("[Agent] pm-files error:", err);
+    res.status(500).json({ error: "Failed to list PM files" });
+  }
+});
+
+// GET /api/agent/workspace/:id/pm/:fileId — read raw HTML content of a PM file
+router.get("/agent/workspace/:id/pm/:fileId", authenticateVideoApi("read"), async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const { getPresignedContent } = await import("../services/storage.js");
+
+    const result = await pool.query(
+      `SELECT v.object_key, v.bucket, v.filename, f.workspace_id
+       FROM videos v
+       JOIN folders f ON v.folder_id = f.id
+       WHERE v.id = $1
+         AND f.workspace_id = $2
+         AND LOWER(f.name) = 'pm'
+         AND v.is_active_version = TRUE
+       LIMIT 1`,
+      [req.params.fileId, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "File not found in PM folder" });
+    }
+
+    const { object_key, bucket, filename } = result.rows[0];
+    const response = await getPresignedContent(bucket, object_key);
+    const text = await response.text();
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("X-File-Name", filename);
+    res.send(text);
+  } catch (err) {
+    console.error("[Agent] pm-read error:", err);
+    res.status(500).json({ error: "Failed to read PM file" });
+  }
+});
+
+// POST /api/agent/workspace/:id/pm-upload — upload HTML string to PM folder
+// Body: { filename: "2025-05_client-overview.html", html: "<html>..." }
+// Optional: { replace: true } — overwrites existing file with same filename
+router.post("/agent/workspace/:id/pm-upload", authenticateVideoApi("write"), async (req, res) => {
+  try {
+    const { filename, html, replace: shouldReplace } = req.body;
+
+    if (!filename || !html) {
+      return res.status(400).json({ error: "filename and html are required" });
+    }
+    if (!filename.endsWith(".html")) {
+      return res.status(400).json({ error: "filename must end with .html" });
+    }
+
+    const pool = (await import("../db/index.js")).getPool();
+    const { uploadBuffer, generatePresignedGetUrl, resolveBucket } = await import("../services/storage.js");
+
+    // Resolve workspace
+    const wsResult = await pool.query(
+      "SELECT id, bucket, client_name FROM workspaces WHERE id = $1 AND deleted_at IS NULL LIMIT 1",
+      [req.params.id]
+    );
+    if (wsResult.rows.length === 0) {
+      return res.status(404).json({ error: "Workspace not found" });
+    }
+    const workspace = wsResult.rows[0];
+
+    // Resolve PM folder
+    const folderResult = await pool.query(
+      "SELECT id FROM folders WHERE workspace_id = $1 AND LOWER(name) = 'pm' LIMIT 1",
+      [workspace.id]
+    );
+    if (folderResult.rows.length === 0) {
+      return res.status(404).json({ error: "PM folder not found for this workspace" });
+    }
+    const folderId = folderResult.rows[0].id;
+
+    // If replacing, soft-delete the existing version
+    if (shouldReplace) {
+      await pool.query(
+        `UPDATE videos SET is_active_version = FALSE
+         WHERE folder_id = $1 AND LOWER(filename) = LOWER($2) AND is_active_version = TRUE`,
+        [folderId, filename]
+      );
+    }
+
+    // Build object key and upload
+    const { bucket: storageBucket, prefix } = resolveBucket(workspace.bucket);
+    const objectKey = `${prefix}pm/${workspace.id}/${filename}`;
+    const htmlBuffer = Buffer.from(html, "utf-8");
+
+    await uploadBuffer(storageBucket, objectKey, htmlBuffer, "text/html; charset=utf-8");
+
+    // Register in videos table
+    const insertResult = await pool.query(
+      `INSERT INTO videos
+         (bucket, filename, object_key, size, uploaded_at, created_at,
+          version_group_id, version_number, is_active_version, folder_id, media_type, status)
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+               gen_random_uuid(), 1, TRUE, $5, 'document', 'ready')
+       RETURNING id, created_at`,
+      [storageBucket, filename, objectKey, htmlBuffer.byteLength, folderId]
+    );
+    const newFile = insertResult.rows[0];
+
+    // Update client_page_url with a 7-day presigned URL pointing to the new file
+    let clientPageUrl = null;
+    try {
+      clientPageUrl = await generatePresignedGetUrl(storageBucket, objectKey, 3600 * 24 * 7);
+      await pool.query(
+        "UPDATE workspaces SET client_page_url = $1 WHERE id = $2",
+        [clientPageUrl, workspace.id]
+      );
+    } catch (_) {}
+
+    res.status(201).json({
+      success: true,
+      file_id: newFile.id,
+      filename,
+      object_key: objectKey,
+      workspace_id: workspace.id,
+      folder_id: folderId,
+      client_page_url: clientPageUrl,
+      created_at: newFile.created_at,
+    });
+  } catch (err) {
+    console.error("[Agent] pm-upload error:", err);
+    res.status(500).json({ error: "Failed to upload PM file" });
+  }
+});
+
+// ─── End Agent API ───────────────────────────────────────────────────────────
+
 import recycleBinRouter from "./recycleBin.js";
 router.use("/admin/recycle-bin", recycleBinRouter);
 

@@ -84,11 +84,12 @@ export async function createNewWorkspace(req, res) {
       bucket = bucket.substring(0, 59) + suffix;
     }
 
+    const createdById = req.user.id === '00000000-0000-0000-0000-000000000000' ? null : req.user.id;
     const workspace = await createWorkspace(
       bucket,
       clientName,
       null,
-      req.user.id,
+      createdById,
     );
 
     // Add the creating user as a member
@@ -108,6 +109,14 @@ export async function createNewWorkspace(req, res) {
       if (projectManagerId !== req.user.id) {
         await addWorkspaceMember(workspace.id, projectManagerId);
       }
+    }
+
+    // Auto-create PM folder for this workspace
+    try {
+      const { createFolder } = await import("../services/folder.js");
+      await createFolder(workspace.id, "PM", req.user.id);
+    } catch (e) {
+      console.error("PM folder creation error:", e);
     }
 
     // Log activity
@@ -176,7 +185,8 @@ export async function updateWorkspaceDetails(req, res) {
       youtube_webhook_headers,
       youtube_webhook_active,
       client_notes,
-      client_active
+      client_active,
+      client_page_url
     } = req.body;
 
     const pool = (await import("../db/index.js")).getPool();
@@ -215,8 +225,9 @@ export async function updateWorkspaceDetails(req, res) {
         youtube_webhook_active = $23,
         client_notes = $24,
         client_active = $25,
+        client_page_url = $26,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $26 RETURNING *`,
+      WHERE id = $27 RETURNING *`,
       [
         clientName !== undefined ? clientName : current.client_name,
         clientLogo !== undefined ? clientLogo : current.client_logo,
@@ -243,6 +254,7 @@ export async function updateWorkspaceDetails(req, res) {
         youtube_webhook_active !== undefined ? youtube_webhook_active : current.youtube_webhook_active,
         client_notes !== undefined ? client_notes : current.client_notes,
         client_active !== undefined ? client_active : current.client_active,
+        client_page_url !== undefined ? client_page_url : current.client_page_url,
         id
       ]
     );
