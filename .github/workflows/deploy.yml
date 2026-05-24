@@ -20,9 +20,22 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          cat > ~/.ssh/vps_key <<'KEY'
+          ${{ secrets.VPS_SSH_KEY }}
+          KEY
+
           sed -i 's/\r$//' ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
+
+          echo ">>> SSH key line count"
+          wc -l ~/.ssh/vps_key
+
+          echo ">>> First and last line check"
+          head -n 1 ~/.ssh/vps_key
+          tail -n 1 ~/.ssh/vps_key
+
+          echo ">>> Validate private key"
+          ssh-keygen -y -f ~/.ssh/vps_key > /dev/null
 
       - name: Deploy Video Management API
         run: |
