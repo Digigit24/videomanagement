@@ -245,6 +245,32 @@ router.get("/buckets", authenticate, getBuckets);
 
 // Workspaces
 router.get("/workspaces", authenticate, listWorkspaces);
+
+// Pages map — workspaces with at least one active PM file (JWT auth for frontend)
+router.get("/workspaces/pages-map", authenticate, async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const result = await pool.query(
+      `SELECT
+         w.id              AS workspace_id,
+         w.client_name,
+         f.id              AS pm_folder_id,
+         COUNT(v.id)::int  AS file_count
+       FROM workspaces w
+       JOIN folders f ON f.workspace_id = w.id AND LOWER(f.name) = 'pm'
+       JOIN videos v ON v.folder_id = f.id AND v.is_active_version = TRUE
+       WHERE w.deleted_at IS NULL
+         AND (w.client_active IS NULL OR w.client_active = TRUE)
+       GROUP BY w.id, w.client_name, f.id
+       ORDER BY w.client_name ASC`
+    );
+    res.json({ workspaces: result.rows });
+  } catch (err) {
+    console.error("[Pages] pages-map error:", err);
+    res.status(500).json({ error: "Failed to fetch pages map" });
+  }
+});
+
 router.post("/workspaces", authenticate, createNewWorkspace);
 router.patch("/workspace/:id", authenticate, updateWorkspaceDetails);
 router.post("/workspace/:id/logo", authenticate, uploadWorkspaceLogo);
@@ -937,11 +963,11 @@ router.post("/agent/workspace/:id/pm-upload", authenticateVideoApi("write"), asy
     }
     const folderId = folderResult.rows[0].id;
 
-    // If replacing, soft-delete the existing version
+    // If replacing, hard-delete the old DB record so the UNIQUE(bucket, object_key) constraint
+    // doesn't block the new INSERT with the same filename/key.
     if (shouldReplace) {
       await pool.query(
-        `UPDATE videos SET is_active_version = FALSE
-         WHERE folder_id = $1 AND LOWER(filename) = LOWER($2) AND is_active_version = TRUE`,
+        `DELETE FROM videos WHERE folder_id = $1 AND LOWER(filename) = LOWER($2)`,
         [folderId, filename]
       );
     }
