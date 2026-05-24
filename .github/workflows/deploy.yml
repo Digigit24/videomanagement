@@ -1,0 +1,65 @@
+name: Deploy API to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-video-management-api-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+
+          echo ">>> Validate SSH private key"
+          ssh-keygen -y -f ~/.ssh/vps_key > /dev/null
+
+      - name: Deploy Video Management API
+        run: |
+          set -e
+
+          ssh -4 -T \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            -o ConnectTimeout=20 \
+            -o ConnectionAttempts=5 \
+            -i ~/.ssh/vps_key \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' <<'EOS'
+          set -euo pipefail
+          set -x
+
+          exec 9>/tmp/video-management-api-deploy.lock
+          flock -n 9 || { echo "Another deployment is running. Exiting."; exit 1; }
+
+          APP_ROOT="/home/nodeapps/apps/video_management_api/videomanagement"
+          SERVER_DIR="$APP_ROOT/server"
+          PM2_APP="video_management_api"
+
+          test -d "$APP_ROOT/.git" || { echo ".git not found in $APP_ROOT"; exit 1; }
+          test -f "$SERVER_DIR/package.json" || { echo "package.json not found in $SERVER_DIR"; exit 1; }
+
+          cd "$APP_ROOT"
+          git pull origin main
+
+          cd "$SERVER_DIR"
+          npm i
+
+          pm2 restart "$PM2_APP" --update-env
+          pm2 describe "$PM2_APP"
+          pm2 logs "$PM2_APP" --lines 40 --nostream || true
+
+          echo "Deployment completed"
+          EOS

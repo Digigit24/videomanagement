@@ -129,4 +129,4 @@ For issues, check:
 1. All environment variables are set
 2. Database is accessible
 3. Zata credentials are valid
-4. Bucket names are correct
+4. Bucket names are correct.
