@@ -26,7 +26,9 @@ async function triggerCampaignWebhook(workspace, post, platform, eventName) {
     postId: post.id,
   };
 
-  payload.media_url = post.mediaurl || post.video_url || "";
+  const rawUrl = post.mediaurl || post.video_url || "";
+  payload.mediaurl = rawUrl;
+  payload.media_items = rawUrl ? [{ mediaFormat: "PHOTO", sourceUrl: rawUrl }] : [];
 
   if (platform === "gmb") {
     payload.title = post.title;
