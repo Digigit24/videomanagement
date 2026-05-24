@@ -130,7 +130,8 @@ import {
   getInstagramPosts, addInstagramPost, updateInstagramPost, updateInstagramPostStatus,
   getLinkedInPosts, addLinkedInPost, updateLinkedInPost, updateLinkedInPostStatus,
   getTwitterPosts, addTwitterPost, updateTwitterPost, updateTwitterPostStatus,
-  getYoutubePosts, addYoutubePost, updateYoutubePost, updateYoutubePostStatus
+  getYoutubePosts, addYoutubePost, updateYoutubePost, updateYoutubePostStatus,
+  buildPayload,
 } from "../controllers/campaign.js";
 import { getBookmarks, addBookmark, removeBookmark } from "../controllers/bookmark.js";
 
@@ -1018,6 +1019,82 @@ router.post("/agent/workspace/:id/pm-upload", authenticateVideoApi("write"), asy
 });
 
 // ─── End Agent API ───────────────────────────────────────────────────────────
+
+// Sample post data used for test pings per platform
+const PING_MOCK_POSTS = {
+  gmb:      { id: "test_post_001", title: "Sample GMB Post Title", summary: "This is a sample post summary sent during webhook connection testing.", mediaurl: "https://example.com/sample-image.jpg" },
+  ig:       { id: "test_post_001", caption: "Sample Instagram caption for webhook testing. #test", mediaurl: "https://example.com/sample-image.jpg" },
+  linkedin: { id: "test_post_001", title: "Sample LinkedIn Post", summary: "This is a sample post sent during webhook connection testing.", mediaurl: "https://example.com/sample-image.jpg" },
+  twitter:  { id: "test_post_001", tweet_text: "Sample tweet for webhook connection testing. #test", mediaurl: "https://example.com/sample-image.jpg" },
+  youtube:  { id: "test_post_001", video_title: "Sample YouTube Video", description: "Sample video description for webhook connection testing.", video_url: "https://example.com/sample-video.mp4" },
+};
+
+// POST /webhook-ping — server-proxied test ping using the workspace's template (or default)
+router.post("/webhook-ping", authenticate, async (req, res) => {
+  const { url, customHeaders, platform, workspace_id } = req.body;
+
+  if (!url || !url.startsWith("http")) {
+    return res.status(400).json({ error: "A valid webhook URL is required" });
+  }
+  if (!platform) {
+    return res.status(400).json({ error: "platform is required" });
+  }
+
+  let headers = { "Content-Type": "application/json" };
+  if (customHeaders) {
+    try {
+      headers = { ...headers, ...JSON.parse(customHeaders) };
+    } catch {
+      return res.status(400).json({ error: "Custom headers must be valid JSON" });
+    }
+  }
+
+  // Fetch workspace to get the saved payload template
+  let workspace = { id: workspace_id || "test", client_name: "Test Client" };
+  if (workspace_id) {
+    try {
+      const { getPool } = await import("../db/index.js");
+      const result = await getPool().query(
+        "SELECT id, client_name, gmb_payload_template, ig_payload_template, linkedin_payload_template, twitter_payload_template, youtube_payload_template FROM workspaces WHERE id = $1 AND deleted_at IS NULL",
+        [workspace_id]
+      );
+      if (result.rows.length > 0) workspace = result.rows[0];
+    } catch (e) {
+      console.warn("[webhook-ping] workspace lookup failed:", e.message);
+    }
+  }
+
+  // Build payload using the same logic as a real publish (template or default)
+  const mockPost = PING_MOCK_POSTS[platform] || { id: "test_post_001", mediaurl: "https://example.com/sample-image.jpg" };
+  const pingPayload = buildPayload(workspace, mockPost, platform, "connection_test");
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(pingPayload),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    const body = await response.text().catch(() => "");
+    res.json({
+      success: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      response: body.slice(0, 500),
+      payload_sent: pingPayload,
+    });
+  } catch (err) {
+    const msg = err.name === "AbortError" ? "Webhook timed out after 10s" : err.message;
+    res.status(502).json({ error: "Could not reach webhook: " + msg });
+  }
+});
 
 // PATCH /workspace/:id/webhook-config — save payload template for one platform
 const VALID_PAYLOAD_PLATFORMS = ["gmb", "ig", "linkedin", "twitter", "youtube"];

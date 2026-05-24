@@ -21,7 +21,7 @@ function interpolateTemplate(templateStr, ctx) {
   return JSON.parse(result);
 }
 
-function buildPayload(workspace, post, platform, eventName) {
+export function buildPayload(workspace, post, platform, eventName) {
   const rawUrl = post.mediaurl || post.video_url || "";
   const ctx = {
     event: eventName,
