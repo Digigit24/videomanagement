@@ -1,4 +1,4 @@
-name: Deploy  API to VPS
+name: Deploy API to VPS
 
 on:
   push:
@@ -20,21 +20,11 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          cat > ~/.ssh/vps_key <<'KEY'
-          ${{ secrets.VPS_SSH_KEY }}
-          KEY
-
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
           sed -i 's/\r$//' ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
 
-          echo ">>> SSH key line count"
-          wc -l ~/.ssh/vps_key
-
-          echo ">>> First and last line check"
-          head -n 1 ~/.ssh/vps_key
-          tail -n 1 ~/.ssh/vps_key
-
-          echo ">>> Validate private key"
+          echo ">>> Validate SSH private key"
           ssh-keygen -y -f ~/.ssh/vps_key > /dev/null
 
       - name: Deploy Video Management API
@@ -59,26 +49,18 @@ jobs:
           SERVER_DIR="$APP_ROOT/server"
           PM2_APP="video_management_api"
 
-          echo ">>> Check app folders"
           test -d "$APP_ROOT/.git" || { echo ".git not found in $APP_ROOT"; exit 1; }
           test -f "$SERVER_DIR/package.json" || { echo "package.json not found in $SERVER_DIR"; exit 1; }
 
-          echo ">>> Pull latest code"
           cd "$APP_ROOT"
           git pull origin main
 
-          echo ">>> Install backend dependencies"
           cd "$SERVER_DIR"
           npm i
 
-          echo ">>> Restart only this PM2 service"
           pm2 restart "$PM2_APP" --update-env
-
-          echo ">>> Show app status"
           pm2 describe "$PM2_APP"
-
-          echo ">>> Last logs for this app only"
           pm2 logs "$PM2_APP" --lines 40 --nostream || true
 
-          echo ">>> Deployment completed"
+          echo "Deployment completed"
           EOS
