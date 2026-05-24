@@ -785,3 +785,30 @@ export async function checkVideoHealth(req, res) {
     res.status(500).json({ error: "Failed to check video health" });
   }
 }
+
+export async function getPublicMediaStream(req, res) {
+  const { id } = req.params;
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const result = await pool.query(
+      "SELECT object_key, bucket, filename, media_type FROM videos WHERE id = $1",
+      [id],
+    );
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: "Media not found" });
+    }
+    const media = result.rows[0];
+    const { generatePresignedGetUrl } = await import("../services/storage.js");
+    const objectKey = media.object_key;
+    const isDownload = req.query.download === "true";
+    
+    const signedUrl = await generatePresignedGetUrl(media.bucket, objectKey, 31536000, {
+      ...(isDownload ? { responseContentDisposition: `attachment; filename="${media.filename}"` } : {})
+    }); // 1 year expiry
+    res.setHeader("Cache-Control", "public, max-age=31536000");
+    res.redirect(302, signedUrl);
+  } catch (error) {
+    console.error("Error streaming public media:", error);
+    res.status(500).json({ error: "Failed to stream public media" });
+  }
+}

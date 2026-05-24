@@ -151,14 +151,97 @@ export async function updateWorkspaceDetails(req, res) {
     }
 
     const { id } = req.params;
-    const { clientName, clientLogo } = req.body;
+    const {
+      clientName,
+      clientLogo,
+      active_platforms,
+      gmb_promised,
+      instagram_promised,
+      gmb_webhook_url,
+      gmb_webhook_headers,
+      gmb_webhook_active,
+      ig_webhook_url,
+      ig_webhook_headers,
+      ig_webhook_active,
+      linkedin_promised,
+      linkedin_webhook_url,
+      linkedin_webhook_headers,
+      linkedin_webhook_active,
+      twitter_promised,
+      twitter_webhook_url,
+      twitter_webhook_headers,
+      twitter_webhook_active,
+      youtube_promised,
+      youtube_webhook_url,
+      youtube_webhook_headers,
+      youtube_webhook_active
+    } = req.body;
 
-    const workspace = await updateWorkspace(id, clientName, clientLogo);
-    if (!workspace) {
+    const pool = (await import("../db/index.js")).getPool();
+    
+    // First retrieve current settings to use as fallbacks if some are not provided
+    const currentQuery = await pool.query("SELECT * FROM workspaces WHERE id = $1 AND deleted_at IS NULL", [id]);
+    if (currentQuery.rows.length === 0) {
       return res.status(404).json({ error: "Workspace not found" });
     }
+    const current = currentQuery.rows[0];
 
-    res.json({ workspace });
+    const result = await pool.query(
+      `UPDATE workspaces SET 
+        client_name = $1,
+        client_logo = $2,
+        active_platforms = $3,
+        gmb_promised = $4,
+        instagram_promised = $5,
+        gmb_webhook_url = $6,
+        gmb_webhook_headers = $7,
+        gmb_webhook_active = $8,
+        ig_webhook_url = $9,
+        ig_webhook_headers = $10,
+        ig_webhook_active = $11,
+        linkedin_promised = $12,
+        linkedin_webhook_url = $13,
+        linkedin_webhook_headers = $14,
+        linkedin_webhook_active = $15,
+        twitter_promised = $16,
+        twitter_webhook_url = $17,
+        twitter_webhook_headers = $18,
+        twitter_webhook_active = $19,
+        youtube_promised = $20,
+        youtube_webhook_url = $21,
+        youtube_webhook_headers = $22,
+        youtube_webhook_active = $23,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $24 RETURNING *`,
+      [
+        clientName !== undefined ? clientName : current.client_name,
+        clientLogo !== undefined ? clientLogo : current.client_logo,
+        active_platforms !== undefined ? active_platforms : current.active_platforms,
+        gmb_promised !== undefined ? (gmb_promised === null ? null : parseInt(gmb_promised)) : current.gmb_promised,
+        instagram_promised !== undefined ? (instagram_promised === null ? null : parseInt(instagram_promised)) : current.instagram_promised,
+        gmb_webhook_url !== undefined ? gmb_webhook_url : current.gmb_webhook_url,
+        gmb_webhook_headers !== undefined ? gmb_webhook_headers : current.gmb_webhook_headers,
+        gmb_webhook_active !== undefined ? gmb_webhook_active : current.gmb_webhook_active,
+        ig_webhook_url !== undefined ? ig_webhook_url : current.ig_webhook_url,
+        ig_webhook_headers !== undefined ? ig_webhook_headers : current.ig_webhook_headers,
+        ig_webhook_active !== undefined ? ig_webhook_active : current.ig_webhook_active,
+        linkedin_promised !== undefined ? (linkedin_promised === null ? null : parseInt(linkedin_promised)) : current.linkedin_promised,
+        linkedin_webhook_url !== undefined ? linkedin_webhook_url : current.linkedin_webhook_url,
+        linkedin_webhook_headers !== undefined ? linkedin_webhook_headers : current.linkedin_webhook_headers,
+        linkedin_webhook_active !== undefined ? linkedin_webhook_active : current.linkedin_webhook_active,
+        twitter_promised !== undefined ? (twitter_promised === null ? null : parseInt(twitter_promised)) : current.twitter_promised,
+        twitter_webhook_url !== undefined ? twitter_webhook_url : current.twitter_webhook_url,
+        twitter_webhook_headers !== undefined ? twitter_webhook_headers : current.twitter_webhook_headers,
+        twitter_webhook_active !== undefined ? twitter_webhook_active : current.twitter_webhook_active,
+        youtube_promised !== undefined ? (youtube_promised === null ? null : parseInt(youtube_promised)) : current.youtube_promised,
+        youtube_webhook_url !== undefined ? youtube_webhook_url : current.youtube_webhook_url,
+        youtube_webhook_headers !== undefined ? youtube_webhook_headers : current.youtube_webhook_headers,
+        youtube_webhook_active !== undefined ? youtube_webhook_active : current.youtube_webhook_active,
+        id
+      ]
+    );
+
+    res.json({ workspace: result.rows[0] });
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to update workspace" });

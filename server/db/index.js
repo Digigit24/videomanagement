@@ -153,6 +153,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV16);
 
+    // Run v17 migrations (AgencyOS campaigns and workspaces deliverables setup)
+    const migrationsV17 = fs.readFileSync(
+      path.join(__dirname, "migrations_v17.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV17);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

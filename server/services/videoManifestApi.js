@@ -12,6 +12,13 @@ const CONTENT_TYPES = {
   ".webm": "video/webm",
   ".avi": "video/x-msvideo",
   ".mkv": "video/x-matroska",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+  ".svg": "image/svg+xml",
 };
 
 function getContentType(filename, fallback = null) {
@@ -101,7 +108,6 @@ export async function getFolderManifest(folderId, baseUrl) {
      LEFT JOIN video_approved_metadata m ON m.video_id = v.id
      WHERE v.folder_id = $1
        AND v.is_active_version = TRUE
-       AND v.media_type = 'video'
      ORDER BY v.created_at DESC`,
     [folderId],
   );
@@ -119,20 +125,24 @@ export async function getFolderManifest(folderId, baseUrl) {
     folder_id: folder.id,
     folder_name: folder.name,
     version: versionDate.toISOString(),
-    videos: videosResult.rows.map((video) => ({
-      id: video.id,
-      filename: video.filename,
-      title: video.filename.replace(/\.[^.]+$/, ""),
-      content_type: getContentType(video.filename),
-      duration: video.duration_seconds !== null ? Number(video.duration_seconds) : null,
-      size_bytes: Number(video.size || 0),
-      download_url: `${baseUrl}/api/videos/${video.id}/download`,
-      public_raw_url: null,
-      labels: toJsonArray(video.labels),
-      scenes: toJsonArray(video.scenes),
-      transcript_summary: video.transcript_summary || null,
-      updated_at: new Date(video.updated_at || video.created_at).toISOString(),
-    })),
+    videos: videosResult.rows.map((video) => {
+      const publicMediaUrl = `${baseUrl}/api/public/media/${video.id}`;
+      return {
+        id: video.id,
+        filename: video.filename,
+        title: video.filename.replace(/\.[^.]+$/, ""),
+        content_type: getContentType(video.filename),
+        media_type: video.media_type,
+        duration: video.duration_seconds !== null ? Number(video.duration_seconds) : null,
+        size_bytes: Number(video.size || 0),
+        download_url: publicMediaUrl,
+        public_raw_url: publicMediaUrl,
+        labels: toJsonArray(video.labels),
+        scenes: toJsonArray(video.scenes),
+        transcript_summary: video.transcript_summary || null,
+        updated_at: new Date(video.updated_at || video.created_at).toISOString(),
+      };
+    }),
   };
 }
 
@@ -198,7 +208,7 @@ export async function getVideoForExternalApi(videoId) {
   const result = await getPool().query(
     `SELECT id, bucket, filename, object_key, size, media_type, is_active_version, processing_status
      FROM videos
-     WHERE id = $1 AND is_active_version = TRUE AND media_type = 'video'`,
+     WHERE id = $1 AND is_active_version = TRUE`,
     [videoId],
   );
   return result.rows[0] || null;

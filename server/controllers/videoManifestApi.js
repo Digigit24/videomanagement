@@ -39,6 +39,16 @@ const VIDEO_TYPES_BY_EXT = {
   ".3gp": "video/3gpp",
 };
 
+const IMAGE_TYPES_BY_EXT = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+  ".svg": "image/svg+xml",
+};
+
 try {
   fs.mkdirSync(API_UPLOAD_TEMP_DIR, { recursive: true });
 } catch (err) {
@@ -70,7 +80,12 @@ function makeUpload(fieldName, maxBytes, isAllowedFile) {
 
 const videoUpload = makeUpload("video", MAX_VIDEO_UPLOAD_BYTES, (file) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  return Boolean(VIDEO_TYPES_BY_EXT[ext]) || file.mimetype.startsWith("video/");
+  return (
+    Boolean(VIDEO_TYPES_BY_EXT[ext]) ||
+    Boolean(IMAGE_TYPES_BY_EXT[ext]) ||
+    file.mimetype.startsWith("video/") ||
+    file.mimetype.startsWith("image/")
+  );
 });
 
 const zipUpload = makeUpload("zip", MAX_ZIP_UPLOAD_BYTES, (file) => (
@@ -103,7 +118,8 @@ function pipeBodyToResponse(body, res) {
 }
 
 function getVideoContentType(filename, fallback = "video/mp4") {
-  return VIDEO_TYPES_BY_EXT[path.extname(filename || "").toLowerCase()] || fallback;
+  const ext = path.extname(filename || "").toLowerCase();
+  return VIDEO_TYPES_BY_EXT[ext] || IMAGE_TYPES_BY_EXT[ext] || fallback;
 }
 
 function safeFilename(filename) {
@@ -185,6 +201,9 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
   const contentType = getVideoContentType(filename);
   const { bucket: physicalBucket, prefix } = resolveBucket(folder.workspace_bucket);
 
+  const isPhoto = contentType.startsWith("image/");
+  const mediaType = isPhoto ? "photo" : "video";
+
   const video = await createVideo({
     bucket: folder.workspace_bucket,
     filename,
@@ -192,7 +211,7 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
     size,
     uploadedBy: null,
     folderId: folder.id,
-    mediaType: "video",
+    mediaType,
   });
 
   const objectKey = `${prefix}videos/${video.id}/${safeName}`;
@@ -202,7 +221,18 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
     [objectKey, video.id],
   );
 
-  await processingQueue.enqueue(video.id, filePath, folder.workspace_bucket, safeName);
+  if (isPhoto) {
+    // Photos: finalized immediately in database
+    await getPool().query(
+      `UPDATE videos SET hls_ready = FALSE, thumbnail_key = $1, processing_status = 'completed' WHERE id = $2`,
+      [objectKey, video.id],
+    );
+  } else {
+    // Videos: queue for processing
+    await processingQueue.enqueue(video.id, filePath, folder.workspace_bucket, safeName);
+  }
+
+  const publicMediaUrl = `${baseUrl}/api/public/media/${video.id}`;
 
   return {
     id: video.id,
@@ -211,8 +241,9 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
     filename,
     content_type: contentType,
     size_bytes: size,
-    status: "queued",
-    download_url: `${baseUrl}/api/videos/${video.id}/download`,
+    status: isPhoto ? "completed" : "queued",
+    download_url: publicMediaUrl,
+    public_raw_url: publicMediaUrl,
     signed_url_endpoint: `${baseUrl}/api/videos/${video.id}/signed-url`,
   };
 }
@@ -493,5 +524,37 @@ export async function patchApprovedVideoMetadata(req, res) {
   } catch (error) {
     apiError(req, error);
     res.status(500).json({ error: "Failed to update approved metadata" });
+  }
+}
+
+export async function createVideoFolderForApi(req, res) {
+  try {
+    const { name, bucket } = req.body;
+    if (!name || !bucket) {
+      return res.status(400).json({ error: "name and bucket are required" });
+    }
+    
+    // Find workspace by bucket
+    const workspaceResult = await getPool().query(
+      "SELECT id FROM workspaces WHERE bucket = $1",
+      [bucket]
+    );
+    if (workspaceResult.rows.length === 0) {
+      return res.status(404).json({ error: "Workspace with this bucket not found" });
+    }
+    const workspaceId = workspaceResult.rows[0].id;
+    
+    // Insert folder
+    const folderResult = await getPool().query(
+      `INSERT INTO folders (workspace_id, name)
+       VALUES ($1, $2)
+       RETURNING id, name, workspace_id, created_at, updated_at`,
+      [workspaceId, name]
+    );
+    
+    res.status(201).json({ folder: folderResult.rows[0] });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to create folder" });
   }
 }

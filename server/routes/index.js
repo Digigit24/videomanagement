@@ -18,6 +18,7 @@ import {
   permanentDeleteVideo,
   reprocessVideo,
   checkVideoHealth,
+  getPublicMediaStream,
 } from "../controllers/video.js";
 import {
   listFolders,
@@ -121,8 +122,16 @@ import {
   postVideoAnalysisRun,
   uploadVideoToFolderForApi,
   uploadZipToFolderForApi,
+  createVideoFolderForApi,
 } from "../controllers/videoManifestApi.js";
 import rateLimit from "express-rate-limit";
+import {
+  getGmbPosts, addGmbPost, updateGmbPost, updateGmbPostStatus,
+  getInstagramPosts, addInstagramPost, updateInstagramPost, updateInstagramPostStatus,
+  getLinkedInPosts, addLinkedInPost, updateLinkedInPost, updateLinkedInPostStatus,
+  getTwitterPosts, addTwitterPost, updateTwitterPost, updateTwitterPostStatus,
+  getYoutubePosts, addYoutubePost, updateYoutubePost, updateYoutubePostStatus
+} from "../controllers/campaign.js";
 
 const router = express.Router();
 
@@ -139,11 +148,19 @@ const loginLimiter = rateLimit({
 router.post("/login", loginLimiter, login);
 router.post("/register", optionalAuthenticate, register);
 
+// Unauthenticated public media redirect
+router.get("/public/media/:id", getPublicMediaStream);
+
 // External video folder manifest API
 router.get(
   "/video-folders",
   authenticateVideoApi("read"),
   listVideoFoldersForApi,
+);
+router.post(
+  "/video-folders",
+  authenticateVideoApi("write"),
+  createVideoFolderForApi,
 );
 router.get(
   "/video-folders/:folderId/manifest",
@@ -700,6 +717,32 @@ router.get(
   authenticate,
   listEntityActivities,
 );
+
+// Campaign posts
+router.get("/workspace/:id/gmb", authenticate, getGmbPosts);
+router.post("/workspace/:id/gmb", authenticate, addGmbPost);
+router.patch("/gmb/:id", authenticate, updateGmbPost);
+router.patch("/gmb/:id/status", authenticate, updateGmbPostStatus);
+
+router.get("/workspace/:id/instagram", authenticate, getInstagramPosts);
+router.post("/workspace/:id/instagram", authenticate, addInstagramPost);
+router.patch("/instagram/:id", authenticate, updateInstagramPost);
+router.patch("/instagram/:id/status", authenticate, updateInstagramPostStatus);
+
+router.get("/workspace/:id/linkedin", authenticate, getLinkedInPosts);
+router.post("/workspace/:id/linkedin", authenticate, addLinkedInPost);
+router.patch("/linkedin/:id", authenticate, updateLinkedInPost);
+router.patch("/linkedin/:id/status", authenticate, updateLinkedInPostStatus);
+
+router.get("/workspace/:id/twitter", authenticate, getTwitterPosts);
+router.post("/workspace/:id/twitter", authenticate, addTwitterPost);
+router.patch("/twitter/:id", authenticate, updateTwitterPost);
+router.patch("/twitter/:id/status", authenticate, updateTwitterPostStatus);
+
+router.get("/workspace/:id/youtube", authenticate, getYoutubePosts);
+router.post("/workspace/:id/youtube", authenticate, addYoutubePost);
+router.patch("/youtube/:id", authenticate, updateYoutubePost);
+router.patch("/youtube/:id/status", authenticate, updateYoutubePostStatus);
 
 import recycleBinRouter from "./recycleBin.js";
 router.use("/admin/recycle-bin", recycleBinRouter);
