@@ -1,0 +1,91 @@
+name: Deploy API to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-video-management-api-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          sed -i 's/\r$//' ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+
+      - name: Deploy Video Management API
+        run: |
+          set -e
+
+          ssh -4 -T \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            -o ConnectTimeout=20 \
+            -o ConnectionAttempts=5 \
+            -i ~/.ssh/vps_key \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' <<'EOS'
+          set -euo pipefail
+          set -x
+
+          exec 9>/tmp/video-management-api-deploy.lock
+          flock -n 9 || { echo "Another deployment is running. Exiting."; exit 1; }
+
+          APP_ROOT="/home/nodeapps/apps/video_management_api/videomanagement"
+          SERVER_DIR="$APP_ROOT/server"
+          PM2_APP="video_management_api"
+
+          echo ">>> Go to repo root"
+          cd "$APP_ROOT"
+
+          test -d .git || { echo ".git not found. Wrong APP_ROOT."; exit 1; }
+          test -f "$SERVER_DIR/package.json" || { echo "server/package.json not found."; exit 1; }
+
+          echo ">>> Sync latest code"
+          git fetch origin
+          git reset --hard origin/main
+
+          echo ">>> Clean safely"
+          git clean -fd \
+            -e .env \
+            -e server/node_modules \
+            -e server/logs \
+            -e server/uploads \
+            -e server/storage \
+            -e frontend/node_modules
+
+          echo ">>> Go to server directory"
+          cd "$SERVER_DIR"
+
+          echo ">>> Node version"
+          node -v
+
+          echo ">>> NPM version"
+          npm -v
+
+          echo ">>> Install backend dependencies"
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+          echo ">>> Restart PM2"
+          pm2 restart "$PM2_APP" --update-env
+
+          echo ">>> Save PM2"
+          pm2 save
+
+          echo ">>> Deployment completed"
+          EOS
