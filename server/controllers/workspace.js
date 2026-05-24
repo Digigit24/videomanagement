@@ -174,7 +174,8 @@ export async function updateWorkspaceDetails(req, res) {
       youtube_promised,
       youtube_webhook_url,
       youtube_webhook_headers,
-      youtube_webhook_active
+      youtube_webhook_active,
+      client_notes
     } = req.body;
 
     const pool = (await import("../db/index.js")).getPool();
@@ -211,8 +212,9 @@ export async function updateWorkspaceDetails(req, res) {
         youtube_webhook_url = $21,
         youtube_webhook_headers = $22,
         youtube_webhook_active = $23,
+        client_notes = $24,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $24 RETURNING *`,
+      WHERE id = $25 RETURNING *`,
       [
         clientName !== undefined ? clientName : current.client_name,
         clientLogo !== undefined ? clientLogo : current.client_logo,
@@ -237,6 +239,7 @@ export async function updateWorkspaceDetails(req, res) {
         youtube_webhook_url !== undefined ? youtube_webhook_url : current.youtube_webhook_url,
         youtube_webhook_headers !== undefined ? youtube_webhook_headers : current.youtube_webhook_headers,
         youtube_webhook_active !== undefined ? youtube_webhook_active : current.youtube_webhook_active,
+        client_notes !== undefined ? client_notes : current.client_notes,
         id
       ]
     );

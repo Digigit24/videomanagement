@@ -27,6 +27,8 @@ ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS twitter_webhook_active BOOLEAN D
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS youtube_webhook_url TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS youtube_webhook_headers TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS youtube_webhook_active BOOLEAN DEFAULT false;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS client_notes TEXT;
+
 
 -- 2. Create GMB Posts table linked to workspaces
 CREATE TABLE IF NOT EXISTS gmb_posts (

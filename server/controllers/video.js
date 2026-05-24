@@ -802,13 +802,20 @@ export async function getPublicMediaStream(req, res) {
     const objectKey = media.object_key;
     const isDownload = req.query.download === "true";
     
-    const signedUrl = await generatePresignedGetUrl(media.bucket, objectKey, 31536000, {
+    // AWS SDK strictly limits client-side presigning expiration to a maximum of 7 days (604800 seconds).
+    // The public API route (/api/public/media/:id) acts as a permanent public link, dynamically
+    // redirecting to a fresh 7-day presigned S3 link on every request, so it never expires for external APIs.
+    const signedUrl = await generatePresignedGetUrl(media.bucket, objectKey, 604800, {
       ...(isDownload ? { responseContentDisposition: `attachment; filename="${media.filename}"` } : {})
-    }); // 1 year expiry
-    res.setHeader("Cache-Control", "public, max-age=31536000");
+    });
+    res.setHeader("Cache-Control", "public, max-age=604800");
     res.redirect(302, signedUrl);
   } catch (error) {
     console.error("Error streaming public media:", error);
-    res.status(500).json({ error: "Failed to stream public media" });
+    res.status(500).json({ 
+      error: "Failed to stream public media",
+      details: error.message,
+      stack: error.stack
+    });
   }
 }
