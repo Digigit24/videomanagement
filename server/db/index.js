@@ -181,6 +181,13 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV20);
 
+    // Run v21 migrations (per-platform payload templates)
+    const migrationsV21 = fs.readFileSync(
+      path.join(__dirname, "migrations_v21.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV21);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

@@ -1,6 +1,61 @@
 import { getPool } from "../db/index.js";
 import { apiError } from "../utils/logger.js";
 
+function interpolateTemplate(templateStr, ctx) {
+  let result = templateStr;
+  for (const [key, value] of Object.entries(ctx)) {
+    if (typeof value === "object" && value !== null) {
+      const json = JSON.stringify(value);
+      result = result.replace(new RegExp(`"\\{\\{${key}\\}\\}"`, "g"), json);
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), json);
+    } else {
+      const str = value == null ? "" : String(value);
+      const escaped = str
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r");
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), escaped);
+    }
+  }
+  return JSON.parse(result);
+}
+
+function buildPayload(workspace, post, platform, eventName) {
+  const rawUrl = post.mediaurl || post.video_url || "";
+  const ctx = {
+    event: eventName,
+    clientId: workspace.id,
+    clientName: workspace.client_name,
+    postId: post.id,
+    mediaurl: rawUrl,
+    media_items: rawUrl ? [{ mediaFormat: "PHOTO", sourceUrl: rawUrl }] : [],
+  };
+
+  if (platform === "gmb" || platform === "linkedin") {
+    ctx.title = post.title;
+    ctx.summary = post.summary;
+  } else if (platform === "ig") {
+    ctx.caption = post.caption;
+  } else if (platform === "twitter") {
+    ctx.tweet_text = post.tweet_text;
+  } else if (platform === "youtube") {
+    ctx.video_title = post.video_title;
+    ctx.description = post.description;
+  }
+
+  const templateStr = workspace[`${platform}_payload_template`];
+  if (templateStr) {
+    try {
+      return interpolateTemplate(templateStr, ctx);
+    } catch (e) {
+      console.warn(`[Webhook] ${platform} template interpolation failed, using default:`, e.message);
+    }
+  }
+
+  return ctx;
+}
+
 async function triggerCampaignWebhook(workspace, post, platform, eventName) {
   const activeKey = `${platform}_webhook_active`;
   const urlKey = `${platform}_webhook_url`;
@@ -19,31 +74,7 @@ async function triggerCampaignWebhook(workspace, post, platform, eventName) {
     }
   }
 
-  const payload = {
-    event: eventName,
-    clientId: workspace.id,
-    clientName: workspace.client_name,
-    postId: post.id,
-  };
-
-  const rawUrl = post.mediaurl || post.video_url || "";
-  payload.mediaurl = rawUrl;
-  payload.media_items = rawUrl ? [{ mediaFormat: "PHOTO", sourceUrl: rawUrl }] : [];
-
-  if (platform === "gmb") {
-    payload.title = post.title;
-    payload.summary = post.summary;
-  } else if (platform === "ig") {
-    payload.caption = post.caption;
-  } else if (platform === "linkedin") {
-    payload.title = post.title;
-    payload.summary = post.summary;
-  } else if (platform === "twitter") {
-    payload.tweet_text = post.tweet_text;
-  } else if (platform === "youtube") {
-    payload.video_title = post.video_title;
-    payload.description = post.description;
-  }
+  const payload = buildPayload(workspace, post, platform, eventName);
 
   const response = await fetch(workspace[urlKey], {
     method: "POST",

@@ -1019,6 +1019,40 @@ router.post("/agent/workspace/:id/pm-upload", authenticateVideoApi("write"), asy
 
 // ─── End Agent API ───────────────────────────────────────────────────────────
 
+// PATCH /workspace/:id/webhook-config — save payload template for one platform
+const VALID_PAYLOAD_PLATFORMS = ["gmb", "ig", "linkedin", "twitter", "youtube"];
+
+router.patch("/workspace/:id/webhook-config", authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { platform, payload_template } = req.body;
+
+  if (!platform || !VALID_PAYLOAD_PLATFORMS.includes(platform)) {
+    return res.status(400).json({ error: "platform must be one of: " + VALID_PAYLOAD_PLATFORMS.join(", ") });
+  }
+
+  if (payload_template !== null && payload_template !== undefined) {
+    try {
+      JSON.parse(payload_template);
+    } catch {
+      return res.status(400).json({ error: "payload_template must be valid JSON (with {{variable}} placeholders)" });
+    }
+  }
+
+  try {
+    const { getPool } = await import("../db/index.js");
+    const col = `${platform}_payload_template`;
+    const result = await getPool().query(
+      `UPDATE workspaces SET ${col} = $1 WHERE id = $2 AND deleted_at IS NULL RETURNING id, client_name`,
+      [payload_template || null, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Workspace not found" });
+    res.json({ success: true, workspace_id: result.rows[0].id, platform, has_custom_template: !!payload_template });
+  } catch (err) {
+    console.error("[webhook-config] error:", err);
+    res.status(500).json({ error: "Failed to update payload template" });
+  }
+});
+
 import recycleBinRouter from "./recycleBin.js";
 router.use("/admin/recycle-bin", recycleBinRouter);
 
