@@ -132,6 +132,7 @@ import {
   getTwitterPosts, addTwitterPost, updateTwitterPost, updateTwitterPostStatus,
   getYoutubePosts, addYoutubePost, updateYoutubePost, updateYoutubePostStatus
 } from "../controllers/campaign.js";
+import { getBookmarks, addBookmark, removeBookmark } from "../controllers/bookmark.js";
 
 const router = express.Router();
 
@@ -743,6 +744,11 @@ router.get("/workspace/:id/youtube", authenticate, getYoutubePosts);
 router.post("/workspace/:id/youtube", authenticate, addYoutubePost);
 router.patch("/youtube/:id", authenticate, updateYoutubePost);
 router.patch("/youtube/:id/status", authenticate, updateYoutubePostStatus);
+
+// Bookmarks
+router.get("/workspace/:workspaceId/bookmarks", authenticate, getBookmarks);
+router.post("/workspace/:workspaceId/bookmarks", authenticate, addBookmark);
+router.delete("/bookmark/:id", authenticate, removeBookmark);
 
 import recycleBinRouter from "./recycleBin.js";
 router.use("/admin/recycle-bin", recycleBinRouter);
