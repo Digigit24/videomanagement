@@ -1,58 +1,60 @@
 import { getPool } from "../db/index.js";
 import { apiError } from "../utils/logger.js";
 
-// Helper to fire Make.com Webhook
 async function triggerCampaignWebhook(workspace, post, platform, eventName) {
   const activeKey = `${platform}_webhook_active`;
   const urlKey = `${platform}_webhook_url`;
   const headersKey = `${platform}_webhook_headers`;
 
-  if (workspace && workspace[activeKey] && workspace[urlKey]) {
-    console.log(`🔔 Sending ${platform.toUpperCase()} post to Make.com Webhook: ${workspace[urlKey]}`);
-    
-    let customHeaders = { "Content-Type": "application/json" };
-    if (workspace[headersKey]) {
-      try {
-        customHeaders = { ...customHeaders, ...JSON.parse(workspace[headersKey]) };
-      } catch (e) {
-        console.warn(`⚠️ ${platform.toUpperCase()} Webhook headers failed to parse as JSON:`, e.message);
-      }
-    }
+  if (!workspace || !workspace[activeKey] || !workspace[urlKey]) {
+    return;
+  }
 
+  let customHeaders = { "Content-Type": "application/json" };
+  if (workspace[headersKey]) {
     try {
-      const payload = {
-        event: eventName,
-        clientId: workspace.id,
-        clientName: workspace.client_name,
-        postId: post.id,
-        mediaurl: post.mediaurl || post.video_url || ""
-      };
-
-      if (platform === "gmb") {
-        payload.title = post.title;
-        payload.summary = post.summary;
-      } else if (platform === "ig") {
-        payload.caption = post.caption;
-      } else if (platform === "linkedin") {
-        payload.title = post.title;
-        payload.summary = post.summary;
-      } else if (platform === "twitter") {
-        payload.tweet_text = post.tweet_text;
-      } else if (platform === "youtube") {
-        payload.video_title = post.video_title;
-        payload.description = post.description;
-      }
-
-      const response = await fetch(workspace[urlKey], {
-        method: "POST",
-        headers: customHeaders,
-        body: JSON.stringify(payload)
-      });
-      console.log(`✅ ${platform.toUpperCase()} Webhook response status: ${response.status}`);
-    } catch (webhookErr) {
-      console.error(`❌ Failed to trigger ${platform.toUpperCase()} Webhook:`, webhookErr.message);
+      customHeaders = { ...customHeaders, ...JSON.parse(workspace[headersKey]) };
+    } catch (e) {
+      console.warn(`[Webhook] ${platform.toUpperCase()} headers parse failed:`, e.message);
     }
   }
+
+  const payload = {
+    event: eventName,
+    clientId: workspace.id,
+    clientName: workspace.client_name,
+    postId: post.id,
+  };
+
+  payload.media_url = post.mediaurl || post.video_url || "";
+
+  if (platform === "gmb") {
+    payload.title = post.title;
+    payload.summary = post.summary;
+  } else if (platform === "ig") {
+    payload.caption = post.caption;
+  } else if (platform === "linkedin") {
+    payload.title = post.title;
+    payload.summary = post.summary;
+  } else if (platform === "twitter") {
+    payload.tweet_text = post.tweet_text;
+  } else if (platform === "youtube") {
+    payload.video_title = post.video_title;
+    payload.description = post.description;
+  }
+
+  const response = await fetch(workspace[urlKey], {
+    method: "POST",
+    headers: customHeaders,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Webhook returned HTTP ${response.status}: ${body.slice(0, 300)}`);
+  }
+
+  console.log(`[Webhook] ${platform.toUpperCase()} fired OK (${response.status}) for post ${post.id}`);
 }
 
 // GMB
@@ -109,6 +111,7 @@ export async function updateGmbPostStatus(req, res) {
   const { status } = req.body;
   try {
     const targetStatus = status || "posted";
+
     if (targetStatus !== "posted") {
       const result = await getPool().query(
         "UPDATE gmb_posts SET status = $1 WHERE id = $2 RETURNING *",
@@ -126,7 +129,20 @@ export async function updateGmbPostStatus(req, res) {
     const workspaceQuery = await getPool().query("SELECT * FROM workspaces WHERE id = $1", [post.workspace_id]);
     const workspace = workspaceQuery.rows[0];
 
-    await triggerCampaignWebhook(workspace, post, "gmb", "gmb_publish");
+    try {
+      await triggerCampaignWebhook(workspace, post, "gmb", "gmb_publish");
+    } catch (webhookErr) {
+      console.error(`[Webhook] GMB webhook failed for post ${id}:`, webhookErr.message);
+      const failed = await getPool().query(
+        "UPDATE gmb_posts SET status = 'failed' WHERE id = $1 RETURNING *",
+        [id]
+      );
+      return res.status(502).json({
+        error: "Webhook delivery failed. Post marked as failed.",
+        details: webhookErr.message,
+        post: failed.rows[0],
+      });
+    }
 
     const result = await getPool().query(
       "UPDATE gmb_posts SET status = 'posted' WHERE id = $1 RETURNING *",
@@ -193,6 +209,7 @@ export async function updateInstagramPostStatus(req, res) {
   const { status } = req.body;
   try {
     const targetStatus = status || "posted";
+
     if (targetStatus !== "posted") {
       const result = await getPool().query(
         "UPDATE instagram_posts SET status = $1 WHERE id = $2 RETURNING *",
@@ -210,7 +227,20 @@ export async function updateInstagramPostStatus(req, res) {
     const workspaceQuery = await getPool().query("SELECT * FROM workspaces WHERE id = $1", [post.workspace_id]);
     const workspace = workspaceQuery.rows[0];
 
-    await triggerCampaignWebhook(workspace, post, "ig", "instagram_publish");
+    try {
+      await triggerCampaignWebhook(workspace, post, "ig", "instagram_publish");
+    } catch (webhookErr) {
+      console.error(`[Webhook] Instagram webhook failed for post ${id}:`, webhookErr.message);
+      const failed = await getPool().query(
+        "UPDATE instagram_posts SET status = 'failed' WHERE id = $1 RETURNING *",
+        [id]
+      );
+      return res.status(502).json({
+        error: "Webhook delivery failed. Post marked as failed.",
+        details: webhookErr.message,
+        post: failed.rows[0],
+      });
+    }
 
     const result = await getPool().query(
       "UPDATE instagram_posts SET status = 'posted' WHERE id = $1 RETURNING *",
@@ -277,6 +307,7 @@ export async function updateLinkedInPostStatus(req, res) {
   const { status } = req.body;
   try {
     const targetStatus = status || "posted";
+
     if (targetStatus !== "posted") {
       const result = await getPool().query(
         "UPDATE linkedin_posts SET status = $1 WHERE id = $2 RETURNING *",
@@ -294,7 +325,20 @@ export async function updateLinkedInPostStatus(req, res) {
     const workspaceQuery = await getPool().query("SELECT * FROM workspaces WHERE id = $1", [post.workspace_id]);
     const workspace = workspaceQuery.rows[0];
 
-    await triggerCampaignWebhook(workspace, post, "linkedin", "linkedin_publish");
+    try {
+      await triggerCampaignWebhook(workspace, post, "linkedin", "linkedin_publish");
+    } catch (webhookErr) {
+      console.error(`[Webhook] LinkedIn webhook failed for post ${id}:`, webhookErr.message);
+      const failed = await getPool().query(
+        "UPDATE linkedin_posts SET status = 'failed' WHERE id = $1 RETURNING *",
+        [id]
+      );
+      return res.status(502).json({
+        error: "Webhook delivery failed. Post marked as failed.",
+        details: webhookErr.message,
+        post: failed.rows[0],
+      });
+    }
 
     const result = await getPool().query(
       "UPDATE linkedin_posts SET status = 'posted' WHERE id = $1 RETURNING *",
@@ -361,6 +405,7 @@ export async function updateTwitterPostStatus(req, res) {
   const { status } = req.body;
   try {
     const targetStatus = status || "posted";
+
     if (targetStatus !== "posted") {
       const result = await getPool().query(
         "UPDATE twitter_posts SET status = $1 WHERE id = $2 RETURNING *",
@@ -378,7 +423,20 @@ export async function updateTwitterPostStatus(req, res) {
     const workspaceQuery = await getPool().query("SELECT * FROM workspaces WHERE id = $1", [post.workspace_id]);
     const workspace = workspaceQuery.rows[0];
 
-    await triggerCampaignWebhook(workspace, post, "twitter", "twitter_publish");
+    try {
+      await triggerCampaignWebhook(workspace, post, "twitter", "twitter_publish");
+    } catch (webhookErr) {
+      console.error(`[Webhook] Twitter webhook failed for post ${id}:`, webhookErr.message);
+      const failed = await getPool().query(
+        "UPDATE twitter_posts SET status = 'failed' WHERE id = $1 RETURNING *",
+        [id]
+      );
+      return res.status(502).json({
+        error: "Webhook delivery failed. Post marked as failed.",
+        details: webhookErr.message,
+        post: failed.rows[0],
+      });
+    }
 
     const result = await getPool().query(
       "UPDATE twitter_posts SET status = 'posted' WHERE id = $1 RETURNING *",
@@ -445,6 +503,7 @@ export async function updateYoutubePostStatus(req, res) {
   const { status } = req.body;
   try {
     const targetStatus = status || "posted";
+
     if (targetStatus !== "posted") {
       const result = await getPool().query(
         "UPDATE youtube_posts SET status = $1 WHERE id = $2 RETURNING *",
@@ -462,7 +521,20 @@ export async function updateYoutubePostStatus(req, res) {
     const workspaceQuery = await getPool().query("SELECT * FROM workspaces WHERE id = $1", [post.workspace_id]);
     const workspace = workspaceQuery.rows[0];
 
-    await triggerCampaignWebhook(workspace, post, "youtube", "youtube_publish");
+    try {
+      await triggerCampaignWebhook(workspace, post, "youtube", "youtube_publish");
+    } catch (webhookErr) {
+      console.error(`[Webhook] YouTube webhook failed for post ${id}:`, webhookErr.message);
+      const failed = await getPool().query(
+        "UPDATE youtube_posts SET status = 'failed' WHERE id = $1 RETURNING *",
+        [id]
+      );
+      return res.status(502).json({
+        error: "Webhook delivery failed. Post marked as failed.",
+        details: webhookErr.message,
+        post: failed.rows[0],
+      });
+    }
 
     const result = await getPool().query(
       "UPDATE youtube_posts SET status = 'posted' WHERE id = $1 RETURNING *",

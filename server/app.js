@@ -5,6 +5,9 @@ import routes from "./routes/index.js";
 
 const app = express();
 
+// Trust the first proxy hop so req.protocol reflects x-forwarded-proto (HTTPS on production)
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(
   helmet({

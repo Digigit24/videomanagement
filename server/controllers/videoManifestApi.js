@@ -95,7 +95,9 @@ const zipUpload = makeUpload("zip", MAX_ZIP_UPLOAD_BYTES, (file) => (
 ));
 
 function getBaseUrl(req) {
-  const proto = req.headers["x-forwarded-proto"] || req.protocol;
+  // Prefer APP_URL env var — guarantees https:// on production regardless of proxy headers
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  const proto = req.headers["x-forwarded-proto"]?.split(',')[0]?.trim() || req.protocol;
   const host = req.headers["x-forwarded-host"] || req.get("host");
   return `${proto}://${host}`;
 }
