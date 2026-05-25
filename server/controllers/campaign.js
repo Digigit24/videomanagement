@@ -205,14 +205,14 @@ export async function getInstagramPosts(req, res) {
 
 export async function addInstagramPost(req, res) {
   const { id } = req.params;
-  const { caption, mediaurl } = req.body;
+  const { caption, mediaurl, posted_at } = req.body;
   if (!caption || caption.trim() === "") {
     return res.status(400).json({ error: "Post caption is required." });
   }
   try {
     const result = await getPool().query(
-      "INSERT INTO instagram_posts (workspace_id, caption, mediaurl, status) VALUES ($1, $2, $3, $4) RETURNING *",
-      [id, caption.trim(), mediaurl ? mediaurl.trim() : "", "ready"]
+      "INSERT INTO instagram_posts (workspace_id, caption, mediaurl, status, posted_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [id, caption.trim(), mediaurl ? mediaurl.trim() : "", "ready", posted_at || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -223,11 +223,11 @@ export async function addInstagramPost(req, res) {
 
 export async function updateInstagramPost(req, res) {
   const { id } = req.params;
-  const { caption, mediaurl } = req.body;
+  const { caption, mediaurl, posted_at } = req.body;
   try {
     const result = await getPool().query(
-      "UPDATE instagram_posts SET caption = $1, mediaurl = $2 WHERE id = $3 RETURNING *",
-      [caption, mediaurl, id]
+      "UPDATE instagram_posts SET caption = $1, mediaurl = $2, posted_at = $3 WHERE id = $4 RETURNING *",
+      [caption, mediaurl, posted_at || null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found." });
     res.json(result.rows[0]);
