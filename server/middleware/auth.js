@@ -26,22 +26,32 @@ export function authenticateVideoApi(requiredScope = "read") {
     }
 
     const token = authHeader.substring(7);
+
+    // Check static API tokens first (for external integrations like Make/Zapier)
     const match = parseVideoApiTokens().find((entry) => entry.token === token);
-
-    if (!match) {
-      return res.status(401).json({ error: "Invalid API token" });
+    if (match) {
+      const scopes = new Set(match.scopes);
+      if (!scopes.has("all") && !scopes.has(requiredScope)) {
+        return res.status(403).json({ error: `API token requires ${requiredScope} scope` });
+      }
+      req.videoApiToken = {
+        scopes: match.scopes,
+        canWrite: scopes.has("all") || scopes.has("write"),
+      };
+      return next();
     }
 
-    const scopes = new Set(match.scopes);
-    if (!scopes.has("all") && !scopes.has(requiredScope)) {
-      return res.status(403).json({ error: `API token requires ${requiredScope} scope` });
+    // Fall back to JWT auth so logged-in UI users can access the media library
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = decoded;
+      req.videoApiToken = { scopes: ["read", "write"], canWrite: true };
+      return next();
+    } catch (_) {
+      // Not a valid JWT either — reject
     }
 
-    req.videoApiToken = {
-      scopes: match.scopes,
-      canWrite: scopes.has("all") || scopes.has("write"),
-    };
-    next();
+    return res.status(401).json({ error: "Invalid API token" });
   };
 }
 

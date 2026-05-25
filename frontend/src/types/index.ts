@@ -135,6 +135,7 @@ export interface Workspace {
   created_at: string;
   updated_at: string;
   deleted_at?: string;
+  client_page_url?: string | null;
 }
 
 export interface Invitation {
