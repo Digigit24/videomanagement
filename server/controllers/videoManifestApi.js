@@ -49,6 +49,26 @@ const IMAGE_TYPES_BY_EXT = {
   ".svg": "image/svg+xml",
 };
 
+const AUDIO_TYPES_BY_EXT = {
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/x-m4a",
+  ".ogg": "audio/ogg",
+  ".aac": "audio/aac",
+  ".flac": "audio/x-flac",
+};
+
+const DOCUMENT_TYPES_BY_EXT = {
+  ".pdf": "application/pdf",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".csv": "text/csv",
+  ".txt": "text/plain",
+  ".zip": "application/zip",
+};
+
 try {
   fs.mkdirSync(API_UPLOAD_TEMP_DIR, { recursive: true });
 } catch (err) {
@@ -83,8 +103,19 @@ const videoUpload = makeUpload("video", MAX_VIDEO_UPLOAD_BYTES, (file) => {
   return (
     Boolean(VIDEO_TYPES_BY_EXT[ext]) ||
     Boolean(IMAGE_TYPES_BY_EXT[ext]) ||
+    Boolean(AUDIO_TYPES_BY_EXT[ext]) ||
+    Boolean(DOCUMENT_TYPES_BY_EXT[ext]) ||
     file.mimetype.startsWith("video/") ||
-    file.mimetype.startsWith("image/")
+    file.mimetype.startsWith("image/") ||
+    file.mimetype.startsWith("audio/") ||
+    file.mimetype === "application/pdf" ||
+    file.mimetype === "application/msword" ||
+    file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    file.mimetype === "application/vnd.ms-excel" ||
+    file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    file.mimetype === "text/csv" ||
+    file.mimetype === "text/plain" ||
+    file.mimetype === "application/zip"
   );
 });
 
@@ -121,7 +152,13 @@ function pipeBodyToResponse(body, res) {
 
 function getVideoContentType(filename, fallback = "video/mp4") {
   const ext = path.extname(filename || "").toLowerCase();
-  return VIDEO_TYPES_BY_EXT[ext] || IMAGE_TYPES_BY_EXT[ext] || fallback;
+  return (
+    VIDEO_TYPES_BY_EXT[ext] ||
+    IMAGE_TYPES_BY_EXT[ext] ||
+    AUDIO_TYPES_BY_EXT[ext] ||
+    DOCUMENT_TYPES_BY_EXT[ext] ||
+    fallback
+  );
 }
 
 function safeFilename(filename) {
@@ -204,7 +241,17 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
   const { bucket: physicalBucket, prefix } = resolveBucket(folder.workspace_bucket);
 
   const isPhoto = contentType.startsWith("image/");
-  const mediaType = isPhoto ? "photo" : "video";
+  const isAudio = contentType.startsWith("audio/");
+  const isDoc = !isPhoto && !contentType.startsWith("video/");
+
+  let mediaType = "video";
+  if (isPhoto) {
+    mediaType = "photo";
+  } else if (isAudio) {
+    mediaType = "audio";
+  } else if (isDoc) {
+    mediaType = "document";
+  }
 
   const video = await createVideo({
     bucket: folder.workspace_bucket,
@@ -223,11 +270,13 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
     [objectKey, video.id],
   );
 
-  if (isPhoto) {
-    // Photos: finalized immediately in database
+  const isCompletedImmediately = isPhoto || isAudio || isDoc;
+
+  if (isCompletedImmediately) {
+    // Photos, Audio, Docs: finalized immediately in database
     await getPool().query(
       `UPDATE videos SET hls_ready = FALSE, thumbnail_key = $1, processing_status = 'completed' WHERE id = $2`,
-      [objectKey, video.id],
+      [isPhoto ? objectKey : null, video.id],
     );
   } else {
     // Videos: queue for processing
@@ -243,7 +292,7 @@ async function storeExternalVideoFile({ folder, filePath, originalName, size, ba
     filename,
     content_type: contentType,
     size_bytes: size,
-    status: isPhoto ? "completed" : "queued",
+    status: isCompletedImmediately ? "completed" : "queued",
     download_url: publicMediaUrl,
     public_raw_url: publicMediaUrl,
     signed_url_endpoint: `${baseUrl}/api/videos/${video.id}/signed-url`,
