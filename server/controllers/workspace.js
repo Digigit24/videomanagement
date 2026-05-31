@@ -184,6 +184,7 @@ export async function updateWorkspaceDetails(req, res) {
       youtube_webhook_url,
       youtube_webhook_headers,
       youtube_webhook_active,
+      video_promised,
       client_notes,
       client_active,
       client_page_url
@@ -223,11 +224,12 @@ export async function updateWorkspaceDetails(req, res) {
         youtube_webhook_url = $21,
         youtube_webhook_headers = $22,
         youtube_webhook_active = $23,
-        client_notes = $24,
-        client_active = $25,
-        client_page_url = $26,
+        video_promised = $24,
+        client_notes = $25,
+        client_active = $26,
+        client_page_url = $27,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $27 RETURNING *`,
+      WHERE id = $28 RETURNING *`,
       [
         clientName !== undefined ? clientName : current.client_name,
         clientLogo !== undefined ? clientLogo : current.client_logo,
@@ -252,6 +254,7 @@ export async function updateWorkspaceDetails(req, res) {
         youtube_webhook_url !== undefined ? youtube_webhook_url : current.youtube_webhook_url,
         youtube_webhook_headers !== undefined ? youtube_webhook_headers : current.youtube_webhook_headers,
         youtube_webhook_active !== undefined ? youtube_webhook_active : current.youtube_webhook_active,
+        video_promised !== undefined ? (video_promised === null ? null : parseInt(video_promised)) : current.video_promised,
         client_notes !== undefined ? client_notes : current.client_notes,
         client_active !== undefined ? client_active : current.client_active,
         client_page_url !== undefined ? client_page_url : current.client_page_url,

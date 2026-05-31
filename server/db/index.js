@@ -188,6 +188,34 @@ export async function initDatabase() {
     );
     await getPool().query(migrationsV21);
 
+    // Run v22 migrations (Instagram posted_at tracking)
+    const migrationsV22 = fs.readFileSync(
+      path.join(__dirname, "migrations_v22.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV22);
+
+    // Run v23 migrations (promised video deliverable count)
+    const migrationsV23 = fs.readFileSync(
+      path.join(__dirname, "migrations_v23.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV23);
+
+    // Run v24 migrations (Composio workspace integrations)
+    const migrationsV24 = fs.readFileSync(
+      path.join(__dirname, "migrations_v24.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV24);
+
+    // Run v25 migrations (shared agency Composio integrations)
+    const migrationsV25 = fs.readFileSync(
+      path.join(__dirname, "migrations_v25.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV25);
+
     console.log("✓ Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

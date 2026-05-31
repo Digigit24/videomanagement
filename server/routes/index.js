@@ -126,14 +126,28 @@ import {
 } from "../controllers/videoManifestApi.js";
 import rateLimit from "express-rate-limit";
 import {
-  getGmbPosts, addGmbPost, updateGmbPost, updateGmbPostStatus,
-  getInstagramPosts, addInstagramPost, updateInstagramPost, updateInstagramPostStatus,
-  getLinkedInPosts, addLinkedInPost, updateLinkedInPost, updateLinkedInPostStatus,
-  getTwitterPosts, addTwitterPost, updateTwitterPost, updateTwitterPostStatus,
-  getYoutubePosts, addYoutubePost, updateYoutubePost, updateYoutubePostStatus,
+  getGmbPosts, addGmbPost, updateGmbPost, updateGmbPostStatus, deleteGmbPost,
+  getInstagramPosts, addInstagramPost, updateInstagramPost, updateInstagramPostStatus, deleteInstagramPost,
+  getLinkedInPosts, addLinkedInPost, updateLinkedInPost, updateLinkedInPostStatus, deleteLinkedInPost,
+  getTwitterPosts, addTwitterPost, updateTwitterPost, updateTwitterPostStatus, deleteTwitterPost,
+  getYoutubePosts, addYoutubePost, updateYoutubePost, updateYoutubePostStatus, deleteYoutubePost,
   buildPayload,
 } from "../controllers/campaign.js";
 import { getBookmarks, addBookmark, removeBookmark } from "../controllers/bookmark.js";
+import {
+  createComposioConnectLink,
+  createSharedComposioConnectLink,
+  disconnectComposioIntegration,
+  fetchComposioAssets,
+  getAgentComposioContext,
+  handleComposioCallback,
+  listComposioIntegrations,
+  listSharedComposioIntegrations,
+  promoteWorkspaceIntegrationToShared,
+  refreshComposioIntegration,
+  saveWorkspaceAssetMapping,
+  updateComposioIntegrationSummary,
+} from "../controllers/composioIntegration.js";
 
 const router = express.Router();
 
@@ -152,6 +166,9 @@ router.post("/register", optionalAuthenticate, register);
 
 // Unauthenticated public media redirect
 router.get("/public/media/:id", getPublicMediaStream);
+
+// Composio hosted OAuth redirects back here after account authorization.
+router.get("/composio/callback", handleComposioCallback);
 
 // External video folder manifest API
 router.get(
@@ -246,6 +263,17 @@ router.get("/buckets", authenticate, getBuckets);
 
 // Workspaces
 router.get("/workspaces", authenticate, listWorkspaces);
+
+router.get("/workspace/:id/integrations", authenticate, requireWorkspaceMember, listComposioIntegrations);
+router.post("/workspace/:id/integrations/:toolkit/connect", authenticate, requireWorkspaceMember, createComposioConnectLink);
+router.post("/workspace/:id/integrations/:toolkit/check", authenticate, requireWorkspaceMember, refreshComposioIntegration);
+router.post("/workspace/:id/integrations/:toolkit/share", authenticate, requireWorkspaceMember, promoteWorkspaceIntegrationToShared);
+router.get("/workspace/:id/integrations/:toolkit/assets", authenticate, requireWorkspaceMember, fetchComposioAssets);
+router.patch("/workspace/:id/integrations/:toolkit/mapping", authenticate, requireWorkspaceMember, saveWorkspaceAssetMapping);
+router.patch("/workspace/:id/integrations/:toolkit/summary", authenticate, requireWorkspaceMember, updateComposioIntegrationSummary);
+router.delete("/workspace/:id/integrations/:toolkit", authenticate, requireWorkspaceMember, disconnectComposioIntegration);
+router.get("/integrations/shared", authenticate, listSharedComposioIntegrations);
+router.post("/integrations/shared/:toolkit/connect", authenticate, createSharedComposioConnectLink);
 
 // Pages map — workspaces with at least one active PM file (JWT auth for frontend)
 router.get("/workspaces/pages-map", authenticate, async (req, res) => {
@@ -751,26 +779,31 @@ router.get("/workspace/:id/gmb", authenticate, getGmbPosts);
 router.post("/workspace/:id/gmb", authenticate, addGmbPost);
 router.patch("/gmb/:id", authenticate, updateGmbPost);
 router.patch("/gmb/:id/status", authenticate, updateGmbPostStatus);
+router.delete("/gmb/:id", authenticate, deleteGmbPost);
 
 router.get("/workspace/:id/instagram", authenticate, getInstagramPosts);
 router.post("/workspace/:id/instagram", authenticate, addInstagramPost);
 router.patch("/instagram/:id", authenticate, updateInstagramPost);
 router.patch("/instagram/:id/status", authenticate, updateInstagramPostStatus);
+router.delete("/instagram/:id", authenticate, deleteInstagramPost);
 
 router.get("/workspace/:id/linkedin", authenticate, getLinkedInPosts);
 router.post("/workspace/:id/linkedin", authenticate, addLinkedInPost);
 router.patch("/linkedin/:id", authenticate, updateLinkedInPost);
 router.patch("/linkedin/:id/status", authenticate, updateLinkedInPostStatus);
+router.delete("/linkedin/:id", authenticate, deleteLinkedInPost);
 
 router.get("/workspace/:id/twitter", authenticate, getTwitterPosts);
 router.post("/workspace/:id/twitter", authenticate, addTwitterPost);
 router.patch("/twitter/:id", authenticate, updateTwitterPost);
 router.patch("/twitter/:id/status", authenticate, updateTwitterPostStatus);
+router.delete("/twitter/:id", authenticate, deleteTwitterPost);
 
 router.get("/workspace/:id/youtube", authenticate, getYoutubePosts);
 router.post("/workspace/:id/youtube", authenticate, addYoutubePost);
 router.patch("/youtube/:id", authenticate, updateYoutubePost);
 router.patch("/youtube/:id/status", authenticate, updateYoutubePostStatus);
+router.delete("/youtube/:id", authenticate, deleteYoutubePost);
 
 // Bookmarks
 router.get("/workspace/:workspaceId/bookmarks", authenticate, getBookmarks);
@@ -853,6 +886,10 @@ router.get("/agent/workspace-map", authenticateVideoApi("read"), async (req, res
     res.status(500).json({ error: "Failed to fetch workspace map" });
   }
 });
+
+// GET /api/agent/workspace/:id/composio-context — read-only Composio account map for AI agents
+router.get("/agent/workspace/:id/composio-context", authenticateVideoApi("read"), getAgentComposioContext);
+router.patch("/agent/workspace/:id/integrations/:toolkit/summary", authenticateVideoApi("write"), updateComposioIntegrationSummary);
 
 // GET /api/agent/workspace/:id/pm-files — list PM files for a workspace
 router.get("/agent/workspace/:id/pm-files", authenticateVideoApi("read"), async (req, res) => {

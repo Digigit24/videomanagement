@@ -64,7 +64,7 @@ Content-Type: application/json
 
 {
   "caption": "Post caption text here",
-  "mediaurl": "https://example.com/image.jpg",
+  "mediaurl": "NA",
   "posted_at": "2025-05-10T10:00:00Z"
 }
 ```

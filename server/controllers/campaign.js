@@ -531,6 +531,66 @@ export async function updateYoutubePost(req, res) {
   }
 }
 
+export async function deleteGmbPost(req, res) {
+  const { id } = req.params;
+  try {
+    const result = await getPool().query("DELETE FROM gmb_posts WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "GMB post not found." });
+    res.json({ deleted: true, id: result.rows[0].id });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to delete GMB post." });
+  }
+}
+
+export async function deleteInstagramPost(req, res) {
+  const { id } = req.params;
+  try {
+    const result = await getPool().query("DELETE FROM instagram_posts WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Instagram post not found." });
+    res.json({ deleted: true, id: result.rows[0].id });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to delete Instagram post." });
+  }
+}
+
+export async function deleteLinkedInPost(req, res) {
+  const { id } = req.params;
+  try {
+    const result = await getPool().query("DELETE FROM linkedin_posts WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "LinkedIn post not found." });
+    res.json({ deleted: true, id: result.rows[0].id });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to delete LinkedIn post." });
+  }
+}
+
+export async function deleteTwitterPost(req, res) {
+  const { id } = req.params;
+  try {
+    const result = await getPool().query("DELETE FROM twitter_posts WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Twitter post not found." });
+    res.json({ deleted: true, id: result.rows[0].id });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to delete Twitter post." });
+  }
+}
+
+export async function deleteYoutubePost(req, res) {
+  const { id } = req.params;
+  try {
+    const result = await getPool().query("DELETE FROM youtube_posts WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "YouTube post not found." });
+    res.json({ deleted: true, id: result.rows[0].id });
+  } catch (error) {
+    apiError(req, error);
+    res.status(500).json({ error: "Failed to delete YouTube post." });
+  }
+}
+
 export async function updateYoutubePostStatus(req, res) {
   const { id } = req.params;
   const { status } = req.body;
