@@ -130,27 +130,6 @@ export async function createSharedComposioConnectLink(req, res) {
     const callbackUrl = `${getApiBaseUrl(req)}/composio/callback?shared=1&toolkit=${encodeURIComponent(toolkit)}`;
     const alias = `Agency Shared ${config.label}`.replace(/\s+/g, " ").slice(0, 120);
     const existingAccounts = await listAuthConfigAccounts(composio, composioUserId, config.authConfigId);
-    const activeAccount = getLatestActiveAccount(existingAccounts);
-
-    if (activeAccount) {
-      const normalized = normalizeComposioAccount(activeAccount);
-      const row = await upsertSharedIntegration(toolkit, {
-        composio_user_id: composioUserId,
-        auth_config_id: normalized.authConfigId || config.authConfigId,
-        connected_account_id: normalized.id,
-        status: normalized.status,
-        label: normalized.alias || alias,
-        last_checked_at: new Date(),
-        last_connected_at: normalized.updatedAt || new Date(),
-        last_error: normalized.statusReason || null,
-      });
-      return res.json({
-        alreadyConnected: true,
-        connected_account_id: normalized.id,
-        composio_user_id: composioUserId,
-        shared: row,
-      });
-    }
 
     await deleteStaleAuthConfigAccounts(composio, existingAccounts);
 
@@ -193,34 +172,12 @@ export async function createComposioConnectLink(req, res) {
     const callbackUrl = `${getApiBaseUrl(req)}/composio/callback?workspace_id=${encodeURIComponent(id)}&toolkit=${encodeURIComponent(toolkit)}`;
     const alias = `${workspace.client_name} ${config.label}`.replace(/\s+/g, " ").slice(0, 120);
     const existingAccounts = await listAuthConfigAccounts(composio, composioUserId, config.authConfigId);
-    const activeAccount = getLatestActiveAccount(existingAccounts);
-
-    if (activeAccount) {
-      const normalized = normalizeComposioAccount(activeAccount);
-      const row = await upsertWorkspaceIntegration(id, toolkit, {
-        composio_user_id: composioUserId,
-        auth_config_id: normalized.authConfigId || config.authConfigId,
-        connected_account_id: normalized.id,
-        status: normalized.status,
-        label: normalized.alias || alias,
-        last_checked_at: new Date(),
-        last_connected_at: normalized.updatedAt || new Date(),
-        last_error: normalized.statusReason || null,
-      });
-      return res.json({
-        alreadyConnected: true,
-        connected_account_id: normalized.id,
-        composio_user_id: composioUserId,
-        integration: row,
-      });
-    }
-
     await deleteStaleAuthConfigAccounts(composio, existingAccounts);
 
     const connectionRequest = await composio.connectedAccounts.link(
       composioUserId,
       config.authConfigId,
-      { callbackUrl, alias, allowMultiple: false },
+      { callbackUrl, alias, allowMultiple: true },
     );
 
     await upsertWorkspaceIntegration(id, toolkit, {
@@ -306,6 +263,7 @@ export async function handleComposioCallback(req, res) {
       composio_user_id: composioUserId,
       auth_config_id: normalized.authConfigId || config.authConfigId,
       connected_account_id: normalized.id,
+      connection_request_id: req.query.connection_request_id || req.query.connectionRequestId || req.query.request_id || null,
       status: normalized.status,
       label: normalized.alias || normalized.toolkit || config.label,
       last_checked_at: new Date(),
@@ -555,7 +513,12 @@ export async function saveWorkspaceAssetMapping(req, res) {
 export async function promoteWorkspaceIntegrationToShared(req, res) {
   try {
     const { id, toolkit } = req.params;
-    const current = (await listWorkspaceIntegrations(id)).find((item) => item.toolkit === toolkit);
+    const { connected_account_id } = req.body || {};
+    const group = (await listWorkspaceIntegrations(id)).find((item) => item.toolkit === toolkit);
+    const current = connected_account_id
+      ? group?.connections?.find((conn) => conn.connected_account_id === connected_account_id)
+      : group?.connections?.find((conn) => String(conn.status).toUpperCase() === 'ACTIVE');
+
     if (!current?.connected_account_id) {
       return res.status(404).json({ error: "No workspace connection found to share" });
     }
@@ -581,27 +544,36 @@ export async function promoteWorkspaceIntegrationToShared(req, res) {
 export async function refreshComposioIntegration(req, res) {
   try {
     const { id, toolkit } = req.params;
+    const { connected_account_id } = req.body || {};
     getToolkitConfig(toolkit);
 
-    const current = (await listWorkspaceIntegrations(id)).find((item) => item.toolkit === toolkit);
-    if (!current?.connected_account_id) {
+    const group = (await listWorkspaceIntegrations(id)).find((item) => item.toolkit === toolkit);
+    const connections = group?.connections || [];
+    const targets = connected_account_id
+      ? connections.filter((conn) => conn.connected_account_id === connected_account_id)
+      : connections.filter((conn) => conn.connected_account_id);
+
+    if (!targets.length) {
       return res.status(404).json({ error: "No connected account saved for this toolkit" });
     }
 
     const composio = await getComposioClient();
-    const account = await composio.connectedAccounts.get(current.connected_account_id);
-    const normalized = normalizeComposioAccount(account);
+    const updated = [];
+    for (const conn of targets) {
+      const account = await composio.connectedAccounts.get(conn.connected_account_id);
+      const normalized = normalizeComposioAccount(account);
+      const row = await upsertWorkspaceIntegration(id, toolkit, {
+        connected_account_id: normalized.id,
+        auth_config_id: normalized.authConfigId || conn.auth_config_id,
+        status: normalized.status,
+        label: normalized.alias || conn.label,
+        last_checked_at: new Date(),
+        last_error: normalized.statusReason || null,
+      });
+      updated.push({ integration: row, account: normalized });
+    }
 
-    const row = await upsertWorkspaceIntegration(id, toolkit, {
-      connected_account_id: normalized.id,
-      auth_config_id: normalized.authConfigId || current.auth_config_id,
-      status: normalized.status,
-      label: normalized.alias || current.label,
-      last_checked_at: new Date(),
-      last_error: normalized.statusReason || null,
-    });
-
-    res.json({ integration: row, account: normalized });
+    res.json({ updated });
   } catch (error) {
     handleError(res, error);
   }
@@ -610,15 +582,18 @@ export async function refreshComposioIntegration(req, res) {
 export async function disconnectComposioIntegration(req, res) {
   try {
     const { id, toolkit } = req.params;
-    const { deleteRemote = false } = req.body || {};
-    const current = (await listWorkspaceIntegrations(id)).find((item) => item.toolkit === toolkit);
+    const { deleteRemote = false, connected_account_id } = req.body || {};
+    const group = (await listWorkspaceIntegrations(id)).find((item) => item.toolkit === toolkit);
+    const target = connected_account_id
+      ? group?.connections?.find((conn) => conn.connected_account_id === connected_account_id)
+      : group?.connections?.find((conn) => String(conn.status).toUpperCase() === 'ACTIVE');
 
-    if (deleteRemote && current?.connected_account_id) {
+    if (deleteRemote && target?.connected_account_id) {
       const composio = await getComposioClient();
-      await composio.connectedAccounts.delete(current.connected_account_id);
+      await composio.connectedAccounts.delete(target.connected_account_id);
     }
 
-    const integration = await clearWorkspaceIntegration(id, toolkit);
+    const integration = await clearWorkspaceIntegration(id, toolkit, target?.connected_account_id);
     res.json({ success: true, integration });
   } catch (error) {
     handleError(res, error);
@@ -654,15 +629,16 @@ export async function getAgentComposioContext(req, res) {
 
     const integrations = await listWorkspaceIntegrations(id);
     const activeConnections = integrations
-      .filter((item) => item.connected_account_id && String(item.status).toUpperCase() === "ACTIVE")
-      .map((item) => ({
-        toolkit: item.toolkit,
-        label: item.label || item.toolkit,
-        connected_account_id: item.connected_account_id,
-        auth_config_id: item.auth_config_id,
-        selected_resource: item.selected_resource,
-        latest_summary: item.latest_summary,
-        read_only_use: item.readOnlyUse,
+      .flatMap((item) => item.connections || [])
+      .filter((conn) => conn.connected_account_id && String(conn.status).toUpperCase() === "ACTIVE")
+      .map((conn) => ({
+        toolkit: conn.toolkit,
+        label: conn.label || conn.toolkit,
+        connected_account_id: conn.connected_account_id,
+        auth_config_id: conn.auth_config_id,
+        selected_resource: conn.selected_resource,
+        latest_summary: conn.latest_summary,
+        read_only_use: conn.readOnlyUse,
       }));
 
     res.json({

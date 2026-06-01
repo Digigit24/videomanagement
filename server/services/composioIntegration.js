@@ -131,10 +131,35 @@ export function normalizeComposioAccount(account) {
   };
 }
 
-export async function findWorkspaceIntegration(workspaceId, toolkit) {
-  const result = await getPool().query(
+export async function findWorkspaceIntegration(workspaceId, toolkit, connectedAccountId = null, connectionRequestId = null) {
+  let result;
+  if (connectedAccountId) {
+    result = await getPool().query(
+      `SELECT * FROM workspace_integrations
+       WHERE workspace_id = $1 AND toolkit = $2 AND connected_account_id = $3
+       LIMIT 1`,
+      [workspaceId, toolkit, connectedAccountId],
+    );
+    return result.rows[0] || null;
+  }
+
+  if (connectionRequestId) {
+    result = await getPool().query(
+      `SELECT * FROM workspace_integrations
+       WHERE workspace_id = $1 AND toolkit = $2 AND connection_request_id = $3
+       LIMIT 1`,
+      [workspaceId, toolkit, connectionRequestId],
+    );
+    return result.rows[0] || null;
+  }
+
+  result = await getPool().query(
     `SELECT * FROM workspace_integrations
      WHERE workspace_id = $1 AND toolkit = $2
+     ORDER BY
+       CASE WHEN status = 'ACTIVE' THEN 0 ELSE 1 END,
+       updated_at DESC,
+       created_at DESC
      LIMIT 1`,
     [workspaceId, toolkit],
   );
@@ -145,37 +170,62 @@ export async function listWorkspaceIntegrations(workspaceId) {
   const result = await getPool().query(
     `SELECT * FROM workspace_integrations
      WHERE workspace_id = $1
-     ORDER BY toolkit ASC`,
+     ORDER BY toolkit ASC, updated_at DESC`,
     [workspaceId],
   );
 
-  const existing = new Map(result.rows.map((row) => [row.toolkit, row]));
+  const rowsByToolkit = result.rows.reduce((acc, row) => {
+    if (!acc[row.toolkit]) acc[row.toolkit] = [];
+    acc[row.toolkit].push(row);
+    return acc;
+  }, {});
+
   return listSupportedToolkits().map((toolkitConfig) => {
-    const row = existing.get(toolkitConfig.toolkit);
+    const rows = rowsByToolkit[toolkitConfig.toolkit] || [];
+    const primary = rows.find((row) => String(row.status || "").toUpperCase() === "ACTIVE") || rows[0] || {};
     return {
       ...toolkitConfig,
-      id: row?.id || null,
-      workspace_id: row?.workspace_id || workspaceId,
-      composio_user_id: row?.composio_user_id || getComposioUserId(workspaceId),
-      auth_config_id: row?.auth_config_id || process.env[toolkitConfig.authConfigEnv] || null,
-      connected_account_id: row?.connected_account_id || null,
-      connection_request_id: row?.connection_request_id || null,
-      status: row?.status || "not_connected",
-      label: row?.label || toolkitConfig.label,
-      selected_resource: safeJson(row?.selected_resource),
-      latest_summary: safeJson(row?.latest_summary),
-      last_checked_at: row?.last_checked_at || null,
-      last_connected_at: row?.last_connected_at || null,
-      last_sync_at: row?.last_sync_at || null,
-      last_error: row?.last_error || null,
-      updated_at: row?.updated_at || null,
+      id: primary.id || null,
+      workspace_id: primary.workspace_id || workspaceId,
+      composio_user_id: primary.composio_user_id || getComposioUserId(workspaceId),
+      auth_config_id: primary.auth_config_id || process.env[toolkitConfig.authConfigEnv] || null,
+      connected_account_id: primary.connected_account_id || null,
+      connection_request_id: primary.connection_request_id || null,
+      status: primary.status || "not_connected",
+      label: primary.label || toolkitConfig.label,
+      selected_resource: safeJson(primary.selected_resource),
+      latest_summary: safeJson(primary.latest_summary),
+      last_checked_at: primary.last_checked_at || null,
+      last_connected_at: primary.last_connected_at || null,
+      last_sync_at: primary.last_sync_at || null,
+      last_error: primary.last_error || null,
+      updated_at: primary.updated_at || null,
+      connections: rows.map((row) => ({
+        id: row.id,
+        workspace_id: row.workspace_id,
+        toolkit: row.toolkit,
+        composio_user_id: row.composio_user_id,
+        auth_config_id: row.auth_config_id,
+        connected_account_id: row.connected_account_id,
+        connection_request_id: row.connection_request_id,
+        status: row.status,
+        label: row.label || toolkitConfig.label,
+        selected_resource: safeJson(row.selected_resource),
+        latest_summary: safeJson(row.latest_summary),
+        last_checked_at: row.last_checked_at || null,
+        last_connected_at: row.last_connected_at || null,
+        last_sync_at: row.last_sync_at || null,
+        last_error: row.last_error || null,
+        updated_at: row.updated_at || null,
+        readOnlyUse: toolkitConfig.readOnlyUse,
+      })),
     };
   });
 }
 
 export async function upsertWorkspaceIntegration(workspaceId, toolkit, patch) {
   const composioUserId = patch.composio_user_id || getComposioUserId(workspaceId);
-  const current = await findWorkspaceIntegration(workspaceId, toolkit);
+  const current = await findWorkspaceIntegration(workspaceId, toolkit, patch.connected_account_id, patch.connection_request_id);
   const merged = {
     composio_user_id: composioUserId,
     auth_config_id: patch.auth_config_id ?? current?.auth_config_id ?? null,
@@ -191,6 +241,43 @@ export async function upsertWorkspaceIntegration(workspaceId, toolkit, patch) {
     last_error: patch.last_error ?? current?.last_error ?? null,
   };
 
+  if (current?.id) {
+    const result = await getPool().query(
+      `UPDATE workspace_integrations SET
+         composio_user_id = $2,
+         auth_config_id = $3,
+         connected_account_id = $4,
+         connection_request_id = $5,
+         status = $6,
+         label = $7,
+         selected_resource = $8::jsonb,
+         latest_summary = $9::jsonb,
+         last_checked_at = $10,
+         last_connected_at = $11,
+         last_sync_at = $12,
+         last_error = $13,
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        current.id,
+        merged.composio_user_id,
+        merged.auth_config_id,
+        merged.connected_account_id,
+        merged.connection_request_id,
+        merged.status,
+        merged.label,
+        JSON.stringify(merged.selected_resource || {}),
+        JSON.stringify(merged.latest_summary || {}),
+        merged.last_checked_at,
+        merged.last_connected_at,
+        merged.last_sync_at,
+        merged.last_error,
+      ],
+    );
+    return result.rows[0];
+  }
+
   const result = await getPool().query(
     `INSERT INTO workspace_integrations (
        workspace_id, toolkit, composio_user_id, auth_config_id, connected_account_id,
@@ -198,20 +285,6 @@ export async function upsertWorkspaceIntegration(workspaceId, toolkit, patch) {
        last_checked_at, last_connected_at, last_sync_at, last_error
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,$14)
-     ON CONFLICT (workspace_id, toolkit) DO UPDATE SET
-       composio_user_id = EXCLUDED.composio_user_id,
-       auth_config_id = EXCLUDED.auth_config_id,
-       connected_account_id = EXCLUDED.connected_account_id,
-       connection_request_id = EXCLUDED.connection_request_id,
-       status = EXCLUDED.status,
-       label = EXCLUDED.label,
-       selected_resource = EXCLUDED.selected_resource,
-       latest_summary = EXCLUDED.latest_summary,
-       last_checked_at = EXCLUDED.last_checked_at,
-       last_connected_at = EXCLUDED.last_connected_at,
-       last_sync_at = EXCLUDED.last_sync_at,
-       last_error = EXCLUDED.last_error,
-       updated_at = NOW()
      RETURNING *`,
     [
       workspaceId,
@@ -234,16 +307,19 @@ export async function upsertWorkspaceIntegration(workspaceId, toolkit, patch) {
   return result.rows[0];
 }
 
-export async function clearWorkspaceIntegration(workspaceId, toolkit) {
+export async function clearWorkspaceIntegration(workspaceId, toolkit, connectedAccountId = null) {
+  if (connectedAccountId) {
+    const result = await getPool().query(
+      `DELETE FROM workspace_integrations
+       WHERE workspace_id = $1 AND toolkit = $2 AND connected_account_id = $3
+       RETURNING *`,
+      [workspaceId, toolkit, connectedAccountId],
+    );
+    return result.rows[0] || null;
+  }
+
   const result = await getPool().query(
-    `UPDATE workspace_integrations SET
-       connected_account_id = NULL,
-       connection_request_id = NULL,
-       status = 'not_connected',
-       label = NULL,
-       last_error = NULL,
-       last_checked_at = NOW(),
-       updated_at = NOW()
+    `DELETE FROM workspace_integrations
      WHERE workspace_id = $1 AND toolkit = $2
      RETURNING *`,
     [workspaceId, toolkit],

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS workspace_integrations (
   last_error TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(workspace_id, toolkit)
+  UNIQUE(workspace_id, toolkit, connected_account_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspace_integrations_workspace_id
