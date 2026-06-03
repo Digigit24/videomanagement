@@ -107,14 +107,14 @@ export async function getGmbPosts(req, res) {
 
 export async function addGmbPost(req, res) {
   const { id } = req.params;
-  const { title, summary, mediaurl } = req.body;
+  const { title, summary, mediaurl, scheduled_at } = req.body;
   if (!title || title.trim() === "") {
     return res.status(400).json({ error: "Post title is required." });
   }
   try {
     const result = await getPool().query(
-      "INSERT INTO gmb_posts (workspace_id, title, summary, mediaurl, status) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [id, title.trim(), summary ? summary.trim() : "", mediaurl ? mediaurl.trim() : "", "ready"]
+      "INSERT INTO gmb_posts (workspace_id, title, summary, mediaurl, status, scheduled_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [id, title.trim(), summary ? summary.trim() : "", mediaurl ? mediaurl.trim() : "", "ready", scheduled_at || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -125,11 +125,11 @@ export async function addGmbPost(req, res) {
 
 export async function updateGmbPost(req, res) {
   const { id } = req.params;
-  const { title, summary, mediaurl } = req.body;
+  const { title, summary, mediaurl, scheduled_at } = req.body;
   try {
     const result = await getPool().query(
-      "UPDATE gmb_posts SET title = $1, summary = $2, mediaurl = $3 WHERE id = $4 RETURNING *",
-      [title, summary, mediaurl, id]
+      "UPDATE gmb_posts SET title = $1, summary = $2, mediaurl = $3, scheduled_at = $4 WHERE id = $5 RETURNING *",
+      [title, summary, mediaurl, scheduled_at !== undefined ? (scheduled_at || null) : null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found." });
     res.json(result.rows[0]);
@@ -205,14 +205,14 @@ export async function getInstagramPosts(req, res) {
 
 export async function addInstagramPost(req, res) {
   const { id } = req.params;
-  const { caption, mediaurl, posted_at } = req.body;
+  const { caption, mediaurl, posted_at, scheduled_at } = req.body;
   if (!caption || caption.trim() === "") {
     return res.status(400).json({ error: "Post caption is required." });
   }
   try {
     const result = await getPool().query(
-      "INSERT INTO instagram_posts (workspace_id, caption, mediaurl, status, posted_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [id, caption.trim(), mediaurl ? mediaurl.trim() : "", "ready", posted_at || null]
+      "INSERT INTO instagram_posts (workspace_id, caption, mediaurl, status, posted_at, scheduled_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [id, caption.trim(), mediaurl ? mediaurl.trim() : "", "ready", posted_at || null, scheduled_at || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -223,11 +223,11 @@ export async function addInstagramPost(req, res) {
 
 export async function updateInstagramPost(req, res) {
   const { id } = req.params;
-  const { caption, mediaurl, posted_at } = req.body;
+  const { caption, mediaurl, posted_at, scheduled_at } = req.body;
   try {
     const result = await getPool().query(
-      "UPDATE instagram_posts SET caption = $1, mediaurl = $2, posted_at = $3 WHERE id = $4 RETURNING *",
-      [caption, mediaurl, posted_at || null, id]
+      "UPDATE instagram_posts SET caption = $1, mediaurl = $2, posted_at = $3, scheduled_at = $4 WHERE id = $5 RETURNING *",
+      [caption, mediaurl, posted_at || null, scheduled_at !== undefined ? (scheduled_at || null) : null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found." });
     res.json(result.rows[0]);
@@ -303,14 +303,14 @@ export async function getLinkedInPosts(req, res) {
 
 export async function addLinkedInPost(req, res) {
   const { id } = req.params;
-  const { title, summary, mediaurl } = req.body;
+  const { title, summary, mediaurl, scheduled_at } = req.body;
   if (!title || title.trim() === "") {
     return res.status(400).json({ error: "Post title is required." });
   }
   try {
     const result = await getPool().query(
-      "INSERT INTO linkedin_posts (workspace_id, title, summary, mediaurl, status) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [id, title.trim(), summary ? summary.trim() : "", mediaurl ? mediaurl.trim() : "", "ready"]
+      "INSERT INTO linkedin_posts (workspace_id, title, summary, mediaurl, status, scheduled_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [id, title.trim(), summary ? summary.trim() : "", mediaurl ? mediaurl.trim() : "", "ready", scheduled_at || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -321,11 +321,11 @@ export async function addLinkedInPost(req, res) {
 
 export async function updateLinkedInPost(req, res) {
   const { id } = req.params;
-  const { title, summary, mediaurl } = req.body;
+  const { title, summary, mediaurl, scheduled_at } = req.body;
   try {
     const result = await getPool().query(
-      "UPDATE linkedin_posts SET title = $1, summary = $2, mediaurl = $3 WHERE id = $4 RETURNING *",
-      [title, summary, mediaurl, id]
+      "UPDATE linkedin_posts SET title = $1, summary = $2, mediaurl = $3, scheduled_at = $4 WHERE id = $5 RETURNING *",
+      [title, summary, mediaurl, scheduled_at !== undefined ? (scheduled_at || null) : null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found." });
     res.json(result.rows[0]);
@@ -401,14 +401,14 @@ export async function getTwitterPosts(req, res) {
 
 export async function addTwitterPost(req, res) {
   const { id } = req.params;
-  const { tweet_text, mediaurl } = req.body;
+  const { tweet_text, mediaurl, scheduled_at } = req.body;
   if (!tweet_text || tweet_text.trim() === "") {
     return res.status(400).json({ error: "Tweet text is required." });
   }
   try {
     const result = await getPool().query(
-      "INSERT INTO twitter_posts (workspace_id, tweet_text, mediaurl, status) VALUES ($1, $2, $3, $4) RETURNING *",
-      [id, tweet_text.trim(), mediaurl ? mediaurl.trim() : "", "ready"]
+      "INSERT INTO twitter_posts (workspace_id, tweet_text, mediaurl, status, scheduled_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [id, tweet_text.trim(), mediaurl ? mediaurl.trim() : "", "ready", scheduled_at || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -419,11 +419,11 @@ export async function addTwitterPost(req, res) {
 
 export async function updateTwitterPost(req, res) {
   const { id } = req.params;
-  const { tweet_text, mediaurl } = req.body;
+  const { tweet_text, mediaurl, scheduled_at } = req.body;
   try {
     const result = await getPool().query(
-      "UPDATE twitter_posts SET tweet_text = $1, mediaurl = $2 WHERE id = $3 RETURNING *",
-      [tweet_text, mediaurl, id]
+      "UPDATE twitter_posts SET tweet_text = $1, mediaurl = $2, scheduled_at = $3 WHERE id = $4 RETURNING *",
+      [tweet_text, mediaurl, scheduled_at !== undefined ? (scheduled_at || null) : null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found." });
     res.json(result.rows[0]);
@@ -499,14 +499,14 @@ export async function getYoutubePosts(req, res) {
 
 export async function addYoutubePost(req, res) {
   const { id } = req.params;
-  const { video_title, description, video_url } = req.body;
+  const { video_title, description, video_url, scheduled_at } = req.body;
   if (!video_title || video_title.trim() === "") {
     return res.status(400).json({ error: "Video title is required." });
   }
   try {
     const result = await getPool().query(
-      "INSERT INTO youtube_posts (workspace_id, video_title, description, video_url, status) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [id, video_title.trim(), description ? description.trim() : "", video_url ? video_url.trim() : "", "ready"]
+      "INSERT INTO youtube_posts (workspace_id, video_title, description, video_url, status, scheduled_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [id, video_title.trim(), description ? description.trim() : "", video_url ? video_url.trim() : "", "ready", scheduled_at || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -517,11 +517,11 @@ export async function addYoutubePost(req, res) {
 
 export async function updateYoutubePost(req, res) {
   const { id } = req.params;
-  const { video_title, description, video_url } = req.body;
+  const { video_title, description, video_url, scheduled_at } = req.body;
   try {
     const result = await getPool().query(
-      "UPDATE youtube_posts SET video_title = $1, description = $2, video_url = $3 WHERE id = $4 RETURNING *",
-      [video_title, description, video_url, id]
+      "UPDATE youtube_posts SET video_title = $1, description = $2, video_url = $3, scheduled_at = $4 WHERE id = $5 RETURNING *",
+      [video_title, description, video_url, scheduled_at !== undefined ? (scheduled_at || null) : null, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Post not found." });
     res.json(result.rows[0]);

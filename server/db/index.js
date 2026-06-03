@@ -3,7 +3,13 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// Return DATE columns (OID 1082) as plain strings (e.g. "2024-06-10") instead of
+// converting them to JavaScript Date objects. Without this, node-postgres interprets
+// DATE values as local-midnight Date objects, which in IST (UTC+5:30) serialize to
+// the *previous* day in UTC — causing the classic "saved as one day before" bug.
+types.setTypeParser(1082, (val) => val);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -215,6 +221,13 @@ export async function initDatabase() {
       "utf8",
     );
     await getPool().query(migrationsV25);
+
+    // Run v26 migrations (promised shoots tracking + scheduled_at for posts/videos)
+    const migrationsV26 = fs.readFileSync(
+      path.join(__dirname, "migrations_v26.sql"),
+      "utf8",
+    );
+    await getPool().query(migrationsV26);
 
     console.log("✓ Database initialized successfully");
   } catch (error) {

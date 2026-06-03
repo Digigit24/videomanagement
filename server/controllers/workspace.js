@@ -185,6 +185,7 @@ export async function updateWorkspaceDetails(req, res) {
       youtube_webhook_headers,
       youtube_webhook_active,
       video_promised,
+      shoots_promised,
       client_notes,
       client_active,
       client_page_url
@@ -200,7 +201,7 @@ export async function updateWorkspaceDetails(req, res) {
     const current = currentQuery.rows[0];
 
     const result = await pool.query(
-      `UPDATE workspaces SET 
+      `UPDATE workspaces SET
         client_name = $1,
         client_logo = $2,
         active_platforms = $3,
@@ -228,8 +229,9 @@ export async function updateWorkspaceDetails(req, res) {
         client_notes = $25,
         client_active = $26,
         client_page_url = $27,
+        shoots_promised = $28,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $28 RETURNING *`,
+      WHERE id = $29 RETURNING *`,
       [
         clientName !== undefined ? clientName : current.client_name,
         clientLogo !== undefined ? clientLogo : current.client_logo,
@@ -258,6 +260,7 @@ export async function updateWorkspaceDetails(req, res) {
         client_notes !== undefined ? client_notes : current.client_notes,
         client_active !== undefined ? client_active : current.client_active,
         client_page_url !== undefined ? client_page_url : current.client_page_url,
+        shoots_promised !== undefined ? (shoots_promised === null ? null : parseInt(shoots_promised)) : (current.shoots_promised ?? 0),
         id
       ]
     );

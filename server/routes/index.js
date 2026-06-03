@@ -134,6 +134,7 @@ import {
   buildPayload,
 } from "../controllers/campaign.js";
 import { getBookmarks, addBookmark, removeBookmark } from "../controllers/bookmark.js";
+import { listShoots, addShoot, editShoot, removeShoot } from "../controllers/shoot.js";
 import {
   createComposioConnectLink,
   createSharedComposioConnectLink,
@@ -809,6 +810,66 @@ router.delete("/youtube/:id", authenticate, deleteYoutubePost);
 router.get("/workspace/:workspaceId/bookmarks", authenticate, getBookmarks);
 router.post("/workspace/:workspaceId/bookmarks", authenticate, addBookmark);
 router.delete("/bookmark/:id", authenticate, removeBookmark);
+
+// Shoots (promised shoot sessions)
+router.get("/workspace/:id/shoots", authenticate, listShoots);
+router.post("/workspace/:id/shoots", authenticate, addShoot);
+router.patch("/shoots/:id", authenticate, editShoot);
+router.delete("/shoots/:id", authenticate, removeShoot);
+
+// Dashboard calendar data — all shoots + scheduled posts across all workspaces
+router.get("/dashboard/calendar-data", authenticate, async (req, res) => {
+  try {
+    const pool = (await import("../db/index.js")).getPool();
+    const { year, month } = req.query;
+
+    // Build optional date filter — if year+month provided, restrict to that month
+    let dateFilter = "";
+    const params = [];
+    if (year && month) {
+      const start = `${year}-${String(month).padStart(2, "0")}-01`;
+      const end = new Date(Number(year), Number(month), 1); // first day of next month
+      const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-01`;
+      dateFilter = ` AND (shoot_date >= $1 AND shoot_date < $2)`;
+      params.push(start, endStr);
+    }
+
+    const shootsRes = await pool.query(
+      `SELECT s.*, w.client_name FROM shoots s
+       JOIN workspaces w ON w.id = s.workspace_id
+       WHERE w.deleted_at IS NULL` + (dateFilter ? dateFilter.replace("shoot_date", "s.shoot_date") : "")
+       + ` ORDER BY s.shoot_date ASC NULLS LAST`,
+      params
+    );
+
+    // Scheduled posts — union across platforms
+    const scheduledFilter = params.length
+      ? ` AND (scheduled_at >= $1 AND scheduled_at < $2)`
+      : "";
+
+    const [gmb, ig, li, tw, yt] = await Promise.all([
+      pool.query(`SELECT id, workspace_id, title AS label, scheduled_at, status FROM gmb_posts WHERE scheduled_at IS NOT NULL${scheduledFilter} ORDER BY scheduled_at ASC`, params),
+      pool.query(`SELECT id, workspace_id, caption AS label, scheduled_at, status FROM instagram_posts WHERE scheduled_at IS NOT NULL${scheduledFilter} ORDER BY scheduled_at ASC`, params),
+      pool.query(`SELECT id, workspace_id, title AS label, scheduled_at, status FROM linkedin_posts WHERE scheduled_at IS NOT NULL${scheduledFilter} ORDER BY scheduled_at ASC`, params),
+      pool.query(`SELECT id, workspace_id, tweet_text AS label, scheduled_at, status FROM twitter_posts WHERE scheduled_at IS NOT NULL${scheduledFilter} ORDER BY scheduled_at ASC`, params),
+      pool.query(`SELECT id, workspace_id, video_title AS label, scheduled_at, status FROM youtube_posts WHERE scheduled_at IS NOT NULL${scheduledFilter} ORDER BY scheduled_at ASC`, params),
+    ]);
+
+    res.json({
+      shoots: shootsRes.rows,
+      scheduled_posts: {
+        gmb:       gmb.rows.map(r => ({ ...r, platform: "gmb" })),
+        instagram: ig.rows.map(r => ({ ...r, platform: "instagram" })),
+        linkedin:  li.rows.map(r => ({ ...r, platform: "linkedin" })),
+        twitter:   tw.rows.map(r => ({ ...r, platform: "twitter" })),
+        youtube:   yt.rows.map(r => ({ ...r, platform: "youtube" })),
+      },
+    });
+  } catch (err) {
+    console.error("[calendar-data] error:", err);
+    res.status(500).json({ error: "Failed to fetch calendar data." });
+  }
+});
 
 // PM folder — list HTML files and generate presigned URLs
 router.get("/workspace/:workspaceId/pm-files", authenticate, async (req, res) => {
