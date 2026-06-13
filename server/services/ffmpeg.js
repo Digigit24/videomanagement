@@ -468,7 +468,7 @@ function transcodeToHLS(inputPath, outputDir, quality, duration, onProgress) {
         `-vf scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2`,
         `-c:v libx264`,
         `-preset ultrafast`,
-        `-threads 0`,
+        `-threads 2`,
         `-b:v ${quality.bitrate}`,
         `-c:a aac`,
         `-b:a ${quality.audioBitrate}`,
