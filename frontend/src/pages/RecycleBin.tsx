@@ -122,16 +122,30 @@ export default function RecycleBin() {
     try {
       setClearing(true);
       const result = await recycleBinService.clearBin(clearPassword);
-      setDeletedVideos([]);
-      setDeletedWorkspaces([]);
-      setDeletedUsers([]);
       setShowClearModal(false);
       setClearPassword('');
-      const { workspaces, users, videos } = result.deleted;
+
+      const { videos, photos, workspaces, users, skippedUsers, failed } = result.deleted;
+      const mediaCount = (videos || 0) + (photos || 0);
+      const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+      const parts: string[] = [`${plural(mediaCount, 'media item')} deleted`];
+      if (workspaces) parts.push(`${plural(workspaces, 'workspace')} deleted`);
+      if (users) parts.push(`${plural(users, 'user')} deleted`);
+      if (skippedUsers) {
+        parts.push(
+          `${plural(skippedUsers, 'user')} kept because active records still reference them`,
+        );
+      }
+      if (failed) parts.push(`${plural(failed, 'item')} could not be deleted`);
+
       setToast({
-        message: `Recycle bin cleared: ${videos} video(s), ${workspaces} workspace(s), ${users} user(s) permanently deleted`,
-        type: 'success',
+        message: `${parts.join('. ')}.`,
+        type: skippedUsers || failed ? 'error' : 'success',
       });
+
+      // Reload rather than assuming everything went: kept/failed items must stay visible.
+      await loadRecycleBin();
     } catch (err: unknown) {
       setClearError((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to clear recycle bin');
     } finally {

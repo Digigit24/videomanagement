@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Video, VideoStatus } from '@/types';
-import { formatBytes, formatDate } from '@/lib/utils';
+import { formatBytes, formatDate, buildVideoDetailPath } from '@/lib/utils';
 import { videoService } from '@/services/api.service';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 
 interface VideoTableProps {
   videos: Video[];
+  /** Folder the list is currently showing, carried into the video detail page. */
+  folderId?: string | null;
   selectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
@@ -210,7 +212,7 @@ function CopyLinkButton({ videoId }: { videoId: string }) {
   );
 }
 
-export default function VideoTable({ videos, selectMode, selectedIds, onToggleSelect, onEnterSelectMode }: VideoTableProps) {
+export default function VideoTable({ videos, folderId = null, selectMode, selectedIds, onToggleSelect, onEnterSelectMode }: VideoTableProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const navigate = useNavigate();
@@ -265,7 +267,8 @@ export default function VideoTable({ videos, selectMode, selectedIds, onToggleSe
                 if (selectMode && onToggleSelect) {
                   onToggleSelect(video.id);
                 } else {
-                  navigate(`/workspace/${video.bucket}/video/${video.id}`);
+                  const origin = { bucket: video.bucket, folderId, view: 'list' };
+                  navigate(buildVideoDetailPath(video.bucket, video.id, origin), { state: { from: origin } });
                 }
               }}
               className={`bg-white dark:bg-gray-900 border rounded-xl overflow-hidden hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all cursor-pointer group ${

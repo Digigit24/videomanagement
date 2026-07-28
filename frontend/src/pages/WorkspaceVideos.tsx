@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { videoService, workspaceService, folderService } from '@/services/api.service';
-import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics, Folder } from '@/types';
+import { Video, VideoStatus, DashboardStats, Workspace, WorkspaceAnalytics, Folder, VIDEO_STATUSES, ALL_STATUSES } from '@/types';
 import DashboardCards from '@/components/DashboardCards';
 import VideoTable from '@/components/VideoTable';
 import KanbanBoard from '@/components/KanbanBoard';
@@ -10,29 +10,40 @@ import ViewSwitcher from '@/components/ViewSwitcher';
 import UploadModal from '@/components/UploadModal';
 import WorkspaceChat from '@/components/WorkspaceChat';
 import ManageMembersModal from '@/components/ManageMembersModal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
-import { Upload, ArrowLeft, Filter, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare, Share2, Copy, Link, Braces, KeyRound } from 'lucide-react';
+import { Upload, ArrowLeft, Filter, Trash, MessageCircle, X, Users, BarChart3, Calendar as CalendarIcon, FileVideo as FileVideoIcon, FolderPlus, FolderOpen, Image, Trash2, ChevronRight, Download, Archive, CheckSquare, Share2, Copy, Link, Braces, KeyRound } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { isToday, isThisWeek, isThisMonth, parseISO, format } from 'date-fns';
-import { API_BASE_URL } from '@/lib/api';
+import { API_BASE_URL, getErrorMessage } from '@/lib/api';
+import { paramToView, viewToParam, paramToStatus, statusToParam } from '@/lib/utils';
 
 export default function WorkspaceVideos() {
   const { bucket } = useParams<{ bucket: string }>();
   const navigate = useNavigate();
   const [videos, setVideos] = useState<Video[]>([]);
   const [filteredVideos, setFilteredVideos] = useState<Video[]>([]);
+  // Same set as filteredVideos but WITHOUT the status filter, so the summary
+  // card counts keep showing the whole folder rather than collapsing to zero.
+  const [statusScopedVideos, setStatusScopedVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  // Shared status filter for both the dropdown and the summary cards, seeded
+  // from `?status=` (read off location directly — useSearchParams is set up below).
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    paramToStatus(new URLSearchParams(window.location.search).get('status'), VIDEO_STATUSES),
+  );
   const [activeTab, setActiveTab] = useState<'folders' | 'chat' | 'analytics'>('folders');
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [analytics, setAnalytics] = useState<WorkspaceAnalytics | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // `?folder=` and `?view=` restore the folder + view the user came back from.
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(() => searchParams.get('folder'));
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('all');
@@ -43,6 +54,9 @@ export default function WorkspaceVideos() {
   const [folderSelectMode, setFolderSelectMode] = useState(false);
   const [folderBulkDownloading, setFolderBulkDownloading] = useState(false);
   const [folderDownloading, setFolderDownloading] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState('');
   const [folderShareModal, setFolderShareModal] = useState<{ folderId: string; folderName: string } | null>(null);
   const [folderShareToken, setFolderShareToken] = useState<string | null>(null);
   const [folderShareLoading, setFolderShareLoading] = useState(false);
@@ -52,8 +66,15 @@ export default function WorkspaceVideos() {
   const userRole = localStorage.getItem('userRole') || 'member';
   const canCreateFolder = ['admin', 'project_manager', 'social_media_manager', 'video_editor', 'videographer', 'photo_editor'].includes(userRole);
   const canDeleteFolder = ['admin', 'project_manager', 'social_media_manager'].includes(userRole);
+  // Same role set the API enforces in removeVideo() and the single-video delete UI.
+  const canDeleteVideos = ['admin', 'video_editor', 'project_manager', 'social_media_manager'].includes(userRole);
+  const isAdmin = userRole === 'admin';
   const [view, setView] = useState<'list' | 'kanban' | 'calendar'>(() => {
-    return (localStorage.getItem('viewMode') as 'list' | 'kanban' | 'calendar') || 'list';
+    return (
+      paramToView(searchParams.get('view')) ||
+      (localStorage.getItem('viewMode') as 'list' | 'kanban' | 'calendar') ||
+      'list'
+    );
   });
   const [stats, setStats] = useState<DashboardStats>({
     total: 0, draft: 0, pending: 0, underReview: 0,
@@ -66,6 +87,23 @@ export default function WorkspaceVideos() {
     setView(newView);
     localStorage.setItem('viewMode', newView);
   };
+
+  // Mirror the current folder + view into the URL (replace, so it does not add
+  // history entries). This is what the video detail back button reads.
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search);
+    if (selectedFolder) next.set('folder', selectedFolder);
+    else next.delete('folder');
+    const viewParam = viewToParam(view);
+    if (selectedFolder && viewParam) next.set('view', viewParam);
+    else next.delete('view');
+    const statusParam = statusToParam(statusFilter);
+    if (statusParam) next.set('status', statusParam);
+    else next.delete('status');
+    if (next.toString() !== window.location.search.replace(/^\?/, '')) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [selectedFolder, view, statusFilter, setSearchParams]);
 
   useEffect(() => {
     if (bucket) {
@@ -156,6 +194,8 @@ export default function WorkspaceVideos() {
       if (ws) {
         const f = await folderService.getFolders(ws.id);
         setFolders(f);
+        // A `?folder=` id from a back-navigation may no longer exist.
+        setSelectedFolder(prev => (prev && !f.some(folder => folder.id === prev) ? null : prev));
       }
     } catch {}
   };
@@ -247,6 +287,77 @@ export default function WorkspaceVideos() {
   const exitSelectMode = () => {
     setSelectMode(false);
     setSelectedVideoIds(new Set());
+  };
+
+  /**
+   * Bulk delete: reuses the existing per-video soft-delete endpoint (videos go
+   * to the recycle bin). Promise.allSettled so one failure does not abort the
+   * rest; only videos whose request actually succeeded leave the board.
+   */
+  const handleBulkDelete = async (password?: string) => {
+    if (!bucket || selectedVideoIds.size === 0 || bulkDeleting) return;
+    if (!canDeleteVideos) {
+      setBulkDeleteError('You do not have permission to delete videos');
+      return;
+    }
+
+    const ids = Array.from(selectedVideoIds);
+    setBulkDeleting(true);
+    setBulkDeleteError('');
+
+    try {
+      const results = await Promise.allSettled(
+        ids.map(id => videoService.deleteVideo(id, bucket, password)),
+      );
+
+      const deletedIds: string[] = [];
+      const failedIds: string[] = [];
+      let firstError: unknown = null;
+      results.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          deletedIds.push(ids[i]);
+        } else {
+          failedIds.push(ids[i]);
+          if (firstError === null) firstError = result.reason;
+        }
+      });
+
+      // Only drop cards that the server confirmed as deleted.
+      if (deletedIds.length > 0) {
+        const deleted = new Set(deletedIds);
+        setVideos(prev => prev.filter(v => !deleted.has(v.id)));
+      }
+
+      if (failedIds.length > 0) {
+        const message = getErrorMessage(firstError, 'Failed to delete video');
+        // Keep the failed ones selected so the user can retry them.
+        setSelectedVideoIds(new Set(failedIds));
+        if (deletedIds.length === 0) {
+          // Nothing was deleted (e.g. wrong admin password) — keep the dialog open.
+          setBulkDeleteError(message);
+          return;
+        }
+        setConfirmBulkDelete(false);
+        setToast({
+          message: `Deleted ${deletedIds.length}, ${failedIds.length} failed: ${message}`,
+          type: 'error',
+        });
+      } else {
+        setConfirmBulkDelete(false);
+        exitSelectMode();
+        setToast({
+          message: `Moved ${deletedIds.length} ${deletedIds.length === 1 ? 'video' : 'videos'} to the recycle bin`,
+          type: 'success',
+        });
+      }
+
+      if (deletedIds.length > 0) {
+        refreshVideosSilent();
+        loadAnalytics();
+      }
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   // --- Folder selection handlers ---
@@ -434,9 +545,6 @@ export default function WorkspaceVideos() {
     if (mediaTypeFilter !== 'all') {
       filtered = filtered.filter(video => (video.media_type || 'video') === mediaTypeFilter);
     }
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(video => video.status === statusFilter);
-    }
     if (dateFilter !== 'all') {
       filtered = filtered.filter(video => {
         const date = parseISO(video.created_at);
@@ -447,7 +555,14 @@ export default function WorkspaceVideos() {
       });
     }
 
-    setFilteredVideos(filtered);
+    // Card counts come from this set (folder + media type + date, no status).
+    setStatusScopedVideos(filtered);
+
+    setFilteredVideos(
+      statusFilter !== ALL_STATUSES
+        ? filtered.filter(video => video.status === statusFilter)
+        : filtered,
+    );
   };
 
   const handleOptimisticUpdate = (videoId: string, newStatus: VideoStatus) => {
@@ -833,14 +948,10 @@ export default function WorkspaceVideos() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Draft">Draft</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Under Review">Under Review</SelectItem>
-                <SelectItem value="Approved">Approved</SelectItem>
-                <SelectItem value="Changes Needed">Changes Needed</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
-                <SelectItem value="Posted">Posted</SelectItem>
+                <SelectItem value={ALL_STATUSES}>All Status</SelectItem>
+                {VIDEO_STATUSES.map(status => (
+                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -922,16 +1033,21 @@ export default function WorkspaceVideos() {
           </div>
 
           {/* Status Overview for this folder */}
-          <DashboardCards stats={{
-            total: filteredVideos.length,
-            draft: filteredVideos.filter(v => v.status === 'Draft').length,
-            pending: filteredVideos.filter(v => v.status === 'Pending').length,
-            underReview: filteredVideos.filter(v => v.status === 'Under Review').length,
-            approved: filteredVideos.filter(v => v.status === 'Approved').length,
-            changesNeeded: filteredVideos.filter(v => v.status === 'Changes Needed').length,
-            rejected: filteredVideos.filter(v => v.status === 'Rejected').length,
-            posted: filteredVideos.filter(v => v.status === 'Posted').length,
-          }} totalEverPosted={analytics?.historical.totalEverPosted} />
+          <DashboardCards
+            stats={{
+              total: statusScopedVideos.length,
+              draft: statusScopedVideos.filter(v => v.status === 'Draft').length,
+              pending: statusScopedVideos.filter(v => v.status === 'Pending').length,
+              underReview: statusScopedVideos.filter(v => v.status === 'Under Review').length,
+              approved: statusScopedVideos.filter(v => v.status === 'Approved').length,
+              changesNeeded: statusScopedVideos.filter(v => v.status === 'Changes Needed').length,
+              rejected: statusScopedVideos.filter(v => v.status === 'Rejected').length,
+              posted: statusScopedVideos.filter(v => v.status === 'Posted').length,
+            }}
+            totalEverPosted={analytics?.historical.totalEverPosted}
+            activeStatus={statusFilter}
+            onSelectStatus={setStatusFilter}
+          />
 
           {/* Selection Toolbar */}
           {selectMode && (
@@ -969,6 +1085,20 @@ export default function WorkspaceVideos() {
                   </Button>
                 </>
               )}
+              {canDeleteVideos && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => { setBulkDeleteError(''); setConfirmBulkDelete(true); }}
+                  disabled={selectedVideoIds.size === 0 || bulkDeleting}
+                  className="gap-1.5 h-7 text-xs"
+                >
+                  <Trash className="h-3 w-3" />
+                  {bulkDeleting
+                    ? 'Deleting...'
+                    : `Delete${selectedVideoIds.size > 0 ? ` ${selectedVideoIds.size}` : ''}`}
+                </Button>
+              )}
             </div>
           )}
 
@@ -989,10 +1119,12 @@ export default function WorkspaceVideos() {
             <CalendarView
               videos={filteredVideos}
               folderVideos={selectedFolder ? videos.filter(v => v.folder_id === selectedFolder) : videos}
+              folderId={selectedFolder}
             />
           ) : view === 'list' ? (
             <VideoTable
               videos={filteredVideos}
+              folderId={selectedFolder}
               selectMode={selectMode}
               selectedIds={selectedVideoIds}
               onToggleSelect={handleToggleSelect}
@@ -1002,7 +1134,14 @@ export default function WorkspaceVideos() {
               }}
             />
           ) : (
-            <KanbanBoard videos={filteredVideos} onVideoUpdate={handleOptimisticUpdate} />
+            <KanbanBoard
+              videos={filteredVideos}
+              onVideoUpdate={handleOptimisticUpdate}
+              folderId={selectedFolder}
+              selectMode={selectMode}
+              selectedIds={selectedVideoIds}
+              onToggleSelect={handleToggleSelect}
+            />
           )}
         </div>
       )}
@@ -1223,6 +1362,19 @@ export default function WorkspaceVideos() {
           </div>
         </>
       )}
+
+      {/* Bulk delete confirmation — soft delete, videos land in the Recycle Bin */}
+      <ConfirmDialog
+        isOpen={confirmBulkDelete}
+        title="Delete selected videos?"
+        message={`This will move ${selectedVideoIds.size} selected ${selectedVideoIds.size === 1 ? 'video' : 'videos'} to the recycle bin. They can be restored within 3 days.`}
+        confirmText={bulkDeleting ? 'Deleting...' : 'Delete Videos'}
+        variant="danger"
+        showPassword={isAdmin}
+        error={bulkDeleteError}
+        onConfirm={handleBulkDelete}
+        onCancel={() => { setConfirmBulkDelete(false); setBulkDeleteError(''); }}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} persistent={toast.persistent} onClose={() => setToast(null)} />}
     </div>

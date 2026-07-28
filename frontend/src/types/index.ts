@@ -44,6 +44,20 @@ export type VideoStatus =
   | "Rejected"
   | "Posted";
 
+/** Runtime list of the video statuses above, in display order. */
+export const VIDEO_STATUSES: VideoStatus[] = [
+  "Draft",
+  "Pending",
+  "Under Review",
+  "Approved",
+  "Changes Needed",
+  "Rejected",
+  "Posted",
+];
+
+/** Value used by the status filter when no status is selected. */
+export const ALL_STATUSES = "all";
+
 export type UserRole =
   | "admin"
   | "video_editor"

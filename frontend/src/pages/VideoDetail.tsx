@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useBucket } from '@/hooks/useBucket';
 import { videoService, commentService, workspaceService, activityService } from '@/services/api.service';
 import { APP_URL } from '@/lib/api';
 import { Video, VideoStatus, Comment, VideoViewer, ProcessingStatus, Activity } from '@/types';
-import { formatBytes, formatDate, getApiUrl } from '@/lib/utils';
+import { formatBytes, formatDate, getApiUrl, buildWorkspacePath, VideoOrigin } from '@/lib/utils';
 import HLSPlayer from '@/components/HLSPlayer';
 import CommentsSection from '@/components/CommentsSection';
 import TimestampPanel from '@/components/TimestampPanel';
@@ -141,12 +141,26 @@ export default function VideoDetail() {
   const currentBucket = bucket || contextBucket;
   const navigate = useNavigate();
 
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Where the user opened this video from. React Router navigation state is the
+  // primary source; the query params are the fallback that survives a reload or
+  // a pasted/bookmarked URL.
+  const navState = (location.state as { from?: VideoOrigin } | null)?.from;
+  const backOrigin: VideoOrigin = {
+    bucket: navState?.bucket || currentBucket || undefined,
+    folderId: navState?.folderId ?? searchParams.get('folderId'),
+    view: navState?.view ?? searchParams.get('view') ?? undefined,
+  };
+
   // Back button: force full navigation to workspace
   // Using window.location because React Router navigate() doesn't
   // reliably unmount VideoDetail when going to sibling route
   const handleBack = useCallback(() => {
-    window.location.href = currentBucket ? `/workspace/${currentBucket}` : '/';
-  }, [currentBucket]);
+    const targetBucket = backOrigin.bucket;
+    window.location.href = targetBucket ? buildWorkspacePath(targetBucket, backOrigin) : '/';
+  }, [backOrigin.bucket, backOrigin.folderId, backOrigin.view]);
   const playerRef = useRef<ReactPlayer>(null);
   const [video, setVideo] = useState<Video | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -412,7 +426,7 @@ export default function VideoDetail() {
     try {
       await videoService.deleteVideo(id, currentBucket, password);
       setConfirmDelete(false);
-      navigate(`/workspace/${currentBucket}`);
+      navigate(buildWorkspacePath(currentBucket, backOrigin));
     } catch (error: unknown) {
       console.error('Delete error:', error);
       const axiosErr = error as { response?: { status?: number; data?: { error?: string } } };

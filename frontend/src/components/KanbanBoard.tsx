@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { Video, VideoStatus } from '@/types';
 import { videoService } from '@/services/api.service';
-import { formatBytes, formatDate } from '@/lib/utils';
+import { formatBytes, formatDate, buildVideoDetailPath } from '@/lib/utils';
 import { FileVideo, User, Play, GripVertical, Link2, Check, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Toast } from './ui/toast';
@@ -22,6 +22,12 @@ import { Toast } from './ui/toast';
 interface KanbanBoardProps {
   videos: Video[];
   onVideoUpdate: (videoId: string, newStatus: VideoStatus) => void;
+  /** Folder the board is currently showing, carried into the video detail page. */
+  folderId?: string | null;
+  /** Selection mode shared with the workspace toolbar (List view uses the same state). */
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (videoId: string) => void;
 }
 
 const statusColumns: VideoStatus[] = ['Draft', 'Pending', 'Under Review', 'Approved', 'Changes Needed', 'Rejected', 'Posted'];
@@ -36,6 +42,19 @@ const statusColors: Record<VideoStatus, string> = {
   'Posted': 'bg-violet-50 border-violet-200 dark:bg-violet-900/30 dark:border-violet-700',
 };
 
+// Opaque header backgrounds so cards can never show through the sticky header.
+// Light shades match the column background exactly; dark shades are the solid
+// equivalent of the column's translucent dark tint.
+const statusHeaderColors: Record<VideoStatus, string> = {
+  'Draft': 'bg-slate-50 dark:bg-slate-900',
+  'Pending': 'bg-amber-50 dark:bg-amber-950',
+  'Under Review': 'bg-blue-50 dark:bg-blue-950',
+  'Approved': 'bg-emerald-50 dark:bg-emerald-950',
+  'Changes Needed': 'bg-orange-50 dark:bg-orange-950',
+  'Rejected': 'bg-red-50 dark:bg-red-950',
+  'Posted': 'bg-violet-50 dark:bg-violet-950',
+};
+
 const statusDotColors: Record<VideoStatus, string> = {
   'Draft': 'bg-slate-400',
   'Pending': 'bg-amber-400',
@@ -46,11 +65,44 @@ const statusDotColors: Record<VideoStatus, string> = {
   'Posted': 'bg-violet-400',
 };
 
-export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps) {
+// Height of the sticky application header (Header.tsx uses h-14 = 56px).
+const APP_HEADER_HEIGHT = 56;
+
+/**
+ * Lets the board use the full viewport width even though it is rendered inside
+ * the centered `max-w-7xl` <main> container. We measure
+ * `document.documentElement.clientWidth` (which EXCLUDES the vertical
+ * scrollbar) instead of using `100vw`, so breaking out never introduces a
+ * horizontal scrollbar. No transform/scale is used, so @dnd-kit pointer
+ * coordinates stay accurate.
+ */
+function useFullBleedStyle(): React.CSSProperties | undefined {
+  const [width, setWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const update = () => setWidth(document.documentElement.clientWidth);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  if (width === null) return undefined;
+  return { width: `${width}px`, marginLeft: `calc(50% - ${width / 2}px)` };
+}
+
+export default function KanbanBoard({
+  videos,
+  onVideoUpdate,
+  folderId = null,
+  selectMode = false,
+  selectedIds,
+  onToggleSelect,
+}: KanbanBoardProps) {
   const [activeVideo, setActiveVideo] = useState<Video | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
+  const fullBleedStyle = useFullBleedStyle();
 
   const userRole = localStorage.getItem('userRole') || 'member';
   const canChangeStatus = ['admin', 'project_manager', 'client'].includes(userRole);
@@ -75,7 +127,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    if (!canChangeStatus) return;
+    if (!canChangeStatus || selectMode) return;
     const video = videos.find(v => v.id === event.active.id);
     setActiveVideo(video || null);
   };
@@ -84,7 +136,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
     const { active, over } = event;
     setActiveVideo(null);
 
-    if (!over || !canChangeStatus) return;
+    if (!over || !canChangeStatus || selectMode) return;
 
     const videoId = active.id as string;
     const newStatus = over.id as VideoStatus;
@@ -122,17 +174,33 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1 min-h-[500px]">
-        {statusColumns.map(status => (
-          <StatusColumn
-            key={status}
-            status={status}
-            videos={getVideosByStatus(status)}
-            canDrag={canChangeStatus}
-            activeVideoId={activeVideo?.id ?? null}
-            onVideoClick={(id, bucket) => navigate(`/workspace/${bucket}/video/${id}`)}
-          />
-        ))}
+      {/* Full-bleed wrapper: board view only, List/Calendar are untouched */}
+      <div style={fullBleedStyle} className="px-3 sm:px-6 lg:px-8">
+        {/*
+          Below xl the board keeps its horizontal scroll (columns stay readable).
+          From xl up, overflow is visible so `position: sticky` column headers
+          resolve against the page scroll instead of this box.
+        */}
+        <div className="overflow-x-auto xl:overflow-x-visible pb-4">
+          <div className="grid grid-cols-7 gap-3 xl:gap-2 min-w-[1600px] xl:min-w-0 min-h-[500px]">
+            {statusColumns.map(status => (
+              <StatusColumn
+                key={status}
+                status={status}
+                videos={getVideosByStatus(status)}
+                canDrag={canChangeStatus && !selectMode}
+                activeVideoId={activeVideo?.id ?? null}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={onToggleSelect}
+                onVideoClick={(id, bucket) => {
+                  const origin = { bucket, folderId, view: 'kanban' };
+                  navigate(buildVideoDetailPath(bucket, id, origin), { state: { from: origin } });
+                }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
       <DragOverlay dropAnimation={null}>
@@ -141,7 +209,7 @@ export default function KanbanBoard({ videos, onVideoUpdate }: KanbanBoardProps)
             <div className="flex items-start gap-2">
               <FileVideo className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <h3 className="text-sm font-medium dark:text-gray-100 line-clamp-2">{activeVideo.filename}</h3>
+                <h3 className="text-sm font-medium dark:text-gray-100 line-clamp-2 break-words [overflow-wrap:anywhere]">{activeVideo.filename}</h3>
                 <p className="text-[10px] text-gray-400 mt-0.5">{activeVideo.status}</p>
               </div>
             </div>
@@ -172,9 +240,21 @@ interface StatusColumnProps {
   canDrag: boolean;
   activeVideoId: string | null;
   onVideoClick: (id: string, bucket: string) => void;
+  selectMode: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (videoId: string) => void;
 }
 
-function StatusColumn({ status, videos, canDrag, activeVideoId, onVideoClick }: StatusColumnProps) {
+function StatusColumn({
+  status,
+  videos,
+  canDrag,
+  activeVideoId,
+  onVideoClick,
+  selectMode,
+  selectedIds,
+  onToggleSelect,
+}: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
@@ -182,24 +262,30 @@ function StatusColumn({ status, videos, canDrag, activeVideoId, onVideoClick }: 
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-56 sm:w-64 rounded-lg border transition-all duration-200 ${statusColors[status]} ${
+      // `min-w-0` lets the grid track shrink below the intrinsic card width.
+      // No `transform`/`scale` here: it would break both `position: sticky`
+      // on the header and @dnd-kit pointer collision detection.
+      className={`min-w-0 flex flex-col rounded-lg border transition-colors duration-200 ${statusColors[status]} ${
         isOver
-          ? 'ring-2 ring-blue-400 shadow-lg scale-[1.02] border-blue-300'
+          ? 'ring-2 ring-blue-400 shadow-lg border-blue-300'
           : ''
       }`}
     >
-      <div className="px-3 py-2.5 border-b border-gray-200/50 dark:border-gray-700/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${statusDotColors[status]}`} />
-            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{status}</span>
+      <div
+        className={`sticky z-20 rounded-t-lg px-2 xl:px-2 py-2.5 border-b border-gray-200/50 dark:border-gray-700/50 ${statusHeaderColors[status]}`}
+        style={{ top: `${APP_HEADER_HEIGHT}px` }}
+      >
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColors[status]}`} />
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={status}>{status}</span>
           </div>
-          <span className="text-xs text-gray-400 bg-white/60 dark:bg-gray-800/60 px-1.5 py-0.5 rounded">
+          <span className="text-xs text-gray-400 bg-white/60 dark:bg-gray-800/60 px-1.5 py-0.5 rounded flex-shrink-0">
             {videos.length}
           </span>
         </div>
       </div>
-      <div className="p-2 space-y-2 min-h-[400px]">
+      <div className="flex-1 p-1.5 xl:p-1.5 space-y-2 min-h-[400px]">
         {videos.map(video => (
           <DraggableVideoCard
             key={video.id}
@@ -207,6 +293,9 @@ function StatusColumn({ status, videos, canDrag, activeVideoId, onVideoClick }: 
             canDrag={canDrag}
             isBeingDragged={video.id === activeVideoId}
             onClick={() => onVideoClick(video.id, video.bucket)}
+            selectMode={selectMode}
+            isSelected={!!selectedIds?.has(video.id)}
+            onToggleSelect={onToggleSelect}
           />
         ))}
         {videos.length === 0 && (
@@ -226,6 +315,9 @@ interface DraggableVideoCardProps {
   canDrag: boolean;
   isBeingDragged: boolean;
   onClick: () => void;
+  selectMode: boolean;
+  isSelected: boolean;
+  onToggleSelect?: (videoId: string) => void;
 }
 
 function KanbanThumbnail({ video }: { video: Video }) {
@@ -305,7 +397,7 @@ function KanbanCopyLinkButton({ videoId }: { videoId: string }) {
   return (
     <button
       onClick={handleCopyLink}
-      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-all ${
+      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-all flex-shrink-0 ${
         state === 'copied'
           ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400'
           : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400'
@@ -324,10 +416,20 @@ function KanbanCopyLinkButton({ videoId }: { videoId: string }) {
   );
 }
 
-function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: DraggableVideoCardProps) {
+function DraggableVideoCard({
+  video,
+  canDrag,
+  isBeingDragged,
+  onClick,
+  selectMode,
+  isSelected,
+  onToggleSelect,
+}: DraggableVideoCardProps) {
+  // Drag is fully disabled while selecting so a click can never change status.
+  const dragEnabled = canDrag && !selectMode;
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: video.id,
-    disabled: !canDrag,
+    disabled: !dragEnabled,
   });
   const didDrag = useRef(false);
 
@@ -351,11 +453,33 @@ function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: Draggab
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-sm transition-shadow group ${
-        canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-      }`}
+      className={`relative rounded-lg overflow-hidden hover:shadow-sm transition-shadow group border ${
+        isSelected
+          ? 'border-blue-500 ring-2 ring-blue-400/60 bg-blue-50 dark:bg-blue-950/60'
+          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+      } ${dragEnabled ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
     >
-      {canDrag && (
+      {selectMode && (
+        <button
+          type="button"
+          aria-label={isSelected ? 'Deselect video' : 'Select video'}
+          aria-pressed={isSelected}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.(video.id);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className={`absolute top-1.5 left-1.5 z-10 h-5 w-5 rounded flex items-center justify-center border-2 shadow-sm transition-colors ${
+            isSelected
+              ? 'bg-blue-600 border-blue-600 text-white'
+              : 'bg-white/95 dark:bg-gray-900/95 border-gray-300 dark:border-gray-500 text-transparent hover:border-blue-400'
+          }`}
+        >
+          <Check className="h-3 w-3" strokeWidth={3} />
+        </button>
+      )}
+
+      {dragEnabled && (
         <div
           {...listeners}
           {...attributes}
@@ -376,27 +500,38 @@ function DraggableVideoCard({ video, canDrag, isBeingDragged, onClick }: Draggab
       <div
         onClick={(e) => {
           e.stopPropagation();
+          // While selecting, clicking the card toggles selection instead of
+          // opening the video detail page.
+          if (selectMode) {
+            onToggleSelect?.(video.id);
+            return;
+          }
           if (!didDrag.current) onClick();
         }}
-        className="cursor-pointer p-2.5"
+        className="cursor-pointer p-2"
       >
         <KanbanThumbnail video={video} />
 
-        <h3 className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 mb-1.5">{video.filename}</h3>
+        <h3
+          className="text-xs font-medium text-gray-900 dark:text-gray-100 line-clamp-2 break-words [overflow-wrap:anywhere] mb-1.5"
+          title={video.filename}
+        >
+          {video.filename}
+        </h3>
 
-        <div className="flex items-center justify-between text-[10px] text-gray-400">
-          <span>{formatDate(video.created_at)}</span>
-          <span>{formatBytes(video.size)}</span>
+        <div className="flex items-center justify-between gap-1 text-[10px] text-gray-400">
+          <span className="truncate">{formatDate(video.created_at)}</span>
+          <span className="flex-shrink-0">{formatBytes(video.size)}</span>
         </div>
 
-        <div className="flex items-center justify-between mt-1.5">
+        <div className="flex items-center justify-between gap-1 mt-1.5">
           {video.uploaded_by_name ? (
-            <div className="flex items-center gap-1 text-[10px] text-gray-400">
-              <User className="h-2.5 w-2.5" />
-              <span>{video.uploaded_by_name}</span>
+            <div className="flex items-center gap-1 text-[10px] text-gray-400 min-w-0">
+              <User className="h-2.5 w-2.5 flex-shrink-0" />
+              <span className="truncate" title={video.uploaded_by_name}>{video.uploaded_by_name}</span>
             </div>
           ) : (
-            <div />
+            <div className="min-w-0" />
           )}
           <KanbanCopyLinkButton videoId={video.id} />
         </div>

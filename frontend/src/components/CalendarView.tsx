@@ -2,12 +2,15 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Video, CalendarNote } from '@/types';
 import { videoService, calendarNoteService } from '@/services/api.service';
+import { buildVideoDetailPath } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Play, Image, Plus, X, Clock, FileVideo, Search, ChevronDown } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from 'date-fns';
 
 interface CalendarViewProps {
   videos: Video[];
   folderVideos: Video[];
+  /** Folder the calendar is currently showing, carried into the video detail page. */
+  folderId?: string | null;
 }
 
 const statusDot: Record<string, string> = {
@@ -28,9 +31,15 @@ function getNoteColor(color: string) {
   return NOTE_COLORS.find(c => c.name === color) || NOTE_COLORS[0];
 }
 
-export default function CalendarView({ videos, folderVideos }: CalendarViewProps) {
+export default function CalendarView({ videos, folderVideos, folderId = null }: CalendarViewProps) {
   const navigate = useNavigate();
   const { bucket } = useParams<{ bucket: string }>();
+
+  const openVideo = (videoId: string) => {
+    if (!bucket) return;
+    const origin = { bucket, folderId, view: 'calendar' };
+    navigate(buildVideoDetailPath(bucket, videoId, origin), { state: { from: origin } });
+  };
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [notes, setNotes] = useState<CalendarNote[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -287,7 +296,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
                   {dayVideos.slice(0, 2).map(v => (
                     <div
                       key={v.id}
-                      onClick={(e) => { e.stopPropagation(); navigate(`/workspace/${bucket}/video/${v.id}`); }}
+                      onClick={(e) => { e.stopPropagation(); openVideo(v.id); }}
                       className="flex items-center gap-1.5 p-1 rounded-md bg-gray-50/80 dark:bg-gray-800/80 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors border border-gray-100 dark:border-gray-800"
                     >
                       <VideoThumb video={v} size="cell" />
@@ -380,7 +389,7 @@ export default function CalendarView({ videos, folderVideos }: CalendarViewProps
               {selVideos.map(v => (
                 <div
                   key={v.id}
-                  onClick={() => navigate(`/workspace/${bucket}/video/${v.id}`)}
+                  onClick={() => openVideo(v.id)}
                   className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors border border-gray-100 dark:border-gray-800 active:scale-[0.98]"
                 >
                   <VideoThumb video={v} size="md" />

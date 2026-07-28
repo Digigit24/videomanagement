@@ -691,7 +691,18 @@ export const recycleBinService = {
 
   clearBin: async (password: string) => {
     const { data } = await api.post("/admin/recycle-bin/clear", { password });
-    return data as { message: string; deleted: { workspaces: number; users: number; videos: number } };
+    return data as {
+      message: string;
+      deleted: {
+        videos: number;
+        photos: number;
+        workspaces: number;
+        users: number;
+        skippedUsers: number;
+        failed: number;
+        skipped: { type: string; id: string; name: string; reason: string }[];
+      };
+    };
   },
 };
 
