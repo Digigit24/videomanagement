@@ -215,3 +215,6 @@ CREATE TABLE videos (
 ## License
 
 MIT
+
+
+<!-- Security scan triggered at 2026-09-05 07:30:47 -->
